@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Báo cáo Phòng Kế Toán — HQ Group</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#05070f;
+  --glass:rgba(255,255,255,.045);
+  --glass-2:rgba(255,255,255,.075);
+  --line:rgba(255,255,255,.10);
+  --line-2:rgba(255,255,255,.18);
+  --ink:#eaf0ff;
+  --ink-2:#a6b3d4;
+  --ink-3:#6c7ba3;
+  --v1:#7c5cff;
+  --v2:#4b8dff;
+  --cy:#22d3ee;
+  --pk:#f472b6;
+  --gain:#34d399;
+  --loss:#fb7185;
+  --warn:#fbbf24;
+  --f:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --m:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--f);font-size:14px;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(760px 420px at 12% -6%, rgba(124,92,255,.30), transparent 62%),
+    radial-gradient(680px 420px at 88% 4%, rgba(34,211,238,.16), transparent 60%),
+    radial-gradient(900px 600px at 50% 108%, rgba(75,141,255,.16), transparent 66%);}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+::-webkit-scrollbar{height:9px;width:9px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:9px}
+::-webkit-scrollbar-track{background:transparent}
+:focus-visible{outline:2px solid var(--cy);outline-offset:2px}
+
+.wrap{position:relative;z-index:1;display:flex;min-height:100vh}
+
+/* ---------- rail ---------- */
+.rail{width:250px;flex:0 0 250px;padding:22px 16px;position:sticky;top:0;height:100vh;overflow-y:auto;
+  background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.02));
+  border-right:1px solid var(--line);backdrop-filter:blur(18px)}
+.brand{display:flex;align-items:center;gap:11px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.logo{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-family:var(--m);font-weight:500;font-size:15px;color:#fff;
+  background:linear-gradient(135deg,var(--v1),var(--v2));box-shadow:0 0 22px rgba(124,92,255,.55)}
+.brand .t{font-size:14px;font-weight:600;letter-spacing:-.01em}
+.brand .s{font-size:10.5px;color:var(--ink-3);margin-top:2px}
+.rail-lb{font-family:var(--m);font-size:9.5px;letter-spacing:.2em;color:var(--ink-3);padding:20px 6px 9px}
+.nav{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border-radius:11px;border:1px solid transparent;transition:.18s;margin-bottom:3px}
+.nav:hover{background:var(--glass);border-color:var(--line)}
+.nav.on{background:linear-gradient(90deg,rgba(124,92,255,.28),rgba(124,92,255,.05));border-color:rgba(124,92,255,.45);box-shadow:0 0 20px rgba(124,92,255,.18)}
+.nav .c{font-family:var(--m);font-size:9.5px;color:var(--cy);padding-top:3px;min-width:32px}
+.nav.on .c{color:#9ff3ff}
+.nav .n{font-size:12.5px;color:var(--ink);line-height:1.35}
+.nav .sla{font-family:var(--m);font-size:9.5px;color:var(--ink-3)}
+
+/* ---------- main ---------- */
+.main{flex:1;min-width:0}
+.top{padding:22px 30px 18px;border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,0));backdrop-filter:blur(14px);
+  position:sticky;top:0;z-index:9}
+.top-row{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap}
+.eyebrow{font-family:var(--m);font-size:9.5px;letter-spacing:.18em;color:var(--cy)}
+.top h1{margin:8px 0 4px;font-size:24px;font-weight:600;letter-spacing:-.02em}
+.top .sub{color:var(--ink-2);font-size:12.5px;max-width:700px;line-height:1.55}
+.content{padding:24px 30px 70px;max-width:1620px}
+
+/* ---------- controls ---------- */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--glass)}
+.seg button{border:0;background:transparent;color:var(--ink-2);padding:7px 15px;font-size:12px;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:linear-gradient(135deg,var(--v1),var(--v2));color:#fff;box-shadow:0 0 18px rgba(124,92,255,.5)}
+.lb{display:block;font-family:var(--m);font-size:9.5px;letter-spacing:.14em;color:var(--ink-3);margin-bottom:6px}
+.btn{border:1px solid var(--line-2);background:var(--glass);color:var(--ink);padding:8px 15px;border-radius:10px;font-size:12px;transition:.18s}
+.btn:hover{background:var(--glass-2);border-color:rgba(124,92,255,.6)}
+.btn.primary{border:0;background:linear-gradient(135deg,var(--v1),var(--v2));color:#fff;box-shadow:0 0 20px rgba(124,92,255,.45)}
+.inp{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:8px 11px;font-size:12.5px;font-family:inherit;min-width:150px}
+
+/* ---------- glass panel ---------- */
+.card{background:var(--glass);border:1px solid var(--line);border-radius:16px;backdrop-filter:blur(16px);margin-bottom:18px;overflow:hidden}
+.card-h{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:14px;
+  background:linear-gradient(180deg,rgba(255,255,255,.045),transparent)}
+.card-h h2{margin:0;font-size:14px;font-weight:600}
+.card-h .hint{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+.card-b{padding:18px}
+
+/* ---------- kpi ---------- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:13px;margin-bottom:20px}
+.kpi{position:relative;background:var(--glass);border:1px solid var(--line);border-radius:15px;padding:15px 16px;backdrop-filter:blur(16px);overflow:hidden;transition:.2s}
+.kpi:hover{border-color:rgba(124,92,255,.55);transform:translateY(-2px)}
+.kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--v1);box-shadow:0 0 16px var(--v1)}
+.kpi.gain::after{background:var(--gain);box-shadow:0 0 16px var(--gain)}
+.kpi.loss::after{background:var(--loss);box-shadow:0 0 16px var(--loss)}
+.kpi.warn::after{background:var(--warn);box-shadow:0 0 16px var(--warn)}
+.kpi.flip::after{background:var(--cy);box-shadow:0 0 16px var(--cy)}
+.chip{display:inline-block;font-family:var(--m);font-size:9px;letter-spacing:.12em;padding:3px 8px;border-radius:6px;
+  color:#a8f6ff;background:rgba(34,211,238,.12);border:1px solid rgba(34,211,238,.32)}
+.kpi .l{font-size:11.5px;color:var(--ink-2);margin-top:10px;line-height:1.35;min-height:31px}
+.kpi .v{font-family:var(--m);font-size:23px;margin-top:3px;letter-spacing:-.02em;color:#fff;text-shadow:0 0 22px rgba(124,92,255,.55)}
+.kpi .v.na{color:rgba(255,255,255,.20);text-shadow:none}
+.kpi .v.gain{color:#6ee7b7;text-shadow:0 0 20px rgba(52,211,153,.5)}
+.kpi .v.loss{color:#fda4af;text-shadow:0 0 20px rgba(251,113,133,.5)}
+.kpi .f{font-family:var(--m);font-size:10px;color:var(--ink-3);margin-top:7px}
+
+/* ---------- table ---------- */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{position:sticky;top:0;text-align:left;padding:10px 14px;font-family:var(--m);font-size:9.5px;letter-spacing:.1em;color:var(--ink-2);
+  background:rgba(12,17,34,.94);border-bottom:1px solid var(--line-2);white-space:nowrap}
+td{padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.055);white-space:nowrap;color:var(--ink)}
+td.n,th.n{text-align:right;font-family:var(--m);font-variant-numeric:tabular-nums}
+tbody tr:hover td{background:rgba(255,255,255,.045)}
+tr.sum td{background:rgba(124,92,255,.13);font-weight:600;border-top:1px solid rgba(124,92,255,.5)}
+td.neg{color:#fda4af}
+.na{color:rgba(255,255,255,.2)}
+.empty{padding:34px;text-align:center;color:var(--ink-3);font-size:12.5px;border:1px dashed var(--line-2);border-radius:13px;background:rgba(255,255,255,.02)}
+.tag{display:inline-block;font-family:var(--m);font-size:9.5px;padding:4px 9px;border-radius:7px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--ink-2)}
+.tag.sla{color:#fcd77a;background:rgba(251,191,36,.10);border-color:rgba(251,191,36,.3)}
+.tag.demo{color:#fbc0d8;background:rgba(244,114,182,.12);border-color:rgba(244,114,182,.35)}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:18px}
+.row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.mono{font-family:var(--m)}
+.muted{color:var(--ink-3);font-size:11.5px}
+.purpose{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+.purpose li{position:relative;padding-left:18px;font-size:12.5px;color:var(--ink-2);line-height:1.55}
+.purpose li::before{content:"";position:absolute;left:0;top:7px;width:6px;height:6px;border-radius:50%;background:var(--cy);box-shadow:0 0 10px var(--cy)}
+.pill{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-2);border:1px solid var(--line);background:var(--glass);border-radius:999px;padding:6px 13px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--gain);box-shadow:0 0 10px var(--gain)}
+@media(max-width:960px){.wrap{flex-direction:column}.rail{width:100%;flex:none;height:auto;position:relative}.content,.top{padding-left:16px;padding-right:16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside class="rail">
+    <div class="brand">
+      <div class="logo">HQ</div>
+      <div>
+        <div class="t">Báo cáo Kế Toán</div>
+        <div class="s">HQ Group · PKT1–PKT7</div>
+      </div>
+    </div>
+    <div class="rail-lb">BỘ BÁO CÁO</div>
+    <div id="nav"></div>
+    <div class="rail-lb">TRẠNG THÁI</div>
+    <div class="pill"><span class="dot"></span> Bản xem trước giao diện</div>
+  </aside>
+
+  <main class="main">
+    <div class="top">
+      <div class="top-row">
+        <div>
+          <div class="eyebrow" id="eyebrow"></div>
+          <h1 id="title"></h1>
+          <div class="sub" id="sub"></div>
+        </div>
+        <div class="row">
+          <div>
+            <span class="lb">KỲ BÁO CÁO</span>
+            <div class="seg" id="periods"></div>
+          </div>
+          <button class="btn primary" id="demo">Bật số liệu mẫu</button>
+        </div>
+      </div>
+    </div>
+    <div class="content" id="body"></div>
+  </main>
+</div>
+
+<script>
+const PKT1_DAILY = [{"ngay": "2026-06-10", "tuan": 24, "rub_usdt": 76.53, "rub_vnd": 337.6153, "idr_usdt": 18017.0, "idr_vnd": 1.4341, "usdt_vnd": 26365.0, "usd_vnd": 26410.0, "bd_usdt_vnd": 0.08}, {"ngay": "2026-06-11", "tuan": 24, "rub_usdt": 76.89, "rub_vnd": 335.0404, "idr_usdt": 18068.0, "idr_vnd": 1.4258, "usdt_vnd": 26287.0, "usd_vnd": 26410.0, "bd_usdt_vnd": -0.296}, {"ngay": "2026-06-12", "tuan": 24, "rub_usdt": 77.72, "rub_vnd": 331.4246, "idr_usdt": 18095.0, "idr_vnd": 1.4235, "usdt_vnd": 26284.0, "usd_vnd": 26412.0, "bd_usdt_vnd": -0.011}, {"ngay": "2026-06-13", "tuan": 24, "rub_usdt": 77.86, "rub_vnd": 330.5518, "idr_usdt": 17960.0, "idr_vnd": 1.433, "usdt_vnd": 26262.0, "usd_vnd": 26412.0, "bd_usdt_vnd": -0.084}, {"ngay": "2026-06-14", "tuan": 24, "rub_usdt": 77.49, "rub_vnd": 332.3282, "idr_usdt": 18041.0, "idr_vnd": 1.4274, "usdt_vnd": 26277.6667, "usd_vnd": 26412.0, "bd_usdt_vnd": 0.06}, {"ngay": "2026-06-15", "tuan": 25, "rub_usdt": 77.53, "rub_vnd": 332.4896, "idr_usdt": 17867.0, "idr_vnd": 1.4428, "usdt_vnd": 26304.0, "usd_vnd": 26423.0, "bd_usdt_vnd": 0.1}, {"ngay": "2026-06-16", "tuan": 25, "rub_usdt": 77.52, "rub_vnd": 332.4693, "idr_usdt": 17751.0, "idr_vnd": 1.4519, "usdt_vnd": 26299.0, "usd_vnd": 26423.0, "bd_usdt_vnd": -0.019}, {"ngay": "2026-06-17", "tuan": 25, "rub_usdt": 77.58, "rub_vnd": 333.1596, "idr_usdt": 17775.0, "idr_vnd": 1.4541, "usdt_vnd": 26374.0, "usd_vnd": 26433.0, "bd_usdt_vnd": 0.285}, {"ngay": "2026-06-18", "tuan": 25, "rub_usdt": 77.95, "rub_vnd": 333.0994, "idr_usdt": 17871.0, "idr_vnd": 1.4529, "usdt_vnd": 26495.0, "usd_vnd": 26431.0, "bd_usdt_vnd": 0.459}, {"ngay": "2026-06-19", "tuan": 25, "rub_usdt": 78.79, "rub_vnd": 330.2571, "idr_usdt": 17880.0, "idr_vnd": 1.4553, "usdt_vnd": 26552.0, "usd_vnd": 26440.0, "bd_usdt_vnd": 0.215}, {"ngay": "2026-06-20", "tuan": 25, "rub_usdt": 78.1067, "rub_vnd": 332.1636, "idr_usdt": 17842.0, "idr_vnd": 1.4541, "usdt_vnd": 26473.6667, "usd_vnd": 26440.0, "bd_usdt_vnd": -0.295}, {"ngay": "2026-06-21", "tuan": 25, "rub_usdt": 78.2822, "rub_vnd": 331.8346, "idr_usdt": 17864.3333, "idr_vnd": 1.4541, "usdt_vnd": 26506.8889, "usd_vnd": 26440.0, "bd_usdt_vnd": 0.125}, {"ngay": "2026-06-22", "tuan": 26, "rub_usdt": 78.97, "rub_vnd": 330.7329, "idr_usdt": 17851.0, "idr_vnd": 1.4631, "usdt_vnd": 26651.0, "usd_vnd": 26442.0, "bd_usdt_vnd": 0.544}, {"ngay": "2026-06-23", "tuan": 26, "rub_usdt": 79.46, "rub_vnd": 327.6328, "idr_usdt": 17868.0, "idr_vnd": 1.457, "usdt_vnd": 26565.0, "usd_vnd": 26448.0, "bd_usdt_vnd": -0.323}, {"ngay": "2026-06-24", "tuan": 26, "rub_usdt": 79.92, "rub_vnd": 324.9132, "idr_usdt": 17957.0, "idr_vnd": 1.4461, "usdt_vnd": 26497.0, "usd_vnd": 26451.0, "bd_usdt_vnd": -0.256}, {"ngay": "2026-06-25", "tuan": 26, "rub_usdt": 81.2, "rub_vnd": 321.831, "idr_usdt": 17993.0, "idr_vnd": 1.4524, "usdt_vnd": 26666.0, "usd_vnd": 26456.0, "bd_usdt_vnd": 0.638}, {"ngay": "2026-06-26", "tuan": 26, "rub_usdt": 82.01, "rub_vnd": 319.2259, "idr_usdt": 18050.0, "idr_vnd": 1.4504, "usdt_vnd": 26714.0, "usd_vnd": 26454.0, "bd_usdt_vnd": 0.18}, {"ngay": "2026-06-27", "tuan": 26, "rub_usdt": 83.93, "rub_vnd": 311.8065, "idr_usdt": 17985.0, "idr_vnd": 1.4551, "usdt_vnd": 26704.0, "usd_vnd": 26454.0, "bd_usdt_vnd": -0.037}, {"ngay": "2026-06-28", "tuan": 26, "rub_usdt": 83.16, "rub_vnd": 314.5836, "idr_usdt": 18009.3333, "idr_vnd": 1.4526, "usdt_vnd": 26694.6667, "usd_vnd": 26454.0, "bd_usdt_vnd": -0.035}, {"ngay": "2026-06-29", "tuan": 27, "rub_usdt": 83.54, "rub_vnd": 313.5672, "idr_usdt": 17942.0, "idr_vnd": 1.46, "usdt_vnd": 26730.0, "usd_vnd": 26461.0, "bd_usdt_vnd": 0.132}, {"ngay": "2026-06-30", "tuan": 27, "rub_usdt": 82.55, "rub_vnd": 317.0665, "idr_usdt": 17958.0, "idr_vnd": 1.4575, "usdt_vnd": 26708.0, "usd_vnd": 26466.0, "bd_usdt_vnd": -0.082}, {"ngay": "2026-07-01", "tuan": 27, "rub_usdt": 83.72, "rub_vnd": 310.7274, "idr_usdt": 17980.0, "idr_vnd": 1.4468, "usdt_vnd": 26545.0, "usd_vnd": 26466.0, "bd_usdt_vnd": -0.61}, {"ngay": "2026-07-02", "tuan": 27, "rub_usdt": 83.05, "rub_vnd": 313.6472, "idr_usdt": 17990.0, "idr_vnd": 1.4479, "usdt_vnd": 26580.0, "usd_vnd": 26465.0, "bd_usdt_vnd": 0.132}, {"ngay": "2026-07-03", "tuan": 27, "rub_usdt": 83.13, "rub_vnd": 313.475, "idr_usdt": 17990.0, "idr_vnd": 1.4485, "usdt_vnd": 26591.0, "usd_vnd": 26463.0, "bd_usdt_vnd": 0.041}, {"ngay": "2026-07-04", "tuan": 27, "rub_usdt": 83.11, "rub_vnd": 312.7722, "idr_usdt": 17890.0, "idr_vnd": 1.453, "usdt_vnd": 26525.0, "usd_vnd": 26463.0, "bd_usdt_vnd": -0.248}, {"ngay": "2026-07-05", "tuan": 27, "rub_usdt": 83.3967, "rub_vnd": 311.8342, "idr_usdt": 17907.3333, "idr_vnd": 1.4523, "usdt_vnd": 26536.6667, "usd_vnd": 26463.0, "bd_usdt_vnd": 0.044}, {"ngay": "2026-07-06", "tuan": 28, "rub_usdt": 83.95, "rub_vnd": 309.2808, "idr_usdt": 17842.0, "idr_vnd": 1.4552, "usdt_vnd": 26494.0, "usd_vnd": 26463.0, "bd_usdt_vnd": -0.161}, {"ngay": "2026-07-07", "tuan": 28, "rub_usdt": 82.95, "rub_vnd": 311.6388, "idr_usdt": 17887.0, "idr_vnd": 1.4452, "usdt_vnd": 26378.0, "usd_vnd": 26462.0, "bd_usdt_vnd": -0.438}, {"ngay": "2026-07-08", "tuan": 28, "rub_usdt": 82.95, "rub_vnd": 311.6979, "idr_usdt": 17878.0, "idr_vnd": 1.4462, "usdt_vnd": 26383.0, "usd_vnd": 26466.0, "bd_usdt_vnd": 0.019}, {"ngay": "2026-07-09", "tuan": 28, "rub_usdt": 82.95, "rub_vnd": 310.5992, "idr_usdt": 18170.0, "idr_vnd": 1.418, "usdt_vnd": 26290.0, "usd_vnd": 26471.0, "bd_usdt_vnd": -0.352}, {"ngay": "2026-07-10", "tuan": 28, "rub_usdt": 81.59, "rub_vnd": 317.0496, "idr_usdt": 17996.0, "idr_vnd": 1.4374, "usdt_vnd": 26396.0, "usd_vnd": 26474.0, "bd_usdt_vnd": 0.403}, {"ngay": "2026-07-11", "tuan": 28, "rub_usdt": 82.09, "rub_vnd": 315.3095, "idr_usdt": 18190.0, "idr_vnd": 1.423, "usdt_vnd": 26412.0, "usd_vnd": 26470.0, "bd_usdt_vnd": 0.061}, {"ngay": "2026-07-12", "tuan": 28, "rub_usdt": 82.21, "rub_vnd": 314.3009, "idr_usdt": 18118.6667, "idr_vnd": 1.4261, "usdt_vnd": 26366.0, "usd_vnd": 26470.0, "bd_usdt_vnd": -0.174}, {"ngay": "2026-07-13", "tuan": 29, "rub_usdt": 82.05, "rub_vnd": 314.4958, "idr_usdt": 17976.0, "idr_vnd": 1.4355, "usdt_vnd": 26331.0, "usd_vnd": 26460.0, "bd_usdt_vnd": -0.133}, {"ngay": "2026-07-14", "tuan": 29, "rub_usdt": 83.29, "rub_vnd": 309.1665, "idr_usdt": 18055.0, "idr_vnd": 1.4262, "usdt_vnd": 26276.0, "usd_vnd": 26450.0, "bd_usdt_vnd": -0.209}, {"ngay": "2026-07-15", "tuan": 29, "rub_usdt": 83.2, "rub_vnd": 310.9026, "idr_usdt": 18035.0, "idr_vnd": 1.4343, "usdt_vnd": 26395.0, "usd_vnd": 26450.0, "bd_usdt_vnd": 0.453}, {"ngay": "2026-07-16", "tuan": 29, "rub_usdt": 82.73, "rub_vnd": 311.6857, "idr_usdt": 18031.0, "idr_vnd": 1.4301, "usdt_vnd": 26312.0, "usd_vnd": 26450.0, "bd_usdt_vnd": -0.314}, {"ngay": "2026-07-17", "tuan": 29, "rub_usdt": 83.77, "rub_vnd": 307.8162, "idr_usdt": 18040.0, "idr_vnd": 1.4294, "usdt_vnd": 26312.0, "usd_vnd": 26440.0, "bd_usdt_vnd": 0.0}, {"ngay": "2026-07-18", "tuan": 29, "rub_usdt": 83.59, "rub_vnd": 309.7569, "idr_usdt": 17954.0, "idr_vnd": 1.4422, "usdt_vnd": 26421.0, "usd_vnd": 26490.0, "bd_usdt_vnd": 0.414}, {"ngay": "2026-07-19", "tuan": 29, "rub_usdt": 83.3633, "rub_vnd": 309.7449, "idr_usdt": 18008.3333, "idr_vnd": 1.4339, "usdt_vnd": 26348.3333, "usd_vnd": 26490.0, "bd_usdt_vnd": -0.275}, {"ngay": "2026-07-20", "tuan": 30, "rub_usdt": 83.95, "rub_vnd": 309.5726, "idr_usdt": 17965.0, "idr_vnd": 1.4466, "usdt_vnd": 26519.0, "usd_vnd": 26490.0, "bd_usdt_vnd": 0.648}, {"ngay": "2026-07-21", "tuan": 30, "rub_usdt": 83.91, "rub_vnd": 306.9055, "idr_usdt": 17965.0, "idr_vnd": 1.4335, "usdt_vnd": 26278.0, "usd_vnd": 26490.0, "bd_usdt_vnd": -0.909}, {"ngay": "2026-07-22", "tuan": 30, "rub_usdt": 83.83, "rub_vnd": 308.0401, "idr_usdt": 17892.0, "idr_vnd": 1.4433, "usdt_vnd": 26350.0, "usd_vnd": 26520.0, "bd_usdt_vnd": 0.274}, {"ngay": "2026-07-23", "tuan": 30, "rub_usdt": 83.79, "rub_vnd": 308.3509, "idr_usdt": 18045.0, "idr_vnd": 1.4318, "usdt_vnd": 26364.0, "usd_vnd": 26500.0, "bd_usdt_vnd": 0.053}, {"ngay": "2026-07-24", "tuan": 30, "rub_usdt": 83.83, "rub_vnd": 308.3323, "idr_usdt": 17927.0, "idr_vnd": 1.4418, "usdt_vnd": 26375.0, "usd_vnd": 26510.0, "bd_usdt_vnd": 0.042}];
+
+const F = {
+  num(v,d=2){ if(v===null||v===undefined||v==='')return null; const n=typeof v==='number'?v:parseFloat(String(v).replace(/[^\d.\-]/g,'')); return isNaN(n)?null:n; },
+  money(v){ const n=F.num(v); if(n===null)return null; return n.toLocaleString('vi-VN',{maximumFractionDigits:0}); },
+  compact(v){ const n=F.num(v); if(n===null)return null; const a=Math.abs(n),s=n<0?'-':'';
+    if(a>=1e9)return s+(a/1e9).toLocaleString('vi-VN',{maximumFractionDigits:2})+' tỷ';
+    if(a>=1e6)return s+(a/1e6).toLocaleString('vi-VN',{maximumFractionDigits:1})+' tr';
+    if(a>=1e3)return s+(a/1e3).toLocaleString('vi-VN',{maximumFractionDigits:1})+' k';
+    return n.toLocaleString('vi-VN',{maximumFractionDigits:0}); },
+  rate(v){ const n=F.num(v); if(n===null)return null; const a=Math.abs(n); const d=a>=1000?0:a>=10?2:6;
+    return n.toLocaleString('vi-VN',{maximumFractionDigits:d}); },
+  pct(v){ const n=F.num(v); if(n===null)return null; return n.toLocaleString('vi-VN',{maximumFractionDigits:2})+'%'; },
+  date(v){ if(!v)return null; const d=new Date(v); return isNaN(d)?String(v):d.toLocaleDateString('vi-VN'); },
+  cell(v,t){ const r = t==='money'?F.money(v):t==='num'?F.num(v)===null?null:F.num(v).toLocaleString('vi-VN',{maximumFractionDigits:2})
+      :t==='rate'?F.rate(v):t==='pct'?F.pct(v):t==='date'?F.date(v):(v===''||v==null?null:String(v));
+    return r; },
+  kpi(v,t){ return t==='money'?F.compact(v):t==='rate'?F.rate(v):t==='pct'?F.pct(v):t==='num'?(F.num(v)===null?null:F.num(v).toLocaleString('vi-VN',{maximumFractionDigits:2})):(v==null||v===''?null:String(v)); }
+};
+
+const R = [
+{code:'PKT1',slug:'pkt1',name:'Báo cáo tỉ giá',short:'Tỉ giá',sla:'Ngày 1',periods:['Ngày','Tuần','Tháng'],src:'HQS — Bảng tỷ giá hàng tuần',
+ purpose:['Hôm nay áp tỷ giá nào để ghi nhận doanh thu, giá vốn, thanh toán ngoại tệ?','Tháng này lãi lỗ chênh lệch tỷ giá bao nhiêu, ăn vào lợi nhuận bao nhiêu phần trăm?','HQ đang giữ bao nhiêu ngoại tệ, biến động 1% thì ảnh hưởng bao nhiêu tiền?'],
+ kpis:[{k:'rub_usdt',c:'ER1',l:'RUB/USDT — Playerok',t:'rate',n:'Trung bình lần rút tuần trước'},
+       {k:'idr_usdt',c:'ER1',l:'IDR/USDT — Itemku',t:'rate',n:'Trung bình lần rút tuần trước'},
+       {k:'usdt_vnd_co',c:'ER2-CO',l:'USDT/VND — tỉ giá giá vốn',t:'rate',n:'Tỉ giá thực'},
+       {k:'usdt_vnd_rev',c:'ER2-RE',l:'USDT/VND — tỉ giá doanh thu',t:'rate',n:'CO Rate trừ 2%'},
+       {k:'bien_dong_7d',c:'Δ7D',l:'Biến động USDT/VND 7 ngày',t:'pct',tone:'auto',n:'Ngưỡng cảnh báo 2%'},
+       {k:'so_du_ngoai_te',c:'FX-POS',l:'Số dư ngoại tệ quy đổi VND',t:'money'},
+       {k:'cltg_thang',c:'FX-P&L',l:'Lãi lỗ chênh lệch tỉ giá tháng',t:'money',tone:'auto'},
+       {k:'cltg_tren_ln',c:'%LN',l:'Chênh lệch tỉ giá trên lợi nhuận',t:'pct',tone:'warn'},
+       {k:'sensitivity',c:'±1%',l:'Ảnh hưởng khi tỉ giá lệch 1%',t:'money',tone:'flip'}],
+ tables:[
+  {id:'daily_rate',title:'Tỉ giá theo ngày',hint:'Nguồn sheet BC.N — dùng để so với tỉ giá nội bộ đang áp',cols:[
+    {k:'ngay',l:'Ngày',t:'date'},{k:'tuan',l:'Tuần',t:'text'},{k:'rub_usdt',l:'RUB/USDT',t:'rate'},{k:'rub_vnd',l:'RUB/VND',t:'rate'},
+    {k:'idr_usdt',l:'IDR/USDT',t:'rate'},{k:'idr_vnd',l:'IDR/VND',t:'rate'},{k:'usdt_vnd',l:'USDT/VND',t:'rate'},
+    {k:'usd_vnd',l:'USD/VND',t:'rate'},{k:'bd_usdt_vnd',l:'Biến động USDT',t:'pct'}]},
+  {id:'weekly_rate',title:'Tỉ giá tuần áp dụng ghi sổ',hint:'Cập nhật sáng thứ Hai, lệch trên 2% thì dùng tỉ giá thực tế thứ Hai',cols:[
+    {k:'tuan',l:'Tuần',t:'text'},{k:'tu_ngay',l:'Từ ngày',t:'date'},{k:'den_ngay',l:'Đến ngày',t:'date'},
+    {k:'rub_usdt',l:'RUB/USDT',t:'rate'},{k:'idr_usdt',l:'IDR/USDT',t:'rate'},{k:'usdt_vnd_co',l:'USDT/VND CO',t:'rate'},
+    {k:'usdt_vnd_rev',l:'USDT/VND REV',t:'rate'},{k:'gap',l:'Gap 2 tuần',t:'pct'},{k:'canh_bao',l:'Vượt ngưỡng',t:'text'}]},
+  {id:'fx_position',title:'Vị thế ngoại tệ đang nắm giữ',cols:[
+    {k:'loai_tien',l:'Loại tiền',t:'text'},{k:'vi_san',l:'Ví hoặc sàn',t:'text'},{k:'so_du',l:'Số dư nguyên tệ',t:'num'},
+    {k:'ty_gia',l:'Tỉ giá',t:'rate'},{k:'quy_doi',l:'Quy đổi VND',t:'money'},{k:'ti_trong',l:'Tỉ trọng',t:'pct'},{k:'anh_huong',l:'Ảnh hưởng ±1%',t:'money'}]}],
+ charts:[{id:'c1',title:'Xu hướng USDT/VND và USD/VND',type:'line',tbl:'daily_rate',x:'ngay',s:[{k:'usdt_vnd',l:'USDT/VND'},{k:'usd_vnd',l:'USD/VND'}]},
+         {id:'c2',title:'RUB/VND theo ngày',type:'line',tbl:'daily_rate',x:'ngay',s:[{k:'rub_vnd',l:'RUB/VND'}]}]},
+
+{code:'PKT2',slug:'pkt2',name:'Báo cáo kết quả kinh doanh',short:'Kết quả kinh doanh',sla:'Ngày 15',periods:['Tháng','Quý','Năm'],src:'2026 PnL_HQG Financial Report',
+ purpose:['Tháng này HQ lãi hay lỗ bao nhiêu, theo từng sàn, BU, khối kinh doanh và toàn HQ Group?','Lợi nhuận đến từ đâu, mất ở đâu, dòng chi phí nào đang ăn mòn biên?','Số này có tin được không — giá vốn đã map đủ chưa, hoàn hủy đã trừ chưa?'],
+ kpis:[{k:'gmv',c:'GMV',l:'Tổng giá trị giao dịch',t:'money'},{k:'re',c:'RE',l:'Doanh thu net',t:'money'},
+       {k:'cogs',c:'COGS',l:'Giá vốn',t:'money',tone:'loss'},{k:'pl1',c:'PL1',l:'Lãi sau giá vốn',t:'money',tone:'auto'},
+       {k:'pl2a',c:'PL2A',l:'Lãi sau phí sàn và phí rút',t:'money',tone:'auto'},{k:'pl2',c:'PL2',l:'Lãi sau chi phí trực tiếp',t:'money',tone:'auto'},
+       {k:'pl7',c:'PL7',l:'Lợi nhuận sau cùng',t:'money',tone:'auto'},{k:'bien_pl2',c:'%PL2',l:'Biên PL2 trên RE',t:'pct',tone:'auto'},
+       {k:'fg',c:'FG',l:'Flip Gain',t:'money',tone:'flip'}],
+ tables:[
+  {id:'pnl_main',title:'P&L theo cây khái niệm tài chính HQS',hint:'Giữ nguyên mã chỉ số để đối chiếu với từ điển khái niệm',cols:[
+    {k:'ma',l:'Mã',t:'text'},{k:'khoan_muc',l:'Khoản mục',t:'text'},{k:'cong_thuc',l:'Công thức',t:'text'},
+    {k:'ky_nay',l:'Kỳ này',t:'money'},{k:'ky_truoc',l:'Kỳ trước',t:'money'},{k:'mom',l:'Biến động',t:'pct'},{k:'tren_re',l:'Trên RE',t:'pct'}],
+   seed:[['GMV1','GMV mô hình tự nhập bán','GMV100..104'],['GMV2','GMV mô hình flip','GMV200..204'],['RR','Giảm trừ doanh thu','RR1 + RR2'],
+     ['AR','Phải trả NCC và sàn flip','AR1 + AR2'],['RE','Doanh thu net','RE1 + RE2'],['CO1','Giá vốn hàng bán','CO100..104'],
+     ['CO2','Giá vốn cung ứng','CO200 + CO201'],['CO3','Giá vốn die, thất thoát, dự phòng','CO300 + CO301'],['PL1','Lãi sau giá vốn','RE − COGS'],
+     ['SF','Phí sàn','SF1 + SF2'],['CF','Phí rút tiền','Phí thực rút + FV × biến phí'],['PL2A','Lãi sau phí bán hàng','PL1 − SF − CF'],
+     ['SE','Chi phí nhân sự bán hàng','SE1 + SE2'],['ME','Chi phí marketing','ME1 + ME2'],['OP','Chi phí vận hành trực tiếp','OP1 + OP2'],
+     ['FI','Chi phí tài chính và thuế','FI1 + FI2'],['FG','Flip Gain','FG1 + FG2'],['PL2','Lãi sau chi phí trực tiếp','PL201 + PL202 + FG'],
+     ['OV','Chi phí nhân sự gián tiếp','OVS + OVC + OVE + OVP + OVD'],['CA','Chi phí tài sản và khấu hao','CA1 + CA2'],
+     ['OT','Chi phí khác',''],['PL7','Lợi nhuận sau cùng','PL2 − OV − CA − OT']]},
+  {id:'pnl_by_dim',title:'P&L bóc theo sàn, BU và khối kinh doanh',cols:[
+    {k:'chieu',l:'Chiều',t:'text'},{k:'ten',l:'Tên',t:'text'},{k:'gmv',l:'GMV',t:'money'},{k:'re',l:'RE',t:'money'},
+    {k:'cogs',l:'COGS',t:'money'},{k:'pl1',l:'PL1',t:'money'},{k:'pl2a',l:'PL2A',t:'money'},{k:'fg',l:'FG',t:'money'},
+    {k:'pl2',l:'PL2',t:'money'},{k:'bien_pl2',l:'Biên PL2',t:'pct'}]},
+  {id:'dq',title:'Kiểm tra chất lượng số liệu trước khi chốt',hint:'Theo SOP ghi nhận doanh thu và giá vốn — đủ điều kiện mới phát hành P&L',cols:[
+    {k:'chi_tieu',l:'Chỉ tiêu kiểm tra',t:'text'},{k:'so_don',l:'Số đơn',t:'num'},{k:'gia_tri',l:'Giá trị',t:'money'},
+    {k:'trang_thai',l:'Trạng thái',t:'text'},{k:'nguoi',l:'Người xử lý',t:'text'}],
+   seed:[['Đơn thiếu ID lô hàng nên chưa map được giá vốn'],['Tiền vào ví tháng trước, BE confirm tháng sau'],
+     ['Tiền vào ví nhưng không tìm thấy BE'],['BE hoàn tất nhưng sàn đã hủy hoặc refund'],
+     ['Chênh doanh thu giữa BE và ví trên 0,05 USD'],['Chargeback chưa đảo bút toán'],['Đơn freeze U7buy còn treo']]}],
+ charts:[{id:'c1',title:'PL2 theo đối tượng',type:'bar',tbl:'pnl_by_dim',x:'ten',s:[{k:'pl2',l:'PL2'}]},
+         {id:'c2',title:'Doanh thu và giá vốn',type:'bar',tbl:'pnl_by_dim',x:'ten',s:[{k:'re',l:'RE'},{k:'cogs',l:'COGS'}]}]},
+
+{code:'PKT3',slug:'pkt3',name:'Báo cáo dòng tiền',short:'Dòng tiền',sla:'Ngày 5',periods:['Tuần','Tháng','Quý'],src:'HubPay · MISA · Sao kê ví sàn',
+ purpose:['Kỳ này tiền vào bao nhiêu, ra bao nhiêu, còn lại bao nhiêu theo từng loại tiền?','Lợi nhuận trên sổ có biến thành tiền thật không, nếu không thì tiền đang nằm ở đâu?','Tuần tới có đủ tiền trả NCC, CTV, lương và IDOL không?'],
+ kpis:[{k:'dau_ky',c:'CF-OB',l:'Tiền đầu kỳ',t:'money'},{k:'thu',c:'CF-IN',l:'Tổng tiền vào',t:'money',tone:'gain'},
+       {k:'chi',c:'CF-OUT',l:'Tổng tiền ra',t:'money',tone:'loss'},{k:'cuoi_ky',c:'CF-CB',l:'Tiền cuối kỳ',t:'money'},
+       {k:'ocf',c:'OCF',l:'Dòng tiền hoạt động kinh doanh',t:'money',tone:'auto'},{k:'gap',c:'GAP',l:'Chênh lệch PL2 và OCF',t:'money',tone:'warn'},
+       {k:'runway',c:'RUNWAY',l:'Số ngày tiền đủ chi trả',t:'num',tone:'auto'},{k:'chon',c:'TRAP',l:'Tiền đang bị chôn',t:'money',tone:'warn'}],
+ tables:[
+  {id:'cf_sum',title:'Dòng tiền tổng hợp theo loại tiền',cols:[
+    {k:'khoan_muc',l:'Khoản mục',t:'text'},{k:'vnd',l:'VND',t:'money'},{k:'usdt',l:'USDT',t:'num'},{k:'usd',l:'USD',t:'num'},
+    {k:'rub',l:'RUB',t:'num'},{k:'idr',l:'IDR',t:'num'},{k:'quy_doi',l:'Quy đổi VND',t:'money'}],
+   seed:[['Tiền đầu kỳ'],['Thu từ bán hàng về ví sàn'],['Thu khác và hoàn tiền'],['Chi mua hàng cho NCC'],
+     ['Chi phí sàn và phí rút'],['Chi lương, CTV và IDOL'],['Chi vận hành và marketing'],['Chi tài chính và thuế'],['Tiền cuối kỳ']]},
+  {id:'cf_rec',title:'Cầu nối lợi nhuận sang tiền thật',hint:'PL2 trên sổ cộng trừ các khoản không bằng tiền để ra OCF',cols:[
+    {k:'khoan_muc',l:'Khoản mục',t:'text'},{k:'gia_tri',l:'Giá trị',t:'money'},{k:'ghi_chu',l:'Ghi chú',t:'text'}],
+   seed:[['PL2 theo sổ'],['Thay đổi hàng tồn kho'],['Thay đổi phải thu và tiền hold trên sàn'],['Thay đổi phải trả NCC'],
+     ['Trả trước cho NCC'],['Khấu hao và dự phòng'],['Chênh lệch tỉ giá chưa thực hiện'],['Dòng tiền hoạt động kinh doanh']]},
+  {id:'cf_fc',title:'Dự báo chi trả các tuần tới',cols:[
+    {k:'tuan',l:'Tuần',t:'text'},{k:'ncc',l:'Phải trả NCC',t:'money'},{k:'ctv',l:'CTV',t:'money'},{k:'luong',l:'Lương',t:'money'},
+    {k:'idol',l:'IDOL',t:'money'},{k:'tong_chi',l:'Tổng chi',t:'money'},{k:'thu',l:'Dự kiến thu',t:'money'},
+    {k:'so_du',l:'Số dư dự kiến',t:'money'},{k:'trang_thai',l:'Trạng thái',t:'text'}]}],
+ charts:[{id:'c1',title:'Thu và chi theo tuần',type:'bar',tbl:'cf_fc',x:'tuan',s:[{k:'thu',l:'Thu'},{k:'tong_chi',l:'Chi'}]},
+         {id:'c2',title:'Số dư tiền dự kiến',type:'line',tbl:'cf_fc',x:'tuan',s:[{k:'so_du',l:'Số dư cuối tuần'}]}]},
+
+{code:'PKT4',slug:'pkt4',name:'Báo cáo cân đối kế toán',short:'Cân đối kế toán',sla:'Ngày 5',periods:['Tháng','Quý','Năm'],src:'MISA · Balance · Bảng kê tồn kho',
+ purpose:['Cuối kỳ HQ có bao nhiêu tài sản, nợ bao nhiêu, vốn chủ còn bao nhiêu?','Tiền đang nằm ở đâu — tiền mặt, tồn kho, phải thu hay trả trước cho NCC?','Cơ cấu tài chính có an toàn không, khả năng thanh toán ngắn hạn thế nào?'],
+ kpis:[{k:'ta',c:'TA',l:'Tổng tài sản',t:'money'},{k:'tl',c:'TL',l:'Nợ phải trả',t:'money',tone:'loss'},
+       {k:'eq',c:'EQ',l:'Vốn chủ sở hữu',t:'money',tone:'gain'},{k:'de',c:'D/E',l:'Nợ trên vốn chủ',t:'num',tone:'auto'},
+       {k:'cr',c:'CR',l:'Thanh toán hiện hành',t:'num',tone:'auto',n:'An toàn từ 1,2'},{k:'qr',c:'QR',l:'Thanh toán nhanh',t:'num',tone:'auto',n:'An toàn từ 1,0'},
+       {k:'cash',c:'%CASH',l:'Tiền trên tổng tài sản',t:'pct'},{k:'inv',c:'%INV',l:'Tồn kho trên tổng tài sản',t:'pct',tone:'warn'}],
+ tables:[
+  {id:'bs_a',title:'Tài sản',cols:[{k:'ma',l:'Mã',t:'text'},{k:'khoan_muc',l:'Khoản mục',t:'text'},{k:'dau_ky',l:'Đầu kỳ',t:'money'},
+    {k:'cuoi_ky',l:'Cuối kỳ',t:'money'},{k:'bien_dong',l:'Biến động',t:'money'},{k:'ti_trong',l:'Tỉ trọng',t:'pct'}],
+   seed:[['A1','Tiền mặt và tiền gửi VND'],['A2','Số dư ví sàn'],['A3','Tiền hold trên sàn'],['A4','Phải thu khách hàng và sàn'],
+     ['A5','Trả trước cho NCC'],['A6','Hàng tồn kho'],['A7','Dự phòng giảm giá tồn kho'],['A8','Tài sản cố định và công cụ'],['TA','Tổng tài sản']]},
+  {id:'bs_l',title:'Nguồn vốn',cols:[{k:'ma',l:'Mã',t:'text'},{k:'khoan_muc',l:'Khoản mục',t:'text'},{k:'dau_ky',l:'Đầu kỳ',t:'money'},
+    {k:'cuoi_ky',l:'Cuối kỳ',t:'money'},{k:'bien_dong',l:'Biến động',t:'money'},{k:'ti_trong',l:'Tỉ trọng',t:'pct'}],
+   seed:[['L1','Phải trả NCC flip'],['L2','Phải trả sàn flip'],['L3','Phải trả lương, CTV và IDOL'],['L4','Vay và nợ tài chính'],
+     ['L5','Thuế và phải nộp nhà nước'],['TL','Tổng nợ phải trả'],['E1','Vốn góp chủ sở hữu'],['E2','Lợi nhuận giữ lại'],['EQ','Tổng vốn chủ sở hữu']]},
+  {id:'bs_r',title:'Chỉ số an toàn tài chính',cols:[{k:'chi_so',l:'Chỉ số',t:'text'},{k:'cong_thuc',l:'Công thức',t:'text'},
+    {k:'ky_nay',l:'Kỳ này',t:'num'},{k:'ky_truoc',l:'Kỳ trước',t:'num'},{k:'nguong',l:'Ngưỡng',t:'text'},{k:'danh_gia',l:'Đánh giá',t:'text'}],
+   seed:[['Thanh toán hiện hành','Tài sản ngắn hạn trên nợ ngắn hạn','','','Từ 1,2'],
+     ['Thanh toán nhanh','Trừ tồn kho khỏi tài sản ngắn hạn','','','Từ 1,0'],
+     ['Nợ trên vốn chủ','TL trên EQ','','','Dưới 1,5'],
+     ['Tỉ trọng tồn kho','Tồn kho trên tổng tài sản','','','Dưới 30%'],
+     ['Vốn lưu động ròng','Tài sản ngắn hạn trừ nợ ngắn hạn','','','Lớn hơn 0']]}],
+ charts:[{id:'c1',title:'Cơ cấu tài sản cuối kỳ',type:'donut',tbl:'bs_a',x:'khoan_muc',s:[{k:'cuoi_ky',l:'Cuối kỳ'}]},
+         {id:'c2',title:'Nguồn vốn cuối kỳ',type:'bar',tbl:'bs_l',x:'ma',s:[{k:'cuoi_ky',l:'Cuối kỳ'}]}]},
+
+{code:'PKT5',slug:'pkt5',name:'Báo cáo hàng tồn kho',short:'Hàng tồn kho',sla:'Ngày 5',periods:['Ngày','Tuần','Tháng'],src:'GoX · Bảng kê kho PVH-PCU · MISA',
+ purpose:['Đang tồn bao nhiêu hàng, trị giá bao nhiêu tiền, ở kho nào và sản phẩm nào?','Bao nhiêu vốn đang bị chôn trong tồn kho, hàng nào nằm lâu không bán được?','Số kho của PKT có khớp số của PVH và PCU không, có thất thoát không?'],
+ kpis:[{k:'gia_tri',c:'INV',l:'Giá trị tồn kho',t:'money'},{k:'sl',c:'QTY',l:'Số lượng tồn',t:'num'},
+       {k:'chon',c:'TRAP',l:'Vốn bị chôn trong tồn kho',t:'money',tone:'warn'},{k:'t30',c:'>30D',l:'Giá trị tồn trên 30 ngày',t:'money',tone:'warn'},
+       {k:'t60',c:'>60D',l:'Giá trị tồn trên 60 ngày',t:'money',tone:'loss'},{k:'t90',c:'>90D',l:'Giá trị tồn trên 90 ngày',t:'money',tone:'loss'},
+       {k:'chenh',c:'DIFF',l:'Chênh lệch PKT với PVH và PCU',t:'money',tone:'auto'},{k:'du_phong',c:'CO301',l:'Dự phòng giảm giá đề xuất',t:'money'},
+       {k:'dio',c:'DIO',l:'Số ngày tồn kho bình quân',t:'num'}],
+ tables:[
+  {id:'inv_aging',title:'Phân tích tuổi tồn kho',cols:[{k:'nhom',l:'Nhóm tuổi',t:'text'},{k:'sl',l:'Số lượng',t:'num'},
+    {k:'gia_tri',l:'Giá trị',t:'money'},{k:'ti_trong',l:'Tỉ trọng',t:'pct'},{k:'ty_le',l:'Tỉ lệ dự phòng',t:'pct'},{k:'du_phong',l:'Dự phòng đề xuất',t:'money'}],
+   seed:[['0 đến 7 ngày'],['8 đến 30 ngày'],['31 đến 60 ngày'],['61 đến 90 ngày'],['Trên 90 ngày']]},
+  {id:'inv_stock',title:'Chi tiết tồn kho theo lô',cols:[{k:'kho',l:'Kho',t:'text'},{k:'spdv',l:'Sản phẩm',t:'text'},{k:'sku',l:'SKU',t:'text'},
+    {k:'sl',l:'Số lượng',t:'num'},{k:'don_gia',l:'Đơn giá vốn',t:'num'},{k:'gia_tri',l:'Giá trị tồn',t:'money'},
+    {k:'ngay_nhap',l:'Ngày nhập',t:'date'},{k:'tuoi',l:'Tuổi tồn',t:'num'},{k:'trang_thai',l:'Trạng thái',t:'text'}]},
+  {id:'inv_rec',title:'Đối chiếu ba bên PKT, PVH và PCU',cols:[{k:'kho',l:'Kho',t:'text'},{k:'spdv',l:'Sản phẩm',t:'text'},
+    {k:'pkt',l:'Số PKT',t:'num'},{k:'pvh',l:'Số PVH',t:'num'},{k:'pcu',l:'Số PCU',t:'num'},{k:'chenh',l:'Chênh lệch',t:'num'},
+    {k:'gia_tri',l:'Giá trị chênh',t:'money'},{k:'nguyen_nhan',l:'Nguyên nhân',t:'text'}]}],
+ charts:[{id:'c1',title:'Giá trị tồn theo tuổi',type:'bar',tbl:'inv_aging',x:'nhom',s:[{k:'gia_tri',l:'Giá trị tồn'}]},
+         {id:'c2',title:'Cơ cấu tồn theo tuổi',type:'donut',tbl:'inv_aging',x:'nhom',s:[{k:'gia_tri',l:'Giá trị'}]}]},
+
+{code:'PKT6',slug:'pkt6',name:'Báo cáo quản trị CPV',short:'Quản trị CPV',sla:'Ngày 5',periods:['Tuần','Tháng','Quý'],src:'GoX · ODP · P&L bóc theo team',
+ purpose:['Sản phẩm nào và team nào đang tạo ra lợi nhuận thật, cái nào càng bán càng lỗ?','Mỗi đơn hàng trung bình mang về bao nhiêu doanh thu và bao nhiêu lợi nhuận?','Tỉ lệ đơn thất bại và hoàn hủy của từng team là bao nhiêu, đang mất tiền ở đâu?'],
+ kpis:[{k:'don',c:'ORD',l:'Tổng số đơn thành công',t:'num'},{k:'arpo',c:'ARPO',l:'Doanh thu bình quân mỗi đơn',t:'money'},
+       {k:'ppo',c:'PPO',l:'Lợi nhuận bình quân mỗi đơn',t:'money',tone:'auto'},{k:'fail',c:'%FAIL',l:'Tỉ lệ đơn thất bại',t:'pct',tone:'loss'},
+       {k:'rr',c:'%RR',l:'Tỉ lệ hoàn hủy',t:'pct',tone:'loss'},{k:'bien',c:'%PL2',l:'Biên PL2 toàn hệ',t:'pct',tone:'auto'},
+       {k:'lo',c:'LOSS',l:'Số sản phẩm đang lỗ',t:'num',tone:'loss'},{k:'leak',c:'LEAK',l:'Giá trị mất do fail và hoàn hủy',t:'money',tone:'loss'}],
+ tables:[
+  {id:'cpv',title:'Ma trận chi phí, sản lượng và lợi nhuận theo team và sản phẩm',hint:'Xếp loại: sinh lời tốt, hoà vốn, càng bán càng lỗ',cols:[
+    {k:'team',l:'Team',t:'text'},{k:'spdv',l:'Sản phẩm',t:'text'},{k:'san',l:'Sàn',t:'text'},{k:'don',l:'Số đơn',t:'num'},
+    {k:'fail',l:'Đơn fail',t:'num'},{k:'re',l:'RE',t:'money'},{k:'cogs',l:'COGS',t:'money'},{k:'pl2',l:'PL2',t:'money'},
+    {k:'bien',l:'Biên PL2',t:'pct'},{k:'arpo',l:'ARPO',t:'money'},{k:'xep_loai',l:'Xếp loại',t:'text'}]},
+  {id:'leak',title:'Bảng thất thoát do đơn fail và hoàn hủy',cols:[{k:'team',l:'Team',t:'text'},{k:'nguyen_nhan',l:'Nguyên nhân',t:'text'},
+    {k:'don',l:'Số đơn',t:'num'},{k:'gia_tri',l:'Giá trị mất',t:'money'},{k:'tren_gmv',l:'Trên GMV',t:'pct'},{k:'hanh_dong',l:'Hành động khắc phục',t:'text'}]}],
+ charts:[{id:'c1',title:'PL2 theo team',type:'bar',tbl:'cpv',x:'team',s:[{k:'pl2',l:'PL2'}]},
+         {id:'c2',title:'Doanh thu theo sản phẩm',type:'bar',tbl:'cpv',x:'spdv',s:[{k:'re',l:'RE'}]}]},
+
+{code:'PKT7',slug:'pkt7',name:'Báo cáo quản trị tài chính',short:'Quản trị tài chính',sla:'Ngày 15',periods:['Tháng','Quý','Năm'],src:'Tổng hợp PKT2, PKT3, PKT4 và PKT5',
+ purpose:['Sức khỏe tài chính tổng thể đang tốt hay xấu, xu hướng đi lên hay đi xuống?','Đồng vốn bỏ ra đang sinh lời bao nhiêu?','Lợi nhuận nhạy thế nào khi doanh thu thay đổi — tăng doanh thu 10% thì lợi nhuận tăng bao nhiêu?'],
+ kpis:[{k:'roi',c:'ROI',l:'Sinh lời trên vốn đầu tư',t:'pct',tone:'auto'},{k:'roa',c:'ROA',l:'Sinh lời trên tổng tài sản',t:'pct',tone:'auto'},
+       {k:'roe',c:'ROE',l:'Sinh lời trên vốn chủ',t:'pct',tone:'auto'},{k:'dol',c:'DOL',l:'Đòn bẩy hoạt động',t:'num',tone:'flip'},
+       {k:'ccc',c:'CCC',l:'Chu kỳ chuyển đổi tiền mặt',t:'num',tone:'auto'},{k:'dio',c:'DIO',l:'Số ngày tồn kho',t:'num'},
+       {k:'dso',c:'DSO',l:'Số ngày phải thu',t:'num'},{k:'dpo',c:'DPO',l:'Số ngày phải trả',t:'num'},
+       {k:'score',c:'SCORE',l:'Điểm sức khỏe tài chính',t:'num',tone:'auto'}],
+ tables:[
+  {id:'ratio',title:'Bộ chỉ số quản trị tài chính',cols:[{k:'nhom',l:'Nhóm',t:'text'},{k:'chi_so',l:'Chỉ số',t:'text'},
+    {k:'cong_thuc',l:'Công thức',t:'text'},{k:'t2',l:'Trước 2 kỳ',t:'num'},{k:'t1',l:'Kỳ trước',t:'num'},{k:'t0',l:'Kỳ này',t:'num'},{k:'xu_huong',l:'Xu hướng',t:'text'}],
+   seed:[['Sinh lời','Biên PL1','PL1 trên RE'],['Sinh lời','Biên PL2','PL2 trên RE'],['Sinh lời','Biên PL7','PL7 trên RE'],
+     ['Sinh lời','ROA','PL7 trên tổng tài sản bình quân'],['Sinh lời','ROE','PL7 trên vốn chủ bình quân'],
+     ['Hiệu quả','Vòng quay tồn kho','COGS trên tồn kho bình quân'],['Hiệu quả','DIO','365 chia vòng quay tồn kho'],
+     ['Hiệu quả','DSO','Phải thu bình quân trên RE nhân 365'],['Hiệu quả','DPO','AR bình quân trên COGS nhân 365'],
+     ['Hiệu quả','CCC','DIO cộng DSO trừ DPO'],['Thanh khoản','Thanh toán hiện hành','Tài sản ngắn hạn trên nợ ngắn hạn'],
+     ['Thanh khoản','Số ngày tiền đủ chi','Tiền trên chi bình quân ngày'],['Đòn bẩy','Nợ trên vốn chủ','TL trên EQ'],
+     ['Đòn bẩy','DOL','Biến động PL2 chia biến động RE'],['Cấu trúc chi phí','COGS trên RE','COGS trên RE'],
+     ['Cấu trúc chi phí','Chi phí BO trên RE','OV trên RE']]},
+  {id:'trend',title:'Xu hướng theo tháng',cols:[{k:'thang',l:'Tháng',t:'text'},{k:'re',l:'RE',t:'money'},{k:'pl2',l:'PL2',t:'money'},
+    {k:'pl7',l:'PL7',t:'money'},{k:'bien',l:'Biên PL2',t:'pct'},{k:'roa',l:'ROA',t:'pct'},{k:'ccc',l:'CCC',t:'num'}]},
+  {id:'sens',title:'Phân tích độ nhạy',hint:'Doanh thu thay đổi thì lợi nhuận đi về đâu',cols:[{k:'kich_ban',l:'Kịch bản',t:'text'},
+    {k:'delta_re',l:'Biến động doanh thu',t:'pct'},{k:'re',l:'RE',t:'money'},{k:'pl2',l:'PL2',t:'money'},
+    {k:'pl7',l:'PL7',t:'money'},{k:'delta_pl2',l:'Biến động PL2',t:'pct'}],
+   seed:[['Xấu nhất',-20],['Thận trọng',-10],['Cơ sở',0],['Tích cực',10],['Tốt nhất',20]]}],
+ charts:[{id:'c1',title:'RE, PL2 và PL7 theo tháng',type:'line',tbl:'trend',x:'thang',s:[{k:'re',l:'RE'},{k:'pl2',l:'PL2'},{k:'pl7',l:'PL7'}]},
+         {id:'c2',title:'Độ nhạy lợi nhuận',type:'bar',tbl:'sens',x:'kich_ban',s:[{k:'pl2',l:'PL2'},{k:'pl7',l:'PL7'}]}]}
+];
+
+/* ---------- dữ liệu ---------- */
+function seedRows(t){
+  if(!t.seed) return [];
+  return t.seed.map(s=>{ const o={}; t.cols.forEach((c,i)=>{ if(s[i]!==undefined) o[c.k]=s[i]; }); return o; });
+}
+function baseData(r){
+  const d={kpis:{},tables:{}};
+  r.kpis.forEach(k=>d.kpis[k.k]=null);
+  r.tables.forEach(t=>d.tables[t.id]=seedRows(t));
+  if(r.slug==='pkt1'){
+    d.tables.daily_rate = PKT1_DAILY;
+    const a=PKT1_DAILY, L=a[a.length-1];
+    if(L){
+      const p7=a[Math.max(0,a.length-8)];
+      d.kpis.rub_usdt=L.rub_usdt; d.kpis.idr_usdt=L.idr_usdt;
+      d.kpis.usdt_vnd_co=L.usdt_vnd; d.kpis.usdt_vnd_rev=Math.round(L.usdt_vnd*0.98);
+      d.kpis.bien_dong_7d=+(((L.usdt_vnd-p7.usdt_vnd)/p7.usdt_vnd)*100).toFixed(2);
+    }
+  }
+  return d;
+}
+const DATA={}; R.forEach(r=>DATA[r.slug]=baseData(r));
+
+/* ---------- số liệu mẫu ---------- */
+const M=1e6;
+function demoFill(){
+  const p=DATA.pkt1;
+  Object.assign(p.kpis,{so_du_ngoai_te:8420*M,cltg_thang:-186*M,cltg_tren_ln:9.4,sensitivity:84.2*M});
+  p.tables.weekly_rate=[
+    {tuan:'Tuần 28',tu_ngay:'2026-07-06',den_ngay:'2026-07-12',rub_usdt:82.4,idr_usdt:17540,usdt_vnd_co:26480,usdt_vnd_rev:25950,gap:0.42,canh_bao:'Không'},
+    {tuan:'Tuần 29',tu_ngay:'2026-07-13',den_ngay:'2026-07-19',rub_usdt:83.1,idr_usdt:17576,usdt_vnd_co:26360,usdt_vnd_rev:25833,gap:-0.45,canh_bao:'Không'},
+    {tuan:'Tuần 30',tu_ngay:'2026-07-20',den_ngay:'2026-07-26',rub_usdt:83.8,idr_usdt:17594,usdt_vnd_co:26375,usdt_vnd_rev:25848,gap:0.06,canh_bao:'Không'}];
+  p.tables.fx_position=[
+    {loai_tien:'USDT',vi_san:'Binance',so_du:214500,ty_gia:26375,quy_doi:5657*M,ti_trong:67.2,anh_huong:56.6*M},
+    {loai_tien:'USD',vi_san:'PayPal',so_du:41200,ty_gia:26387,quy_doi:1087*M,ti_trong:12.9,anh_huong:10.9*M},
+    {loai_tien:'RUB',vi_san:'Playerok',so_du:4120000,ty_gia:314.7,quy_doi:1297*M,ti_trong:15.4,anh_huong:13.0*M},
+    {loai_tien:'IDR',vi_san:'Itemku',so_du:262000000,ty_gia:1.499,quy_doi:393*M,ti_trong:4.5,anh_huong:3.9*M}];
+
+  const q=DATA.pkt2;
+  Object.assign(q.kpis,{gmv:38420*M,re:31650*M,cogs:26180*M,pl1:5470*M,pl2a:4310*M,pl2:3186*M,pl7:1842*M,bien_pl2:10.07,fg:412*M});
+  const pn={GMV1:24180,GMV2:14240,RR:-1420,AR:-5110,RE:31650,CO1:24960,CO2:820,CO3:400,PL1:5470,SF:780,CF:380,PL2A:4310,
+    SE:640,ME:310,OP:420,FI:166,FG:412,PL2:3186,OV:940,CA:214,OT:190,PL7:1842};
+  q.tables.pnl_main=q.tables.pnl_main.map(r=>{
+    const v=pn[r.ma]; if(v===undefined) return r;
+    const prev=Math.round(v*(0.88+Math.random()*0.2));
+    return {...r,ky_nay:v*M,ky_truoc:prev*M,mom:+(((v-prev)/Math.abs(prev))*100).toFixed(1),tren_re:+((v/31650)*100).toFixed(1)};
+  });
+  q.tables.pnl_by_dim=[
+    ['Sàn','Playerok',9820,8140,6720,1420,1180,842,10.3],['Sàn','Itemku',7640,6320,5310,1010,830,596,9.4],
+    ['Sàn','Eldorado',6180,5010,4180,830,690,512,10.2],['Sàn','U7BUY',5320,4380,3720,660,520,388,8.9],
+    ['BU','BU1 · BD10F',8940,7420,6090,1330,1090,806,10.9],['BU','BU2 · LM',7210,5980,5020,960,780,564,9.4],
+    ['BU','BU4 · Mạnh',9860,8140,6810,1330,1080,798,9.8],['BU','WGG · B2C VN',4180,3420,2960,460,340,206,6.0]
+  ].map(a=>({chieu:a[0],ten:a[1],gmv:a[2]*M,re:a[3]*M,cogs:a[4]*M,pl1:a[5]*M,pl2a:a[6]*M,fg:Math.round(a[7]*8)*M,pl2:a[7]*M,bien_pl2:a[8]}));
+  q.tables.dq=q.tables.dq.map((r,i)=>({...r,so_don:[142,256,38,64,91,12,27][i],gia_tri:[286,512,74,128,183,41,58][i]*M,
+    trang_thai:['Đang xử lý','Đã chốt','Đang xử lý','Đã chốt','Đang xử lý','Chờ giải trình','Đã chốt'][i],
+    nguoi:['Sale BU1','PKT','Sale BU4','PKD','PKT','PKT','PVH'][i]}));
+
+  const c=DATA.pkt3;
+  Object.assign(c.kpis,{dau_ky:6240*M,thu:34820*M,chi:31460*M,cuoi_ky:9600*M,ocf:2180*M,gap:-1006*M,runway:38,chon:12480*M});
+  const cf=[[6240,0,0,0,0,6240],[28460,742,0,0,0,28460],[6360,0,41,0,0,6360],[-24180,-620,0,0,0,-24180],
+    [-1160,-32,0,0,0,-1160],[-3480,0,0,0,0,-3480],[-1840,0,0,0,0,-1840],[-800,0,0,0,0,-800],[9600,90,41,0,0,9600]];
+  c.tables.cf_sum=c.tables.cf_sum.map((r,i)=>({...r,vnd:cf[i][0]*M,usdt:cf[i][1]*1000,usd:cf[i][2]*1000,rub:'',idr:'',quy_doi:cf[i][5]*M}));
+  const rec=[3186,-1240,-820,610,-340,214,-430,2180];
+  c.tables.cf_rec=c.tables.cf_rec.map((r,i)=>({...r,gia_tri:rec[i]*M,ghi_chu:i===0?'Lấy từ PKT2':i===7?'Tiền thật tạo ra trong kỳ':''}));
+  c.tables.cf_fc=[['Tuần 31',4820,640,1860,320,7640,8420,10380,'An toàn'],['Tuần 32',5340,680,0,410,6430,7180,11130,'An toàn'],
+    ['Tuần 33',6180,720,1860,380,9140,7640,9630,'Theo dõi'],['Tuần 34',7420,760,0,440,8620,6980,7990,'Cảnh báo']]
+    .map(a=>({tuan:a[0],ncc:a[1]*M,ctv:a[2]*M,luong:a[3]*M,idol:a[4]*M,tong_chi:a[5]*M,thu:a[6]*M,so_du:a[7]*M,trang_thai:a[8]}));
+
+  const b=DATA.pkt4;
+  Object.assign(b.kpis,{ta:48620*M,tl:21840*M,eq:26780*M,de:0.82,cr:1.64,qr:1.18,cash:19.7,inv:25.7});
+  const av=[[5240,9600],[7180,8420],[2140,1860],[3820,4210],[2960,3180],[11840,12480],[-420,-560],[8620,8290],[41380,48620]];
+  b.tables.bs_a=b.tables.bs_a.map((r,i)=>({...r,dau_ky:av[i][0]*M,cuoi_ky:av[i][1]*M,bien_dong:(av[i][1]-av[i][0])*M,
+    ti_trong:+((av[i][1]/48620)*100).toFixed(1)}));
+  const lv=[[6840,8120],[4210,5340],[2180,2460],[3800,4200],[1420,1720],[18450,21840],[18000,18000],[4930,8780],[22930,26780]];
+  b.tables.bs_l=b.tables.bs_l.map((r,i)=>({...r,dau_ky:lv[i][0]*M,cuoi_ky:lv[i][1]*M,bien_dong:(lv[i][1]-lv[i][0])*M,
+    ti_trong:+((lv[i][1]/48620)*100).toFixed(1)}));
+  const rv=[[1.64,1.52,'Đạt'],[1.18,1.06,'Đạt'],[0.82,0.80,'Đạt'],[25.7,28.6,'Đạt'],[9840,7620,'Đạt']];
+  b.tables.bs_r=b.tables.bs_r.map((r,i)=>({...r,ky_nay:rv[i][0],ky_truoc:rv[i][1],danh_gia:rv[i][2]}));
+
+  const i5=DATA.pkt5;
+  Object.assign(i5.kpis,{gia_tri:12480*M,sl:18420,chon:12480*M,t30:4180*M,t60:1840*M,t90:920*M,chenh:-186*M,du_phong:562*M,dio:34});
+  const ag=[[8420,6180,49.5,0,0],[4260,2120,17.0,0,0],[3140,2340,18.8,5,117],[1820,920,7.4,15,138],[780,920,7.4,35,322]];
+  i5.tables.inv_aging=i5.tables.inv_aging.map((r,i)=>({...r,sl:ag[i][0],gia_tri:ag[i][1]*M,ti_trong:ag[i][2],ty_le:ag[i][3],du_phong:ag[i][4]*M}));
+  i5.tables.inv_stock=[['Kho GoX','Gamepass/Robux','RBX-120H',4820,86000,'2026-07-18',6,'Bình thường'],
+    ['Kho GoX','Giftcard','GC-STEAM-50',1240,1180000,'2026-07-02',22,'Bình thường'],
+    ['Kho NCC','Item','IT-DIABLO-SET',860,420000,'2026-06-10',44,'Theo dõi'],
+    ['Kho NCC','Nick','NC-VALO-RANK',210,2400000,'2026-05-04',81,'Chậm luân chuyển'],
+    ['Kho GoX','Top Up','TU-MLBB-500',3180,142000,'2026-07-20',4,'Bình thường']]
+    .map(a=>({kho:a[0],spdv:a[1],sku:a[2],sl:a[3],don_gia:a[4],gia_tri:a[3]*a[4],ngay_nhap:a[5],tuoi:a[6],trang_thai:a[7]}));
+  i5.tables.inv_rec=[['Kho GoX','Gamepass/Robux',4820,4820,4818,-2,-172000,'Lệch do đơn giao lúc chốt sổ'],
+    ['Kho GoX','Giftcard',1240,1236,1240,-4,-4720000,'Thiếu 4 mã, PVH đang truy'],
+    ['Kho NCC','Nick',210,210,210,0,0,'Khớp']]
+    .map(a=>({kho:a[0],spdv:a[1],pkt:a[2],pvh:a[3],pcu:a[4],chenh:a[5],gia_tri:a[6],nguyen_nhan:a[7]}));
+
+  const c6=DATA.pkt6;
+  Object.assign(c6.kpis,{don:42860,arpo:738000,ppo:74000,fail:3.8,rr:2.4,bien:10.07,lo:2,leak:1284*M});
+  c6.tables.cpv=[['BU1','Gamepass/Robux','Playerok',12840,318,4820,3960,612,12.7,375000,'Sinh lời tốt'],
+    ['BU1','Giftcard','Eldorado',6420,186,3180,2740,286,9.0,495000,'Sinh lời tốt'],
+    ['BU2','Top Up','Itemku',9860,462,4210,3720,248,5.9,427000,'Hoà vốn'],
+    ['BU4','Item','U7BUY',7180,394,3860,3410,186,4.8,537000,'Hoà vốn'],
+    ['BU4','Nick','Funpay',2140,268,1420,1380,-62,-4.4,663000,'Càng bán càng lỗ'],
+    ['WGG','Top Up','B2C Việt Nam',4420,182,1960,1880,-24,-1.2,443000,'Càng bán càng lỗ']]
+    .map(a=>({team:a[0],spdv:a[1],san:a[2],don:a[3],fail:a[4],re:a[5]*M,cogs:a[6]*M,pl2:a[7]*M,bien:a[9],arpo:a[10],xep_loai:a[11]}));
+  c6.tables.leak=[['BU4','Đơn nick bị thu hồi sau giao',268,486,1.26,'Siết quy trình bảo hành nick 7 ngày'],
+    ['BU2','Top up sai ID người nhận',462,318,0.83,'Bắt buộc xác thực ID trước khi bơm'],
+    ['WGG','Khách hủy sau khi đã mua hàng',182,214,0.56,'Thu phí giữ chỗ 20% với đơn giá trị lớn'],
+    ['BU1','Hết hàng NCC sau khi nhận đơn',318,266,0.69,'Đồng bộ tồn kho NCC theo giờ']]
+    .map(a=>({team:a[0],nguyen_nhan:a[1],don:a[2],gia_tri:a[3]*M,tren_gmv:a[4],hanh_dong:a[5]}));
+
+  const f=DATA.pkt7;
+  Object.assign(f.kpis,{roi:14.2,roa:3.8,roe:6.9,dol:2.4,ccc:26,dio:34,dso:12,dpo:20,score:72});
+  const rr=[[17.3,17.0,17.3],[9.4,9.8,10.1],[5.1,5.4,5.8],[3.4,3.6,3.8],[6.2,6.5,6.9],[10.2,10.6,10.7],[36,34,34],
+    [14,13,12],[19,20,20],[31,27,26],[1.52,1.58,1.64],[34,36,38],[0.80,0.81,0.82],[2.1,2.3,2.4],[82.9,83.1,82.7],[3.1,3.0,2.9]];
+  f.tables.ratio=f.tables.ratio.map((r,i)=>({...r,t2:rr[i][0],t1:rr[i][1],t0:rr[i][2],
+    xu_huong:rr[i][2]>rr[i][1]?'Tăng':rr[i][2]<rr[i][1]?'Giảm':'Giữ'}));
+  f.tables.trend=[['02/2026',24180,2140,980,8.8,2.9,32],['03/2026',26420,2480,1180,9.4,3.1,30],['04/2026',27860,2610,1290,9.4,3.3,29],
+    ['05/2026',29140,2820,1460,9.7,3.5,28],['06/2026',30480,3010,1640,9.9,3.6,27],['07/2026',31650,3186,1842,10.1,3.8,26]]
+    .map(a=>({thang:a[0],re:a[1]*M,pl2:a[2]*M,pl7:a[3]*M,bien:a[4],roa:a[5],ccc:a[6]}));
+  const sv=[[25320,1518,438,-52.4],[28485,2352,1140,-26.2],[31650,3186,1842,0],[34815,4020,2544,26.2],[37980,4854,3246,52.4]];
+  f.tables.sens=f.tables.sens.map((r,i)=>({...r,re:sv[i][0]*M,pl2:sv[i][1]*M,pl7:sv[i][2]*M,delta_pl2:sv[i][3]}));
+}
+
+/* ---------- biểu đồ ---------- */
+const CC=['#7c5cff','#22d3ee','#f472b6','#34d399','#fbbf24','#4b8dff'];
+function chartSvg(ch,rows){
+  const W=620,H=250,P={t:16,r:16,b:34,l:64};
+  const data=rows.filter(r=>ch.s.some(s=>F.num(r[s.k])!==null));
+  if(!data.length) return '<div class="empty">Biểu đồ hiện khi bảng nguồn có dữ liệu.</div>';
+  const iw=W-P.l-P.r, ih=H-P.t-P.b;
+  const vals=[]; data.forEach(r=>ch.s.forEach(s=>{const v=F.num(r[s.k]); if(v!==null)vals.push(v);}));
+  let mn=Math.min(...vals), mx=Math.max(...vals);
+  if(ch.type!=='line'){ mn=Math.min(0,mn); }
+  if(mn===mx){mx=mn+1;}
+  const pad=(mx-mn)*0.08; mn-=pad; mx+=pad;
+  const Y=v=>P.t+ih-((v-mn)/(mx-mn))*ih;
+  let g='';
+  for(let i=0;i<=4;i++){ const y=P.t+ih*i/4, v=mx-(mx-mn)*i/4;
+    g+=`<line x1="${P.l}" y1="${y}" x2="${W-P.r}" y2="${y}" stroke="rgba(255,255,255,.07)"/>`+
+       `<text x="${P.l-8}" y="${y+3}" text-anchor="end" font-size="9.5" font-family="monospace" fill="#6c7ba3">${F.compact(v)}</text>`;}
+  if(ch.type==='donut'){
+    const key=ch.s[0].k, tot=data.reduce((a,r)=>a+Math.abs(F.num(r[key])||0),0);
+    let ang=-Math.PI/2, arcs='', lg='';
+    data.forEach((r,i)=>{const v=Math.abs(F.num(r[key])||0); if(!v)return;
+      const a2=ang+(v/tot)*Math.PI*2, R1=92,R2=54,cx=150,cy=125,la=(a2-ang)>Math.PI?1:0;
+      arcs+=`<path d="M${cx+R1*Math.cos(ang)},${cy+R1*Math.sin(ang)} A${R1},${R1} 0 ${la} 1 ${cx+R1*Math.cos(a2)},${cy+R1*Math.sin(a2)} L${cx+R2*Math.cos(a2)},${cy+R2*Math.sin(a2)} A${R2},${R2} 0 ${la} 0 ${cx+R2*Math.cos(ang)},${cy+R2*Math.sin(ang)} Z" fill="${CC[i%6]}" opacity=".85"/>`;
+      lg+=`<g transform="translate(300,${34+i*24})"><rect width="10" height="10" rx="2" fill="${CC[i%6]}"/><text x="17" y="9" font-size="11" fill="#a6b3d4">${String(r[ch.x]).slice(0,26)} · ${((v/tot)*100).toFixed(1)}%</text></g>`;
+      ang=a2;});
+    return `<svg viewBox="0 0 620 250" style="width:100%;height:auto">${arcs}${lg}</svg>`;
+  }
+  let body='';
+  if(ch.type==='line'){
+    ch.s.forEach((s,si)=>{
+      const pts=data.map((r,i)=>{const v=F.num(r[s.k]); return v===null?null:`${(P.l+(iw*i)/(data.length-1||1)).toFixed(1)},${Y(v).toFixed(1)}`;}).filter(Boolean);
+      body+=`<polyline points="${pts.join(' ')}" fill="none" stroke="${CC[si%6]}" stroke-width="2.2" stroke-linejoin="round"/>`;
+      const last=pts[pts.length-1].split(',');
+      body+=`<circle cx="${last[0]}" cy="${last[1]}" r="3.4" fill="${CC[si%6]}"/>`;
+    });
+  } else {
+    const bw=iw/data.length, n=ch.s.length, w=Math.min(26,(bw-10)/n);
+    data.forEach((r,i)=>{ ch.s.forEach((s,si)=>{ const v=F.num(r[s.k]); if(v===null)return;
+      const x=P.l+bw*i+bw/2-(n*w)/2+si*w, y0=Y(0), y=Y(v);
+      body+=`<rect x="${x.toFixed(1)}" y="${Math.min(y,y0).toFixed(1)}" width="${(w-3).toFixed(1)}" height="${Math.max(2,Math.abs(y0-y)).toFixed(1)}" rx="2" fill="${CC[si%6]}" opacity=".88"/>`;});});
+  }
+  let xl='';
+  const step=Math.ceil(data.length/7);
+  data.forEach((r,i)=>{ if(i%step)return;
+    const x=ch.type==='line'?P.l+(iw*i)/(data.length-1||1):P.l+(iw/data.length)*i+(iw/data.length)/2;
+    let t=String(r[ch.x]??''); if(t.length>10)t=t.slice(5).replace(/-/g,'/');
+    xl+=`<text x="${x.toFixed(1)}" y="${H-12}" text-anchor="middle" font-size="9.5" font-family="monospace" fill="#6c7ba3">${t}</text>`;});
+  let lg='';
+  ch.s.forEach((s,i)=>{lg+=`<g transform="translate(${P.l+i*120},${H-2})"><rect width="9" height="9" rx="2" fill="${CC[i%6]}"/><text x="15" y="8" font-size="10.5" fill="#a6b3d4">${s.l}</text></g>`;});
+  return `<svg viewBox="0 0 620 262" style="width:100%;height:auto">${g}${body}${xl}${lg}</svg>`;
+}
+
+/* ---------- render ---------- */
+let cur='pkt1', demoOn=false;
+function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+function renderNav(){
+  document.getElementById('nav').innerHTML = R.map(r=>
+    `<a class="nav${r.slug===cur?' on':''}" href="#" onclick="go('${r.slug}');return false">
+      <span class="c">${r.code}</span><span><span class="n">${r.short}</span><br><span class="sla">SLA ${r.sla}</span></span></a>`).join('');
+}
+function tableHtml(t,rows){
+  const head=t.cols.map(c=>`<th class="${['money','num','rate','pct'].includes(c.t)?'n':''}">${esc(c.l)}</th>`).join('');
+  const body=rows.map(r=>{
+    const first=String(r[t.cols[0].k]??'')+' '+String(r[t.cols[1]?.k]??'');
+    const sum=/^(RE|PL1|PL2A|PL2|PL7|TA|TL|EQ)\b/.test(first.trim())||/Tổng|Tiền cuối kỳ|Dòng tiền hoạt động/.test(first);
+    const tds=t.cols.map(c=>{ const v=F.cell(r[c.k],c.t); const n=['money','num','rate','pct'].includes(c.t);
+      const neg=n&&F.num(r[c.k])!==null&&F.num(r[c.k])<0;
+      return `<td class="${n?'n':''}${neg?' neg':''}">${v===null?'<span class="na">—</span>':esc(v)}</td>`;}).join('');
+    return `<tr class="${sum?'sum':''}">${tds}</tr>`;}).join('');
+  return rows.length
+    ? `<div class="tw"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`
+    : `<div class="card-b"><div class="empty"><b>Bảng chưa có dữ liệu.</b><div style="margin-top:8px" class="mono">Cột cần chuẩn bị: ${t.cols.map(c=>c.k).join(' · ')}</div></div></div>`;
+}
+function render(){
+  const r=R.find(x=>x.slug===cur), d=DATA[cur];
+  document.getElementById('eyebrow').textContent=`${r.code} · SLA ${r.sla} · NGUỒN: ${r.src.toUpperCase()}`;
+  document.getElementById('title').textContent=r.name;
+  document.getElementById('sub').textContent=r.purpose[0];
+  document.getElementById('periods').innerHTML=r.periods.map((p,i)=>`<button class="${i===0?'on':''}" onclick="segPick(this)">${p}</button>`).join('');
+  document.getElementById('demo').textContent=demoOn?'Tắt số liệu mẫu':'Bật số liệu mẫu';
+
+  let h=`<div class="card"><div class="card-h"><h2>Báo cáo này trả lời câu hỏi gì</h2>
+    <span class="row">${demoOn?'<span class="tag demo">SỐ MẪU MINH HOẠ</span>':''}<span class="tag sla">Hạn nộp ${r.sla}</span></span></div>
+    <div class="card-b"><ul class="purpose">${r.purpose.map(p=>`<li>${esc(p)}</li>`).join('')}</ul></div></div>`;
+
+  h+='<div class="kpis">'+r.kpis.map(k=>{
+    const raw=d.kpis[k.k], v=F.kpi(raw,k.t);
+    let tone=k.tone||''; if(tone==='auto'){const n=F.num(raw); tone=n===null?'':n>=0?'gain':'loss';}
+    const vc=v===null?'na':(tone==='gain'?'gain':tone==='loss'?'loss':'');
+    return `<div class="kpi ${tone}"><span class="chip">${esc(k.c)}</span><div class="l">${esc(k.l)}</div>
+      <div class="v ${vc}">${v===null?'—':esc(v)}</div>${k.n?`<div class="f">${esc(k.n)}</div>`:''}</div>`;}).join('')+'</div>';
+
+  r.tables.forEach(t=>{ const rows=d.tables[t.id]||[];
+    h+=`<div class="card"><div class="card-h"><div><h2>${esc(t.title)}</h2>${t.hint?`<div class="hint">${esc(t.hint)}</div>`:''}</div>
+      <span class="row"><span class="tag">${rows.length} dòng</span><button class="btn">Tải CSV</button></span></div>${tableHtml(t,rows)}</div>`;});
+
+  h+='<div class="g2">'+r.charts.map(c=>
+    `<div class="card"><div class="card-h"><h2>${esc(c.title)}</h2><span class="tag">${c.tbl}</span></div>
+      <div class="card-b">${chartSvg(c,d.tables[c.tbl]||[])}</div></div>`).join('')+'</div>';
+
+  document.getElementById('body').innerHTML=h;
+  renderNav();
+  window.scrollTo({top:0});
+}
+function go(s){cur=s;render();}
+function segPick(b){[...b.parentNode.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');}
+document.getElementById('demo').onclick=()=>{
+  demoOn=!demoOn;
+  R.forEach(r=>DATA[r.slug]=baseData(r));
+  if(demoOn) demoFill();
+  render();
+};
+render();
+</script>
+</body>
+</html>

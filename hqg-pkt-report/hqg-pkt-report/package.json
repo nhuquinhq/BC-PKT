@@ -1,0 +1,19 @@
+{
+  "name": "hqg-pkt-report",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hệ thống Báo cáo Phòng Kế Toán - HQ Group (PKT1 - PKT7)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "14.2.5",
+    "papaparse": "5.4.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "recharts": "2.12.7"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "_huong_dan": "Điền vào kpis và tables. Bảng nào để trống trong file này sẽ dùng khung mặc định trong lib/reports.js.",
+  "meta": {
+    "ky": "",
+    "cap_nhat": "",
+    "nguoi_lap": "PKT",
+    "ghi_chu": ""
+  },
+  "kpis": {},
+  "tables": {}
+}
