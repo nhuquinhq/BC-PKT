@@ -2,40 +2,65 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { REPORTS } from '@/lib/reports';
+import { TIERS, reportsByTier } from '@/lib/reports';
 
 export default function Sidebar() {
   const path = usePathname();
 
   return (
     <aside className="rail">
-      <Link href="/" className="rail-brand" style={{ display: 'block' }}>
-        <div className="mark">HQ GROUP</div>
-        <div className="title">Báo cáo Phòng Kế Toán</div>
-        <div className="sub">Digital Asset Arbitrage &amp; Distribution</div>
-      </Link>
+      <div className="rail-scroll">
+        <Link href="/" className="rail-brand">
+          <span className="logo">HQ<i>group</i></span>
+          <span className="brand-text">
+            <span className="title">Trung tâm Báo cáo PKT</span>
+            <span className="sub">Realtime Google Sheet · v3</span>
+          </span>
+        </Link>
 
-      <div className="rail-label">Bộ báo cáo</div>
-      {REPORTS.map((r) => {
-        const href = `/bao-cao/${r.slug}`;
-        const active = path === href;
-        return (
-          <Link key={r.slug} href={href} className={`nav-item${active ? ' active' : ''}`}>
-            <span className="code">{r.code}</span>
-            <span>
-              <span className="nm">{r.short}</span>
-              <br />
-              <span className="sla">SLA {r.sla}</span>
-            </span>
-          </Link>
-        );
-      })}
+        <Link href="/" className={`nav-item pinned${path === '/' ? ' active' : ''}`}>
+          <span className="code">◆</span>
+          <span className="dot" />
+          <span className="nm">Tổng quan (PKT1 → PKT7)</span>
+        </Link>
 
-      <div className="rail-label">Thiết lập</div>
-      <Link href="/nguon-du-lieu" className={`nav-item${path === '/nguon-du-lieu' ? ' active' : ''}`}>
-        <span className="code">SRC</span>
-        <span className="nm">Nguồn dữ liệu &amp; kiến trúc</span>
-      </Link>
+        {TIERS.map((tier) => (
+          <div key={tier.id}>
+            <div className="rail-label">
+              {tier.label} <em>({tier.who})</em>
+            </div>
+            {reportsByTier(tier.id).map((r) => {
+              const href = `/bao-cao/${r.slug}`;
+              const active = path === href;
+              return (
+                <Link key={r.slug} href={href} className={`nav-item${active ? ' active' : ''}`}>
+                  <span className="code">{r.code}</span>
+                  <span className="dot" />
+                  <span className="nm">{r.nav || r.short}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+
+        <div className="rail-label">Hệ thống</div>
+        <Link href="/nguon-du-lieu" className={`nav-item${path === '/nguon-du-lieu' ? ' active' : ''}`}>
+          <span className="code">·</span>
+          <span className="dot sys" />
+          <span className="nm">Nguồn &amp; Cấu hình</span>
+        </Link>
+      </div>
+
+      <div className="rail-foot">
+        <div className="rail-user">
+          <span className="avatar">K</span>
+          <span className="who">
+            <span className="mail">ketoan@hqgroups.vn</span>
+            <span className="role">Quản trị hệ thống</span>
+          </span>
+        </div>
+        <button className="btn-logout" type="button">⏻ Đăng xuất</button>
+      </div>
     </aside>
   );
 }

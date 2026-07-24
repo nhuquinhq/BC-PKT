@@ -11,6 +11,8 @@ export const REPORTS = [
     slug: 'pkt1',
     name: 'Báo cáo TỈ GIÁ',
     short: 'TỈ GIÁ',
+    nav: 'Tỉ giá & vị thế ngoại tệ',
+    tier: 2,
     sla: 'Ngày 1',
     periods: ['day', 'week', 'month'],
     defaultPeriod: 'day',
@@ -112,6 +114,8 @@ export const REPORTS = [
     slug: 'pkt2',
     name: 'Báo cáo KQKD (P&L)',
     short: 'KQKD',
+    nav: 'KQKD — P&L theo Sàn / BU',
+    tier: 1,
     sla: 'Ngày 15',
     periods: ['month', 'quarter', 'year'],
     defaultPeriod: 'month',
@@ -231,6 +235,8 @@ export const REPORTS = [
     slug: 'pkt3',
     name: 'Báo cáo DÒNG TIỀN',
     short: 'DÒNG TIỀN',
+    nav: 'Dòng tiền & dự báo chi trả',
+    tier: 1,
     sla: 'Ngày 5',
     periods: ['week', 'month', 'quarter'],
     defaultPeriod: 'month',
@@ -345,6 +351,8 @@ export const REPORTS = [
     slug: 'pkt4',
     name: 'Báo cáo B/S (Cân đối kế toán)',
     short: 'CÂN ĐỐI KT',
+    nav: 'Cân đối kế toán (B/S)',
+    tier: 1,
     sla: 'Ngày 5',
     periods: ['month', 'quarter', 'year'],
     defaultPeriod: 'month',
@@ -447,6 +455,8 @@ export const REPORTS = [
     slug: 'pkt5',
     name: 'Báo cáo HÀNG TỒN KHO',
     short: 'TỒN KHO',
+    nav: 'Tồn kho & tuổi tồn',
+    tier: 2,
     sla: 'Ngày 5',
     periods: ['day', 'week', 'month'],
     defaultPeriod: 'week',
@@ -533,6 +543,8 @@ export const REPORTS = [
     slug: 'pkt6',
     name: 'Báo cáo QUẢN TRỊ CPV',
     short: 'QUẢN TRỊ CPV',
+    nav: 'Quản trị CPV (Team × SPDV)',
+    tier: 2,
     sla: 'Ngày 5',
     periods: ['week', 'month', 'quarter'],
     defaultPeriod: 'month',
@@ -602,6 +614,8 @@ export const REPORTS = [
     slug: 'pkt7',
     name: 'Báo cáo QUẢN TRỊ TÀI CHÍNH',
     short: 'QUẢN TRỊ TC',
+    nav: 'Quản trị tài chính (ROI · CCC)',
+    tier: 1,
     sla: 'Ngày 15',
     periods: ['month', 'quarter', 'year'],
     defaultPeriod: 'month',
@@ -704,6 +718,16 @@ export const PERIOD_LABEL = {
   quarter: 'Quý',
   year: 'Năm',
 };
+
+/* Phân tầng báo cáo theo người dùng & nhịp xem */
+export const TIERS = [
+  { id: 1, label: 'Tầng 1 · Điều hành', who: 'CEO · Tháng' },
+  { id: 2, label: 'Tầng 2 · Kiểm soát', who: 'Leader · Tuần' },
+];
+
+export function reportsByTier(tierId) {
+  return REPORTS.filter((r) => r.tier === tierId);
+}
 
 export function getReport(slug) {
   return REPORTS.find((r) => r.slug === slug);

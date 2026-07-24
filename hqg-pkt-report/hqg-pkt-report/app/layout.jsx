@@ -2,8 +2,8 @@ import './globals.css';
 import Sidebar from '@/components/Sidebar';
 
 export const metadata = {
-  title: 'Báo cáo Phòng Kế Toán — HQ Group',
-  description: 'Hệ thống 7 báo cáo quản trị tài chính PKT1–PKT7 của HQ Group',
+  title: 'Trung tâm Báo cáo PKT — HQ Group',
+  description: 'Trung tâm 7 báo cáo quản trị tài chính PKT1–PKT7 của HQ Group, đọc realtime từ Google Sheet',
 };
 
 export default function RootLayout({ children }) {
