@@ -127,27 +127,37 @@ export default function ReportView({ report }) {
 
         <KpiStrip kpis={report.kpis} values={view.kpis} />
 
-        {report.sheet?.mode === 'weekly_matrix' ? (
-          <WeeklyRateBoard report={report} onLive={applyLive} range={range} />
-        ) : null}
-
-        <SourcePanel report={report} onApply={applyTable} onApplyKpis={applyKpis} onReset={reset} />
-
-        {report.tables.map((t) => (
-          <DataTable
-            key={t.id}
-            table={t}
-            rows={shown[t.id] || []}
-            live={liveTables.has(t.id)}
-            onExport={exportCsv}
-          />
-        ))}
-
-        <div className="grid-2">
-          {report.charts.map((c) => (
-            <ChartBlock key={c.id} chart={c} rows={shown[c.table] || []} />
-          ))}
-        </div>
+        {(() => {
+          const isMatrix = report.sheet?.mode === 'weekly_matrix';
+          const tables = report.tables
+            .filter((t) => !t.hidden)
+            .map((t) => (
+              <DataTable key={t.id} table={t} rows={shown[t.id] || []} live={liveTables.has(t.id)} onExport={exportCsv} />
+            ));
+          const charts = report.charts.length ? (
+            <div className="grid-2">
+              {report.charts.map((c) => (
+                <ChartBlock key={c.id} chart={c} rows={shown[c.table] || []} />
+              ))}
+            </div>
+          ) : null;
+          const source = <SourcePanel report={report} onApply={applyTable} onApplyKpis={applyKpis} onReset={reset} />;
+          /* Báo cáo có bảng LIVE: tỉ giá → biểu đồ ngay bên dưới → nguồn → các bảng còn lại */
+          return isMatrix ? (
+            <>
+              <WeeklyRateBoard report={report} onLive={applyLive} range={range} />
+              {charts}
+              {source}
+              {tables}
+            </>
+          ) : (
+            <>
+              {source}
+              {tables}
+              {charts}
+            </>
+          );
+        })()}
 
         <div className="muted" style={{ marginTop: 8 }}>
           {loaded ? `Cập nhật: ${data.meta.cap_nhat || '—'} · Người lập: ${data.meta.nguoi_lap || '—'}` : 'Đang tải dữ liệu…'}
