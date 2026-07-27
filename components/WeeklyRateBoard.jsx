@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchSheetGrid } from '@/lib/data';
-import { parseWeeklyRate, fmtMatrixCell } from '@/lib/weeklyRate';
+import { parseWeeklyRate, fmtMatrixCell, buildWeeklyCompare } from '@/lib/weeklyRate';
 import { parseVNDate, overlapsRange } from '@/lib/timeFilter';
 
 const SECTION_TITLE = {
@@ -52,6 +52,9 @@ export default function WeeklyRateBoard({ report, onLive, range }) {
   const { weeks = [], rows = [] } = state;
   const lastIdx = weeks.length - 1;
 
+  /* Nhận xét: tuần mới nhất so với tuần liền trước (không phụ thuộc bộ lọc) */
+  const cmp = useMemo(() => (state.tidy ? buildWeeklyCompare(state.tidy) : null), [state.tidy]);
+
   /* Cột tuần nhìn qua bộ lọc thời gian */
   const visible = useMemo(() => {
     const idx = weeks.map((_, i) => i);
@@ -76,7 +79,48 @@ export default function WeeklyRateBoard({ report, onLive, range }) {
     bodyRows.push({ row: r, key: `r${i}` });
   });
 
+  const ARROW = { up: '▲', down: '▼', flat: '→' };
+
   return (
+    <>
+    {cmp ? (
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Nhận xét tuần {cmp.cur.week} — so với tuần {cmp.prev.week}</h2>
+          {cmp.gap ? (
+            <span className={`tag ${cmp.gap.breach ? 'breach-tag' : 'ok-tag'}`}>
+              Gap 2 tuần: {cmp.gap.pctTxt} {cmp.gap.breach ? '· VƯỢT ngưỡng 2%' : '· dưới ngưỡng 2%'}
+            </span>
+          ) : null}
+        </div>
+        <div className="panel-body">
+          <p className="cmp-lead">
+            Tuần <b>{cmp.cur.week}</b> ({cmp.cur.from} – {cmp.cur.to}) so với tuần <b>{cmp.prev.week}</b> ({cmp.prev.from} – {cmp.prev.to}):{' '}
+            <b className="up">{cmp.counts.up} chỉ số tăng</b>, <b className="down">{cmp.counts.down} giảm</b>, {cmp.counts.flat} đi ngang.{' '}
+            {cmp.gap ? (
+              cmp.gap.breach ? (
+                <b className="down">Gap USDT 2 tuần {cmp.gap.pctTxt} — vượt ngưỡng 2%, áp tỉ giá thực tế thứ Hai cho tuần này.</b>
+              ) : (
+                <>Gap USDT 2 tuần <b>{cmp.gap.pctTxt}</b> — dưới ngưỡng 2%, tiếp tục áp tỉ giá kế hoạch.</>
+              )
+            ) : null}
+          </p>
+          <div className="cmp-grid">
+            {cmp.items.map((it) => (
+              <div key={it.label} className="cmp-item">
+                <div className="cmp-label">{it.label}</div>
+                <div className="cmp-val">{it.curTxt}</div>
+                <div className="cmp-prev">tuần trước {it.prevTxt}</div>
+                <div className={`cmp-badge ${it.dir}`}>
+                  {ARROW[it.dir]} {it.dir === 'flat' ? 'đi ngang' : `${it.deltaTxt} · ${it.pctTxt}`}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    ) : null}
+
     <section className="panel">
       <div className="panel-head">
         <div>
@@ -154,5 +198,6 @@ export default function WeeklyRateBoard({ report, onLive, range }) {
         )}
       </div>
     </section>
+    </>
   );
 }
