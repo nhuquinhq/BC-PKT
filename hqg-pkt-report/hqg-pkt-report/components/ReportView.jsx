@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import KpiStrip from './KpiStrip';
 import DataTable from './DataTable';
 import ChartBlock from './ChartBlock';
 import SourcePanel from './SourcePanel';
+import WeeklyRateBoard from './WeeklyRateBoard';
 import { PERIOD_LABEL } from '@/lib/reports';
 import { fetchJson, loadOverride, saveOverride, clearOverride, emptyData } from '@/lib/data';
 
 export default function ReportView({ report }) {
   const [data, setData] = useState(() => emptyData(report));
+  const [live, setLive] = useState({ kpis: {}, tables: {} });
   const [period, setPeriod] = useState(report.defaultPeriod);
   const [ky, setKy] = useState('');
   const [loaded, setLoaded] = useState(false);
@@ -35,6 +37,17 @@ export default function ReportView({ report }) {
     return () => { alive = false; };
   }, [report]);
 
+  /* Dữ liệu đọc trực tiếp từ Google Sheet đè lên JSON và dữ liệu nạp tay */
+  const view = useMemo(() => ({
+    meta: data.meta,
+    kpis: { ...data.kpis, ...live.kpis },
+    tables: { ...data.tables, ...live.tables },
+  }), [data, live]);
+
+  const applyLive = useCallback((patch) => {
+    setLive({ kpis: patch.kpis || {}, tables: patch.tables || {} });
+  }, []);
+
   function applyTable(tableId, rows) {
     setData((d) => {
       const next = { ...d, tables: { ...d.tables, [tableId]: rows } };
@@ -57,7 +70,7 @@ export default function ReportView({ report }) {
   }
 
   function exportCsv(table) {
-    const rows = data.tables[table.id] || [];
+    const rows = view.tables[table.id] || [];
     const head = table.columns.map((c) => c.label).join(',');
     const body = rows
       .map((r) => table.columns.map((c) => `"${String(r[c.key] ?? '').replace(/"/g, '""')}"`).join(','))
@@ -69,6 +82,8 @@ export default function ReportView({ report }) {
     a.click();
     URL.revokeObjectURL(a.href);
   }
+
+  const liveTables = new Set(Object.keys(live.tables));
 
   return (
     <>
@@ -108,17 +123,27 @@ export default function ReportView({ report }) {
           </div>
         </section>
 
-        <KpiStrip kpis={report.kpis} values={data.kpis} />
+        <KpiStrip kpis={report.kpis} values={view.kpis} />
+
+        {report.sheet?.mode === 'weekly_matrix' ? (
+          <WeeklyRateBoard report={report} onLive={applyLive} />
+        ) : null}
 
         <SourcePanel report={report} onApply={applyTable} onApplyKpis={applyKpis} onReset={reset} />
 
         {report.tables.map((t) => (
-          <DataTable key={t.id} table={t} rows={data.tables[t.id] || []} onExport={exportCsv} />
+          <DataTable
+            key={t.id}
+            table={t}
+            rows={view.tables[t.id] || []}
+            live={liveTables.has(t.id)}
+            onExport={exportCsv}
+          />
         ))}
 
         <div className="grid-2">
           {report.charts.map((c) => (
-            <ChartBlock key={c.id} chart={c} rows={data.tables[c.table] || []} />
+            <ChartBlock key={c.id} chart={c} rows={view.tables[c.table] || []} />
           ))}
         </div>
 

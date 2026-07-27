@@ -5,7 +5,7 @@ import { fmtCell, isNumericType, toNumber } from '@/lib/format';
 
 const TOTAL_HINT = /^(tổng|TỔNG|PL7|TA|TL|EQ|RE|= )/;
 
-export default function DataTable({ table, rows = [], onExport }) {
+export default function DataTable({ table, rows = [], live = false, onExport }) {
   const [q, setQ] = useState('');
 
   const filtered = useMemo(() => {
@@ -20,7 +20,7 @@ export default function DataTable({ table, rows = [], onExport }) {
     <section className="panel">
       <div className="panel-head">
         <div>
-          <h2>{table.title}</h2>
+          <h2>{table.title}{live ? <span className="tag live-tag">● LIVE</span> : null}</h2>
           {table.hint ? <div className="hint">{table.hint}</div> : null}
         </div>
         <div className="stack">

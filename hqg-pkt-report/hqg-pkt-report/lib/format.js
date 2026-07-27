@@ -46,9 +46,8 @@ export function fmtRate(v) {
 export function fmtPct(v) {
   const n = toNumber(v);
   if (n === null) return '—';
-  // Giá trị nhỏ hơn 1 và khác 0 được hiểu là dạng thập phân (0.052 = 5,2%)
-  const p = Math.abs(n) > 0 && Math.abs(n) < 1 ? n * 100 : n;
-  return `${p.toLocaleString('vi-VN', { maximumFractionDigits: 2 })}%`;
+  // Giá trị đã là số phần trăm: 0.38 → 0,38% · -2.24 → -2,24%
+  return `${n.toLocaleString('vi-VN', { maximumFractionDigits: 2 })}%`;
 }
 
 export function fmtDate(v) {

@@ -17,6 +17,15 @@ export const REPORTS = [
     periods: ['day', 'week', 'month'],
     defaultPeriod: 'day',
     source: 'HQS - BẢNG TỶ GIÁ HÀNG TUẦN',
+    /* Đọc trực tiếp Google Sheet (File → Share → Publish to web).
+       PKT cập nhật tỉ giá hàng tuần vào file này, web tự đọc — không cần nạp tay. */
+    sheet: {
+      url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRBzYH7dMHHBU1PhVf368oCNlLhKhGFclc4VuH9nucqShlrk5fxbYtUUBUUAbYXzm7c3nXO6P7Yb9vQ/pubhtml?gid=0&single=true',
+      gid: '0',
+      mode: 'weekly_matrix',
+      table: 'weekly_rate',
+      label: 'HQS - BẢNG TỶ GIÁ HÀNG TUẦN · tab WEEKLY RATE',
+    },
     purpose: [
       'Hôm nay áp tỷ giá nào để ghi nhận doanh thu, giá vốn, thanh toán ngoại tệ?',
       'Tháng này lãi/lỗ chênh lệch tỷ giá bao nhiêu, ăn vào lợi nhuận bao nhiêu %?',
@@ -37,18 +46,18 @@ export const REPORTS = [
       {
         id: 'weekly_rate',
         title: 'Tỉ giá tuần (WEEKLY RATE) — áp dụng ghi nhận sổ',
-        hint: 'Cập nhật sáng thứ Hai. Lệch > 2% so tuần trước → dùng tỉ giá thực tế thứ Hai.',
+        hint: 'Tự đọc từ Google Sheet, mỗi tuần một dòng. Lệch > 2% so tuần trước → dùng tỉ giá thực tế thứ Hai.',
         columns: [
           { key: 'nam', label: 'Năm', type: 'text' },
           { key: 'thang', label: 'Tháng', type: 'text' },
           { key: 'tuan', label: 'Tuần', type: 'text' },
-          { key: 'tu_ngay', label: 'Từ ngày', type: 'date' },
-          { key: 'den_ngay', label: 'Đến ngày', type: 'date' },
+          { key: 'tu_ngay', label: 'Từ ngày', type: 'text' },
+          { key: 'den_ngay', label: 'Đến ngày', type: 'text' },
           { key: 'rub_usdt', label: 'RUB/USDT', type: 'rate' },
           { key: 'rub_vnd', label: 'RUB/VND', type: 'rate' },
           { key: 'idr_usdt', label: 'IDR/USDT', type: 'rate' },
           { key: 'idr_vnd', label: 'IDR/VND', type: 'rate' },
-          { key: 'eur_usdt', label: 'EUR/USDT', type: 'rate' },
+          { key: 'eur_usdt', label: 'USDT/EUR', type: 'rate' },
           { key: 'usdt_vnd_co', label: 'USDT/VND (CO)', type: 'rate' },
           { key: 'usdt_vnd_rev', label: 'USDT/VND (REV)', type: 'rate' },
           { key: 'usd_vnd', label: 'USD/VND', type: 'rate' },

@@ -411,6 +411,65 @@ table.tbl tbody tr:hover td { background: rgba(120, 170, 255, .06); }
 table.tbl tr.group td { background: rgba(61, 123, 253, .14); font-weight: 600; }
 table.tbl tr.total td { background: rgba(47, 217, 255, .09); font-weight: 600; border-top: 1px solid rgba(47, 217, 255, .45); }
 
+/* ---------- Bảng ma trận LIVE (WEEKLY RATE) ---------- */
+.live-tag {
+  margin-left: 9px;
+  color: #86efac;
+  background: rgba(52, 211, 153, .12);
+  border-color: rgba(52, 211, 153, .4);
+  animation: live-pulse 2.2s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, .35); }
+  50% { box-shadow: 0 0 10px 2px rgba(52, 211, 153, .15); }
+}
+
+.matrix-wrap { max-height: 560px; overflow: auto; }
+table.matrix th.rowhead, table.matrix td.rowhead {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  min-width: 215px;
+  max-width: 260px;
+  white-space: normal;
+  border-right: 1px solid var(--line-strong);
+}
+/* Nền đặc cho cột nhãn sticky — thắng cả rule zebra và hover */
+table.tbl.matrix thead th.rowhead,
+table.tbl.matrix tbody td.rowhead,
+table.tbl.matrix tbody tr:nth-child(even) td.rowhead,
+table.tbl.matrix tbody tr:hover td.rowhead {
+  background: #081124;
+}
+table.matrix thead th { z-index: 2; }
+table.matrix thead th.rowhead { z-index: 4; }
+table.matrix th .wk { font-size: 10px; color: var(--ink); letter-spacing: .06em; }
+table.matrix th .rng { font-size: 8.5px; color: var(--ink-3); margin-top: 3px; letter-spacing: 0; }
+table.matrix th.now .wk { color: var(--cy); text-shadow: 0 0 10px rgba(47, 217, 255, .6); }
+table.matrix td.now, table.matrix th.now { background: rgba(47, 217, 255, .07); }
+table.tbl.matrix tr.sect td,
+table.tbl.matrix tbody tr.sect:nth-child(even) td,
+table.tbl.matrix tbody tr.sect:hover td {
+  font-family: var(--f-mono);
+  font-size: 9.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--cy);
+  background: rgba(47, 217, 255, .06);
+  border-top: 1px solid rgba(47, 217, 255, .25);
+}
+table.tbl.matrix tr.sect td.rowhead,
+table.tbl.matrix tbody tr.sect:nth-child(even) td.rowhead,
+table.tbl.matrix tbody tr.sect:hover td.rowhead {
+  background: #0a1a33;
+}
+table.matrix .subrow { color: var(--ink-2); padding-left: 14px; display: inline-block; }
+table.matrix .kind { font-size: 10.5px; color: var(--ink-3); }
+table.matrix td.up { color: #6ee7b7; }
+table.matrix td.down { color: #fda4af; }
+table.matrix td.flat { color: var(--ink-3); }
+table.matrix td.breach { font-weight: 700; text-shadow: 0 0 12px rgba(251, 113, 133, .55); }
+
 .empty-state {
   padding: 34px 18px;
   text-align: center;

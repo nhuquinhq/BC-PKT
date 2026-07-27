@@ -78,6 +78,16 @@ export async function fetchSheet(url, gid) {
   return json.rows || [];
 }
 
+/* Đọc sheet dạng ma trận (WEEKLY RATE): trả về lưới ô thô, không ép dòng tiêu đề */
+export async function fetchSheetGrid(url, gid) {
+  const qs = new URLSearchParams({ url, raw: '1' });
+  if (gid) qs.set('gid', gid);
+  const res = await fetch(`/api/sheet?${qs.toString()}`, { cache: 'no-store' });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Không đọc được Google Sheet');
+  return json.grid || [];
+}
+
 /* ---------- Khung dữ liệu rỗng dựng từ cấu hình báo cáo ---------- */
 export function emptyData(report) {
   const tables = {};

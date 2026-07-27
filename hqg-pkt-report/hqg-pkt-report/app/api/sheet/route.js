@@ -27,6 +27,7 @@ function toCsvUrl(raw, gidParam) {
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
+  const raw = searchParams.get('raw') === '1';
   const csvUrl = toCsvUrl(searchParams.get('url'), searchParams.get('gid'));
 
   if (!csvUrl) {
@@ -41,6 +42,11 @@ export async function GET(request) {
     const text = await res.text();
     if (text.trim().startsWith('<')) {
       return Response.json({ error: 'Sheet chưa mở quyền xem công khai nên Google trả về trang đăng nhập.' }, { status: 400 });
+    }
+    if (raw) {
+      /* Trả về lưới ô thô (mảng 2 chiều) cho các sheet dạng ma trận như WEEKLY RATE */
+      const parsed = Papa.parse(text.trim(), { header: false, skipEmptyLines: false });
+      return Response.json({ grid: parsed.data, count: parsed.data.length, csvUrl });
     }
     const parsed = Papa.parse(text.trim(), { header: true, skipEmptyLines: true, transformHeader: (h) => h.trim() });
     return Response.json({ rows: parsed.data, count: parsed.data.length, csvUrl });
