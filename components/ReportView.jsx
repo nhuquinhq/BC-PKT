@@ -113,18 +113,6 @@ export default function ReportView({ report }) {
       </div>
 
       <div className="content">
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Báo cáo này trả lời câu hỏi gì</h2>
-            <span className="tag sla">Hạn nộp: {report.sla}</span>
-          </div>
-          <div className="panel-body">
-            <ul className="purpose">
-              {report.purpose.map((p, i) => <li key={i}>{p}</li>)}
-            </ul>
-          </div>
-        </section>
-
         <KpiStrip kpis={report.kpis} values={view.kpis} />
 
         {(() => {
@@ -142,11 +130,11 @@ export default function ReportView({ report }) {
             </div>
           ) : null;
           const source = <SourcePanel report={report} onApply={applyTable} onApplyKpis={applyKpis} onReset={reset} />;
-          /* Báo cáo có bảng LIVE: tỉ giá → biểu đồ ngay bên dưới → nguồn → các bảng còn lại */
+          /* Báo cáo có bảng LIVE: biểu đồ → bảng tỉ giá tuần → nguồn → các bảng còn lại */
           return isMatrix ? (
             <>
-              <WeeklyRateBoard report={report} onLive={applyLive} range={range} />
               {charts}
+              <WeeklyRateBoard report={report} onLive={applyLive} range={range} />
               {source}
               {tables}
             </>
