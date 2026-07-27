@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { useAuth } from './AuthGate';
+import PermManager from './PermManager';
 import { REPORTS } from '@/lib/reports';
 import { fetchSheetGrid } from '@/lib/data';
 
@@ -16,12 +17,7 @@ export default function SourceHealth() {
 
   const [diag, setDiag] = useState({});
   const [at, setAt] = useState(null);
-  const [auth, setAuth] = useState(null);
-  const { data: session } = useSession();
-
-  useEffect(() => {
-    fetch('/api/auth-status').then((r) => r.json()).then(setAuth).catch(() => setAuth({ configured: false }));
-  }, []);
+  const { enabled, user } = useAuth();
 
   const runAll = useCallback(async () => {
     await Promise.all(
@@ -50,6 +46,20 @@ export default function SourceHealth() {
 
   const okCount = live.filter((r) => diag[r.slug]?.status === 'ok').length;
   const timeTxt = at ? at.toLocaleTimeString('vi-VN') : '…';
+
+  /* Trang cấu hình chỉ dành cho Admin khi đã bật phân quyền */
+  if (enabled && user?.role !== 'admin') {
+    return (
+      <div className="content" style={{ paddingTop: 40 }}>
+        <section className="panel">
+          <div className="panel-head"><h2>Chỉ Admin truy cập được trang này</h2></div>
+          <div className="panel-body">
+            Tài khoản <b className="mono">{user?.email}</b> không có quyền vào Nguồn &amp; Cấu hình.
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -100,26 +110,7 @@ export default function SourceHealth() {
           </div>
         ) : null}
 
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Quản lý đăng nhập &amp; phân quyền</h2>
-            <span className="hint">Admin cứng: {auth?.admins?.join(', ') || 'quynhhtn@hqplay.vn'}</span>
-          </div>
-          <div className="panel-body">
-            {auth && !auth.configured ? (
-              <div className="notice-amber" style={{ marginBottom: 12 }}>
-                <b>Đăng nhập Google chưa bật</b> — web đang mở tự do. Đặt 4 biến môi trường trong Vercel
-                (<span className="mono">GOOGLE_CLIENT_ID · GOOGLE_CLIENT_SECRET · NEXTAUTH_SECRET · NEXTAUTH_URL</span>)
-                rồi Redeploy là toàn trang yêu cầu đăng nhập bằng email domain.
-              </div>
-            ) : null}
-            <div className="auth-rows">
-              <div><span className="dim">Trạng thái</span>{auth ? (auth.configured ? <span className="src-badge ok">ĐÃ BẬT — khoá toàn trang</span> : <span className="src-badge idle">chưa cấu hình OAuth</span>) : '…'}</div>
-              <div><span className="dim">Domain được phép</span><span className="mono">{auth?.domains?.map((d) => `@${d}`).join(' · ') || '…'}</span></div>
-              <div><span className="dim">Đang đăng nhập</span>{session?.user ? <span className="mono">{session.user.email} · {session.user.role === 'admin' ? 'Admin cứng' : 'Thành viên'}</span> : <span className="dim">— chưa đăng nhập —</span>}</div>
-            </div>
-          </div>
-        </section>
+        <PermManager />
 
         <section className="panel">
           <div className="panel-head">

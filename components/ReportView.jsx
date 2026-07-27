@@ -7,10 +7,12 @@ import ChartBlock from './ChartBlock';
 import SourcePanel from './SourcePanel';
 import WeeklyRateBoard from './WeeklyRateBoard';
 import FilterBar from './FilterBar';
+import { useAuth } from './AuthGate';
 import { filterRowsByRange, fmtRangeDate } from '@/lib/timeFilter';
 import { fetchJson, loadOverride, saveOverride, clearOverride, emptyData } from '@/lib/data';
 
 export default function ReportView({ report }) {
+  const { enabled, canView, user } = useAuth();
   const [data, setData] = useState(() => emptyData(report));
   const [live, setLive] = useState({ kpis: {}, tables: {} });
   const [range, setRange] = useState({ from: null, to: null, preset: 'all' });
@@ -92,6 +94,21 @@ export default function ReportView({ report }) {
   }
 
   const liveTables = new Set(Object.keys(live.tables));
+
+  /* Người dùng không được cấp quyền xem báo cáo này */
+  if (enabled && !canView(report.code)) {
+    return (
+      <div className="content" style={{ paddingTop: 40 }}>
+        <section className="panel">
+          <div className="panel-head"><h2>Không có quyền xem báo cáo {report.code}</h2></div>
+          <div className="panel-body">
+            Tài khoản <b className="mono">{user?.email}</b> chưa được cấp quyền xem <b>{report.name}</b>.
+            Liên hệ Admin để được mở thêm quyền trong <b>Nguồn &amp; Cấu hình → Quản lý đăng nhập</b>.
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <>
