@@ -1,38 +1,55 @@
 'use client';
 
-/* Khối "Quản lý đăng nhập & phân quyền" — giao diện giống Trung tâm PVH:
-   danh sách chờ duyệt + bảng tài khoản đã cấp quyền (vai trò, tick từng
-   báo cáo, Lưu / Thu hồi). Chỉ admin thấy được (trang SRC đã chặn sẵn). */
+/* Khối "Quản lý đăng nhập & phân quyền" — giao diện giống hệt Trung tâm PVH:
+   panel sáng, bảng header xanh, avatar tròn màu, select navy, dropdown tick
+   từng báo cáo (Chọn tất cả / Bỏ chọn / Mặc định vai trò), nút Lưu / Thu hồi. */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthGate';
 import { PAGES, ROLE_LABEL, ROLE_DEFAULT_PAGES } from '@/lib/authConfig';
 
 const initials = (email) => (email || '?').slice(0, 2).toUpperCase();
+const AVATAR_COLORS = ['#7c3aed', '#dc2626', '#b45309', '#2563eb', '#0d9488', '#db2777', '#4f46e5'];
+const avatarColor = (email) => {
+  let h = 0;
+  for (const c of String(email)) h = (h * 31 + c.charCodeAt(0)) % 997;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+};
 
-export default function PermManager() {
+const pagesText = (pages) => {
+  if (pages === 'all') return 'ALL — tất cả báo cáo';
+  if (pages == null) return 'Mặc định theo vai trò';
+  if (!pages.length) return '— chưa chọn báo cáo —';
+  return pages.join(', ');
+};
+
+export default function PermManager({ preview = null }) {
   const { enabled, user, idToken, meta } = useAuth();
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
 
   const call = useCallback(async (payload) => {
+    if (preview) return {};
     const r = await fetch('/api/perm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...payload, id_token: idToken }),
     });
     return r.json();
-  }, [idToken]);
+  }, [idToken, preview]);
 
   const load = useCallback(async () => {
+    if (preview) return;
     const j = await call({ action: 'list' });
     if (j.error) setErr(j.error);
     else { setErr(''); setData(j); }
-  }, [call]);
+  }, [call, preview]);
 
   useEffect(() => {
-    if (enabled && user?.role === 'admin') load();
-  }, [enabled, user, load]);
+    if (!preview && enabled && user?.role === 'admin') load();
+  }, [enabled, user, load, preview]);
+
+  if (preview) return <PermPanel data={preview} err="" call={call} load={() => {}} meta={{ superAdmin: preview.superAdmin }} />;
 
   if (meta && !meta.configured) {
     return (
@@ -49,47 +66,69 @@ export default function PermManager() {
   }
   if (!enabled || user?.role !== 'admin') return null;
 
+  return <PermPanel data={data} err={err} call={call} load={load} meta={meta} />;
+}
+
+function PermPanel({ data, err, call, load, meta }) {
+  const superAdmin = data?.superAdmin || meta?.superAdmin;
   const pending = data?.pending || [];
   const users = Object.entries(data?.users || {});
 
   return (
-    <section className="panel">
-      <div className="panel-head">
-        <h2>Quản lý đăng nhập &amp; phân quyền</h2>
-        <span className="hint">Admin cứng: {data?.superAdmin || meta?.superAdmin}</span>
+    <section className="pm-light">
+      <div className="pm-title">
+        <span className="bullet blue" /> Quản lý đăng nhập &amp; phân quyền
+        <span className="right">Admin cứng: <b>{superAdmin}</b></span>
       </div>
-      <div className="panel-body">
-        {err ? <div className="notice-amber">Lỗi: {err}</div> : null}
 
-        <div className="pm-sect"><span className="dot-warn">●</span> Chờ cấp quyền <span className="dim">— {pending.length} email đăng nhập lần đầu</span></div>
-        {pending.length === 0 ? (
-          <div className="dim" style={{ fontSize: 12, margin: '6px 0 14px' }}>Không có tài khoản nào đang chờ.</div>
-        ) : (
-          pending.map((email) => <PendingRow key={email} email={email} call={call} onDone={load} />)
-        )}
+      {err ? <div className="pm-err">Lỗi: {err}</div> : null}
 
-        <div className="pm-sect" style={{ marginTop: 16 }}><span className="dot-ok">●</span> Tài khoản đã cấp quyền <span className="dim">— {users.length + 1} tài khoản</span></div>
-
-        <div className="pm-row locked">
-          <div className="pm-head">
-            <span className="avatar">{initials(data?.superAdmin)}</span>
-            <div className="pm-who">
-              <b>{data?.superAdmin || meta?.superAdmin}</b>
-              <div className="dim">admin cứng — không thể thu hồi</div>
-            </div>
-            <span className="src-badge ok">Admin</span>
-            <span className="dim" style={{ fontSize: 11.5 }}>Tất cả báo cáo + Cấu hình</span>
+      {pending.length ? (
+        <>
+          <div className="pm-title sub">
+            <span className="bullet orange" /> Chờ cấp quyền
+            <span className="right">{pending.length} email đăng nhập lần đầu</span>
           </div>
-        </div>
+          {pending.map((email) => <PendingRow key={email} email={email} call={call} onDone={load} />)}
+        </>
+      ) : null}
 
-        {users.map(([email, u]) => (
-          <UserRow key={email} email={email} initial={u} call={call} onDone={load} />
-        ))}
+      <div className="pm-title sub">
+        <span className="bullet green" /> Tài khoản đã cấp quyền
+        <span className="right">{users.length + 1} tài khoản</span>
+      </div>
 
-        <div className="pm-help">
-          <b>Cách dùng:</b> chọn vai trò, tick báo cáo được xem (<b>ALL</b> = xem hết · <b>Mặc định vai trò</b> = theo vai trò), bấm <b>Lưu</b>.
-          Mặc định vai trò: <b>Admin</b> tất cả + Cấu hình · <b>Leader</b> tất cả báo cáo · <b>Nhân viên</b> {(ROLE_DEFAULT_PAGES.nhanvien || []).join(', ')}.
-        </div>
+      <table className="pm-table">
+        <thead>
+          <tr>
+            <th>Tài khoản</th>
+            <th>Vai trò</th>
+            <th>Báo cáo được xem</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div className="pm-acc">
+                <span className="pm-avatar" style={{ background: avatarColor(superAdmin) }}>{initials(superAdmin)}</span>
+                <span><b>{superAdmin}</b><small>admin cứng — không thể thu hồi</small></span>
+              </div>
+            </td>
+            <td><span className="pm-badge">Admin</span></td>
+            <td><span className="pm-muted">Tất cả báo cáo + Cấu hình</span></td>
+            <td />
+          </tr>
+          {users.map(([email, u]) => (
+            <UserRow key={email} email={email} initial={u} call={call} onDone={load} />
+          ))}
+        </tbody>
+      </table>
+
+      <div className="pm-usage">
+        <b>Cách dùng:</b> chọn vai trò, mở ô “Báo cáo được xem” để <b>tick</b> đúng báo cáo cho người đó
+        (hoặc <b>ALL</b> = xem hết · để nguyên “Mặc định theo vai trò”), rồi bấm <b>Lưu / Cấp quyền</b>.
+        Mặc định vai trò: <b>Admin</b> tất cả + Cấu hình · <b>Leader</b> TQ, PKT1 → PKT7 · <b>Nhân viên</b> {(ROLE_DEFAULT_PAGES.nhanvien || []).join(', ')}.
       </div>
     </section>
   );
@@ -97,40 +136,65 @@ export default function PermManager() {
 
 function RoleSelect({ value, onChange }) {
   return (
-    <select className="input pm-select" value={value} onChange={(e) => onChange(e.target.value)}>
+    <select className="pm-role" value={value} onChange={(e) => onChange(e.target.value)}>
       {Object.entries(ROLE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
     </select>
   );
 }
 
-function PageChips({ pages, onChange }) {
-  const isAll = pages === 'all';
-  const isDefault = pages == null;
-  const arr = Array.isArray(pages) ? pages : [];
+/* Dropdown tick báo cáo — giống ô multiselect của PVH */
+function PagesDropdown({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+
+  const arr = Array.isArray(value) ? value : [];
   const toggle = (code) => {
-    const base = Array.isArray(pages) ? [...pages] : [];
+    const base = Array.isArray(value) ? [...value] : value === 'all' ? PAGES.map((p) => p.code) : [];
     onChange(base.includes(code) ? base.filter((c) => c !== code) : [...base, code]);
   };
+
   return (
-    <div className="pm-chips">
-      <button className={`qbtn${isDefault ? ' on' : ''}`} onClick={() => onChange(null)}>Mặc định vai trò</button>
-      <button className={`qbtn${isAll ? ' on' : ''}`} onClick={() => onChange('all')}>ALL — tất cả</button>
-      {PAGES.map((p) => (
-        <button
-          key={p.code}
-          className={`qbtn${!isAll && !isDefault && arr.includes(p.code) ? ' on' : ''}`}
-          title={p.label}
-          onClick={() => toggle(p.code)}
-        >
-          {p.code}
-        </button>
-      ))}
+    <div className="pm-pages" ref={wrapRef}>
+      <button type="button" className="pm-pages-btn" onClick={() => setOpen(!open)}>
+        <span>{pagesText(value)}</span><i>▾</i>
+      </button>
+      {open ? (
+        <div className="pm-pop">
+          <div className="pm-pop-actions">
+            <button type="button" onClick={() => onChange('all')}>Chọn tất cả</button>
+            <button type="button" onClick={() => onChange([])}>Bỏ chọn</button>
+            <button type="button" onClick={() => onChange(null)}>Mặc định vai trò</button>
+          </div>
+          <label className="pm-check">
+            <input type="checkbox" checked={value === 'all'} onChange={() => onChange(value === 'all' ? [] : 'all')} />
+            <b>ALL</b><span>Tất cả báo cáo</span>
+          </label>
+          {PAGES.map((p) => (
+            <label key={p.code} className="pm-check">
+              <input
+                type="checkbox"
+                checked={value === 'all' || arr.includes(p.code)}
+                onChange={() => toggle(p.code)}
+              />
+              <b>{p.code}</b><span>{p.label}</span>
+            </label>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
 
 function PendingRow({ email, call, onDone }) {
   const [role, setRole] = useState('nhanvien');
+  const [pages, setPages] = useState(null);
   const [busy, setBusy] = useState(false);
   const act = async (action, extra = {}) => {
     setBusy(true);
@@ -139,14 +203,16 @@ function PendingRow({ email, call, onDone }) {
     onDone();
   };
   return (
-    <div className="pm-row pending">
-      <div className="pm-head">
-        <span className="avatar warn">{initials(email)}</span>
-        <div className="pm-who"><b>{email}</b><div className="dim">đang chờ duyệt</div></div>
-        <RoleSelect value={role} onChange={setRole} />
-        <button className="btn" disabled={busy} onClick={() => act('assign', { role, pages: null })}>✓ Cấp quyền</button>
-        <button className="btn ghost" disabled={busy} onClick={() => act('dismiss')}>Bỏ qua</button>
+    <div className="pm-pending">
+      <span className="pm-dot" />
+      <div className="pm-acc">
+        <span className="pm-avatar" style={{ background: avatarColor(email) }}>{initials(email)}</span>
+        <span><b>{email}</b><small>đang chờ duyệt</small></span>
       </div>
+      <RoleSelect value={role} onChange={setRole} />
+      <PagesDropdown value={pages} onChange={setPages} />
+      <button className="pm-save" disabled={busy} onClick={() => act('assign', { role, pages })}>✓ Cấp quyền</button>
+      <button className="pm-ghost" disabled={busy} onClick={() => act('dismiss')}>Bỏ qua</button>
     </div>
   );
 }
@@ -162,15 +228,19 @@ function UserRow({ email, initial, call, onDone }) {
     onDone();
   };
   return (
-    <div className="pm-row">
-      <div className="pm-head">
-        <span className="avatar">{initials(email)}</span>
-        <div className="pm-who"><b>{email}</b><div className="dim">{ROLE_LABEL[role]}</div></div>
-        <RoleSelect value={role} onChange={setRole} />
-        <button className="btn" disabled={busy} onClick={() => act('assign', { role, pages })}>Lưu</button>
-        <button className="btn ghost" disabled={busy} onClick={() => act('remove')}>Thu hồi</button>
-      </div>
-      <PageChips pages={pages} onChange={setPages} />
-    </div>
+    <tr>
+      <td>
+        <div className="pm-acc">
+          <span className="pm-avatar" style={{ background: avatarColor(email) }}>{initials(email)}</span>
+          <span><b>{email}</b><small>{ROLE_LABEL[role]}</small></span>
+        </div>
+      </td>
+      <td><RoleSelect value={role} onChange={setRole} /></td>
+      <td><PagesDropdown value={pages} onChange={setPages} /></td>
+      <td className="pm-actions">
+        <button className="pm-save" disabled={busy} onClick={() => act('assign', { role, pages })}>Lưu</button>
+        <button className="pm-ghost" disabled={busy} onClick={() => act('remove')}>Thu hồi</button>
+      </td>
+    </tr>
   );
 }
