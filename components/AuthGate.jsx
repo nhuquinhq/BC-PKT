@@ -112,7 +112,7 @@ export default function AuthGate({ children }) {
     return (
       <div className="login-screen">
         <div className="login-card">
-          <span className="logo">HQ<i>group</i></span>
+          <span className="logo"><img src="/logo-hq-group.png" alt="HQ Group" /></span>
           <h1>TRUNG TÂM BÁO CÁO PKT</h1>
           <div className="sub">Realtime Google Sheet · truy cập nội bộ</div>
           <div className="g-slot" ref={btnRef} />
@@ -129,7 +129,7 @@ export default function AuthGate({ children }) {
     return (
       <div className="login-screen">
         <div className="login-card">
-          <span className="logo">HQ<i>group</i></span>
+          <span className="logo"><img src="/logo-hq-group.png" alt="HQ Group" /></span>
           <h1>ĐANG CHỜ CẤP QUYỀN</h1>
           <div className="pending-mail mono">{me?.email}</div>
           <div className="login-note">

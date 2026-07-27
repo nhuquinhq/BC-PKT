@@ -14,7 +14,7 @@ export default function Sidebar() {
     <aside className="rail">
       <div className="rail-scroll">
         <Link href="/" className="rail-brand">
-          <span className="logo">HQ<i>group</i></span>
+          <span className="logo"><img src="/logo-hq-group.png" alt="HQ Group" /></span>
           <span className="brand-text">
             <span className="title">Trung tâm Báo cáo PKT</span>
             <span className="sub">Realtime Google Sheet · v3</span>

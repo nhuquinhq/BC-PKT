@@ -5,6 +5,10 @@ import AuthGate from '@/components/AuthGate';
 export const metadata = {
   title: 'Trung tâm Báo cáo PKT — HQ Group',
   description: 'Trung tâm 7 báo cáo quản trị tài chính PKT1–PKT7 của HQ Group, đọc realtime từ Google Sheet',
+  icons: {
+    icon: [{ url: '/icon-192.png', sizes: '192x192', type: 'image/png' }],
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export default function RootLayout({ children }) {
