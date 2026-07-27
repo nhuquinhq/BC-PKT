@@ -2,10 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
 import { TIERS, reportsByTier } from '@/lib/reports';
 
 export default function Sidebar() {
   const path = usePathname();
+  const { data: session } = useSession();
+  const user = session?.user;
 
   return (
     <aside className="rail">
@@ -53,13 +56,19 @@ export default function Sidebar() {
 
       <div className="rail-foot">
         <div className="rail-user">
-          <span className="avatar">K</span>
+          <span className="avatar">{(user?.email || 'K')[0].toUpperCase()}</span>
           <span className="who">
-            <span className="mail">ketoan@hqgroups.vn</span>
-            <span className="role">Quản trị hệ thống</span>
+            <span className="mail">{user?.email || 'Khách — chưa bật đăng nhập'}</span>
+            <span className="role">{user ? (user.role === 'admin' ? 'Admin cứng' : 'Thành viên') : 'cấu hình tại Nguồn & Cấu hình'}</span>
           </span>
         </div>
-        <button className="btn-logout" type="button">⏻ Đăng xuất</button>
+        {user ? (
+          <button className="btn-logout" type="button" onClick={() => signOut({ callbackUrl: '/dang-nhap' })}>
+            ⏻ Đăng xuất
+          </button>
+        ) : (
+          <Link className="btn-logout" href="/dang-nhap">⏻ Đăng nhập Google</Link>
+        )}
       </div>
     </aside>
   );

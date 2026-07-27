@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { REPORTS } from '@/lib/reports';
 import { fetchSheetGrid } from '@/lib/data';
 
@@ -15,6 +16,12 @@ export default function SourceHealth() {
 
   const [diag, setDiag] = useState({});
   const [at, setAt] = useState(null);
+  const [auth, setAuth] = useState(null);
+  const { data: session } = useSession();
+
+  useEffect(() => {
+    fetch('/api/auth-status').then((r) => r.json()).then(setAuth).catch(() => setAuth({ configured: false }));
+  }, []);
 
   const runAll = useCallback(async () => {
     await Promise.all(
@@ -92,6 +99,27 @@ export default function SourceHealth() {
             <span className="mono">sheet</span> của báo cáo trong <span className="mono">lib/reports.js</span> — web sẽ tự đọc như PKT1.
           </div>
         ) : null}
+
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Quản lý đăng nhập &amp; phân quyền</h2>
+            <span className="hint">Admin cứng: {auth?.admins?.join(', ') || 'quynhhtn@hqplay.vn'}</span>
+          </div>
+          <div className="panel-body">
+            {auth && !auth.configured ? (
+              <div className="notice-amber" style={{ marginBottom: 12 }}>
+                <b>Đăng nhập Google chưa bật</b> — web đang mở tự do. Đặt 4 biến môi trường trong Vercel
+                (<span className="mono">GOOGLE_CLIENT_ID · GOOGLE_CLIENT_SECRET · NEXTAUTH_SECRET · NEXTAUTH_URL</span>)
+                rồi Redeploy là toàn trang yêu cầu đăng nhập bằng email domain.
+              </div>
+            ) : null}
+            <div className="auth-rows">
+              <div><span className="dim">Trạng thái</span>{auth ? (auth.configured ? <span className="src-badge ok">ĐÃ BẬT — khoá toàn trang</span> : <span className="src-badge idle">chưa cấu hình OAuth</span>) : '…'}</div>
+              <div><span className="dim">Domain được phép</span><span className="mono">{auth?.domains?.map((d) => `@${d}`).join(' · ') || '…'}</span></div>
+              <div><span className="dim">Đang đăng nhập</span>{session?.user ? <span className="mono">{session.user.email} · {session.user.role === 'admin' ? 'Admin cứng' : 'Thành viên'}</span> : <span className="dim">— chưa đăng nhập —</span>}</div>
+            </div>
+          </div>
+        </section>
 
         <section className="panel">
           <div className="panel-head">

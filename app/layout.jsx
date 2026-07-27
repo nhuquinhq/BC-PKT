@@ -1,5 +1,6 @@
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
+import AuthProvider from '@/components/AuthProvider';
 
 export const metadata = {
   title: 'Trung tâm Báo cáo PKT — HQ Group',
@@ -18,10 +19,12 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body>
-        <div className="shell">
-          <Sidebar />
-          <div className="main">{children}</div>
-        </div>
+        <AuthProvider>
+          <div className="shell">
+            <Sidebar />
+            <div className="main">{children}</div>
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );
