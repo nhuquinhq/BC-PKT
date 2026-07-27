@@ -1,14 +1,27 @@
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
 import AuthGate from '@/components/AuthGate';
+import PwaRegister from '@/components/PwaRegister';
 
 export const metadata = {
   title: 'Trung tâm Báo cáo PKT — HQ Group',
   description: 'Trung tâm 7 báo cáo quản trị tài chính PKT1–PKT7 của HQ Group, đọc realtime từ Google Sheet',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    title: 'BC PKT',
+    statusBarStyle: 'black-translucent',
+  },
   icons: {
     icon: [{ url: '/icon-192.png', sizes: '192x192', type: 'image/png' }],
     apple: '/apple-touch-icon.png',
   },
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#071834',
 };
 
 export default function RootLayout({ children }) {
@@ -23,6 +36,7 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body>
+        <PwaRegister />
         <AuthGate>
           <div className="shell">
             <Sidebar />

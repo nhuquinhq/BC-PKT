@@ -987,9 +987,85 @@ table.matrix td.breach { font-weight: 700; text-shadow: 0 0 12px rgba(251, 113, 
 }
 .hero p { color: var(--ink-2); margin: 0; max-width: 780px; font-size: 14.5px; line-height: 1.65; }
 
+/* ---------- Mobile: thanh bar + menu trượt, bố cục dọc ---------- */
+.mobile-bar { display: none; }
+.rail-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  background: rgba(2, 8, 26, .72);
+  backdrop-filter: blur(3px);
+}
+
 @media (max-width: 960px) {
-  .shell { flex-direction: column; }
-  .rail { width: 100%; flex: none; height: auto; position: relative; }
-  .rail-scroll { overflow: visible; }
-  .content, .topbar, .hero { padding-left: 16px; padding-right: 16px; }
+  .mobile-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    z-index: 60;
+    padding: 0 14px;
+    background: linear-gradient(180deg, #071834, #051228);
+    border-bottom: 1px solid rgba(84, 140, 230, .3);
+  }
+  .mobile-bar .mb-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+  .mobile-bar .mb-brand img { width: 34px; height: 34px; border-radius: 9px; }
+  .mobile-bar .mb-brand b { font-family: var(--f-disp); font-size: 14px; letter-spacing: .04em; }
+  .mobile-bar .mb-burger {
+    background: var(--glass-2);
+    border: 1px solid var(--line-strong);
+    border-radius: 9px;
+    color: var(--ink);
+    font-size: 17px;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+  }
+
+  .rail {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: 100dvh;
+    width: min(300px, 84vw);
+    z-index: 70;
+    transform: translateX(-102%);
+    transition: transform .22s ease;
+    box-shadow: 24px 0 60px -20px rgba(0, 0, 0, .8);
+  }
+  .rail.open { transform: none; }
+
+  .main { padding-top: 56px; }
+  .topbar { position: static; padding: 14px 14px 12px; }
+  .topbar-row { flex-direction: column; align-items: stretch; gap: 12px; }
+  .topbar h1 { font-size: 19px; }
+  .filter-bar { gap: 9px; }
+  .filter-bar .fdate { flex: 1; min-width: 130px; }
+  .filter-bar input[type='date'] { width: 100%; }
+  .content, .hero { padding-left: 13px; padding-right: 13px; }
+  .content { padding-top: 15px; }
+
+  .grid-2 { grid-template-columns: 1fr; }
+  .panel-head { flex-wrap: wrap; gap: 8px; }
+  table.matrix th.rowhead, table.matrix td.rowhead { min-width: 132px; max-width: 165px; font-size: 12px; }
+  .matrix-wrap { max-height: 480px; }
+
+  /* Bảng phân quyền cuộn ngang */
+  .pm-light { overflow-x: auto; }
+  table.pm-table { min-width: 700px; }
+  .pm-pending { align-items: stretch; }
+  .pm-pending > * { min-width: 0; }
+}
+
+@media (max-width: 480px) {
+  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 9px; }
+  .kpi .val { font-size: 21px; }
+  .kpi .lb { font-size: 12.5px; min-height: 33px; }
+  .cmp-grid { grid-template-columns: 1fr 1fr; gap: 9px; }
+  .stat-cards { grid-template-columns: 1fr 1fr; gap: 9px; }
 }

@@ -1,0 +1,15 @@
+{
+  "name": "Trung tâm Báo cáo PKT — HQ Group",
+  "short_name": "BC PKT",
+  "description": "7 báo cáo quản trị tài chính PKT1–PKT7, đọc realtime từ Google Sheet",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#02081a",
+  "theme_color": "#071834",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

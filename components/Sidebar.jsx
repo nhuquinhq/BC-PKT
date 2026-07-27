@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthGate';
 import { ROLE_LABEL } from '@/lib/authConfig';
@@ -9,9 +10,24 @@ import { TIERS, reportsByTier } from '@/lib/reports';
 export default function Sidebar() {
   const path = usePathname();
   const { enabled, user, canView, signOut } = useAuth();
+  const [open, setOpen] = useState(false);
+
+  /* Đổi trang trên mobile → tự đóng menu */
+  useEffect(() => { setOpen(false); }, [path]);
 
   return (
-    <aside className="rail">
+    <>
+    {/* Thanh bar mobile: logo + tên + nút menu */}
+    <div className="mobile-bar">
+      <Link href="/" className="mb-brand">
+        <img src="/logo-hq-group.png" alt="HQ Group" />
+        <b>BÁO CÁO PKT</b>
+      </Link>
+      <button className="mb-burger" aria-label="Menu" onClick={() => setOpen(!open)}>{open ? '✕' : '☰'}</button>
+    </div>
+    {open ? <div className="rail-backdrop" onClick={() => setOpen(false)} /> : null}
+
+    <aside className={`rail${open ? ' open' : ''}`}>
       <div className="rail-scroll">
         <Link href="/" className="rail-brand">
           <span className="logo"><img src="/logo-hq-group.png" alt="HQ Group" /></span>
@@ -77,5 +93,6 @@ export default function Sidebar() {
         ) : null}
       </div>
     </aside>
+    </>
   );
 }
