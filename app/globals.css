@@ -476,6 +476,69 @@ table.tbl tr.total td { background: rgba(47, 217, 255, .09); font-weight: 600; b
   box-shadow: 0 0 16px rgba(47, 217, 255, .4);
 }
 
+/* ---------- Trang Nguồn & Cấu hình (chẩn đoán nguồn) ---------- */
+.src-updated { font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); white-space: nowrap; }
+.dot-ok { color: #34d399; text-shadow: 0 0 8px rgba(52, 211, 153, .8); }
+.dot-err { color: #fb7185; text-shadow: 0 0 8px rgba(251, 113, 133, .8); }
+.dot-idle { color: var(--ink-3); }
+
+.stat-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(228px, 1fr)); gap: 13px; margin-bottom: 16px; }
+.stat-card {
+  background: linear-gradient(150deg, var(--glass-2), rgba(120, 170, 255, .02));
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--bl);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.stat-card .sc-label { font-family: var(--f-mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+.stat-card .sc-val { font-family: var(--f-disp); font-size: 24px; font-weight: 700; margin-top: 8px; }
+.stat-card .sc-sub { font-size: 11px; color: var(--ink-3); margin-top: 5px; }
+
+.notice-amber {
+  background: rgba(251, 191, 36, .07);
+  border: 1px solid rgba(251, 191, 36, .35);
+  border-left: 3px solid var(--warn);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  margin-bottom: 16px;
+}
+.notice-amber b { color: #fde68a; }
+
+table.diag td { font-size: 12px; }
+table.tbl.diag tr.sect td,
+table.tbl.diag tbody tr.sect:nth-child(even) td,
+table.tbl.diag tbody tr.sect:hover td {
+  font-family: var(--f-mono);
+  font-size: 9.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--cy);
+  background: rgba(47, 217, 255, .06);
+  border-top: 1px solid rgba(47, 217, 255, .25);
+}
+.src-badge { font-family: var(--f-mono); font-size: 10.5px; padding: 3px 9px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+.src-badge.ok { color: #86efac; border-color: rgba(52, 211, 153, .4); background: rgba(52, 211, 153, .08); }
+.src-badge.err { color: #fda4af; border-color: rgba(251, 113, 133, .5); background: rgba(251, 113, 133, .1); }
+.src-badge.idle { color: var(--ink-3); border-color: var(--line); background: var(--glass); }
+.first-line { font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-3); max-width: 420px; overflow: hidden; text-overflow: ellipsis; }
+.first-line.err { color: #fda4af; }
+.dim { color: var(--ink-3); }
+
+.flow-legend { font-size: 12px; color: var(--ink-3); margin: 4px 0 18px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.flow-legend .lg-label { font-family: var(--f-mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+.flow-legend .chip {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--glass);
+  color: var(--ink-2);
+}
+
 /* ---------- Nhận xét tuần (so sánh với tuần trước) ---------- */
 .cmp-lead { margin: 0 0 15px; font-size: 13.5px; line-height: 1.6; color: var(--ink-2); }
 .cmp-lead b { color: var(--ink); }
