@@ -6,14 +6,14 @@ import DataTable from './DataTable';
 import ChartBlock from './ChartBlock';
 import SourcePanel from './SourcePanel';
 import WeeklyRateBoard from './WeeklyRateBoard';
-import { PERIOD_LABEL } from '@/lib/reports';
+import FilterBar from './FilterBar';
+import { filterRowsByRange, fmtRangeDate } from '@/lib/timeFilter';
 import { fetchJson, loadOverride, saveOverride, clearOverride, emptyData } from '@/lib/data';
 
 export default function ReportView({ report }) {
   const [data, setData] = useState(() => emptyData(report));
   const [live, setLive] = useState({ kpis: {}, tables: {} });
-  const [period, setPeriod] = useState(report.defaultPeriod);
-  const [ky, setKy] = useState('');
+  const [range, setRange] = useState({ from: null, to: null, preset: 'all' });
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -30,7 +30,6 @@ export default function ReportView({ report }) {
       };
       if (alive) {
         setData(merged);
-        setKy(merged.meta.ky || '');
         setLoaded(true);
       }
     })();
@@ -43,6 +42,15 @@ export default function ReportView({ report }) {
     kpis: { ...data.kpis, ...live.kpis },
     tables: { ...data.tables, ...live.tables },
   }), [data, live]);
+
+  /* Bảng & biểu đồ nhìn qua bộ lọc thời gian */
+  const shown = useMemo(() => {
+    const out = {};
+    for (const [id, rows] of Object.entries(view.tables)) {
+      out[id] = filterRowsByRange(rows, range.from, range.to);
+    }
+    return out;
+  }, [view.tables, range]);
 
   const applyLive = useCallback((patch) => {
     setLive({ kpis: patch.kpis || {}, tables: patch.tables || {} });
@@ -70,7 +78,7 @@ export default function ReportView({ report }) {
   }
 
   function exportCsv(table) {
-    const rows = view.tables[table.id] || [];
+    const rows = shown[table.id] || [];
     const head = table.columns.map((c) => c.label).join(',');
     const body = rows
       .map((r) => table.columns.map((c) => `"${String(r[c.key] ?? '').replace(/"/g, '""')}"`).join(','))
@@ -92,21 +100,15 @@ export default function ReportView({ report }) {
           <div>
             <div className="eyebrow">{report.code} · SLA {report.sla} · Nguồn: {report.source}</div>
             <h1>{report.name}</h1>
-          </div>
-          <div className="stack">
-            <div className="field">
-              <label>Kỳ báo cáo</label>
-              <div className="seg">
-                {report.periods.map((p) => (
-                  <button key={p} className={period === p ? 'on' : ''} onClick={() => setPeriod(p)}>{PERIOD_LABEL[p]}</button>
-                ))}
-              </div>
-            </div>
-            <div className="field">
-              <label>Giá trị kỳ</label>
-              <input className="input" value={ky} onChange={(e) => setKy(e.target.value)} placeholder={period === 'day' ? '24/07/2026' : period === 'week' ? 'Tuần 30' : period === 'month' ? 'Tháng 07/2026' : period === 'quarter' ? 'Quý 3/2026' : '2026'} />
+            <div className="range-line">
+              <span className="range-pill">
+                Phạm vi: {range.from || range.to
+                  ? `${fmtRangeDate(range.from) || '…'} → ${fmtRangeDate(range.to) || '…'}`
+                  : 'Cả kỳ — toàn bộ dữ liệu'}
+              </span>
             </div>
           </div>
+          <FilterBar range={range} onChange={setRange} />
         </div>
       </div>
 
@@ -126,7 +128,7 @@ export default function ReportView({ report }) {
         <KpiStrip kpis={report.kpis} values={view.kpis} />
 
         {report.sheet?.mode === 'weekly_matrix' ? (
-          <WeeklyRateBoard report={report} onLive={applyLive} />
+          <WeeklyRateBoard report={report} onLive={applyLive} range={range} />
         ) : null}
 
         <SourcePanel report={report} onApply={applyTable} onApplyKpis={applyKpis} onReset={reset} />
@@ -135,7 +137,7 @@ export default function ReportView({ report }) {
           <DataTable
             key={t.id}
             table={t}
-            rows={view.tables[t.id] || []}
+            rows={shown[t.id] || []}
             live={liveTables.has(t.id)}
             onExport={exportCsv}
           />
@@ -143,7 +145,7 @@ export default function ReportView({ report }) {
 
         <div className="grid-2">
           {report.charts.map((c) => (
-            <ChartBlock key={c.id} chart={c} rows={view.tables[c.table] || []} />
+            <ChartBlock key={c.id} chart={c} rows={shown[c.table] || []} />
           ))}
         </div>
 
