@@ -8,6 +8,7 @@
    ============================================================ */
 
 import Papa from 'papaparse';
+import { spdvOf } from '@/lib/cpvDims';
 
 export const dynamic = 'force-dynamic';
 
@@ -118,7 +119,11 @@ export async function GET(request) {
     loi_nhuan: findCol(headers, ['loi nhuan', '~loi nhuan']),
     trang_thai: findCol(headers, ['trang thai', '~trang thai']),
     ngay_hoan_tat: findCol(headers, ['ngay hoan tat', '~ngay hoan tat', '~hoan tat luc', '~ngay hoan thanh']),
+    ngay_tao: findCol(headers, ['ngay tao', '~ngay tao']),
     bu: findCol(headers, ['bu', '~khoi kd']),
+    dich_vu: findCol(headers, ['dich vu', '~dich vu']),
+    game: findCol(headers, ['game']),
+    san_pham: findCol(headers, ['~san pham']),
   };
 
   const missing = [];
@@ -129,42 +134,53 @@ export async function GET(request) {
     return Response.json({ error: `Không tìm thấy cột: ${missing.join(', ')}. Header đọc được: ${headers.filter(Boolean).slice(0, 30).join(' | ')}` }, { status: 422 });
   }
 
-  /* Gộp theo Ngày × Sàn */
+  /* Phân loại trạng thái đơn: thành công / thất bại / hoàn hủy / khác */
+  const statusClass = (raw) => {
+    const st = norm(raw);
+    if (!st || st.includes('hoan tat') || st.includes('hoan thanh')) return 'ok';
+    if (st.includes('hoan')) return 'huy'; /* hoàn hủy / hoàn tiền */
+    if (st.includes('huy')) return 'huy';
+    if (st.includes('that bai') || st.includes('fail') || st.includes('loi')) return 'fail';
+    return 'other'; /* đang xử lý... không tính */
+  };
+
+  /* Gộp theo Ngày × Sàn × SPDV; đơn fail/hoàn hủy chỉ đếm số lượng */
   const agg = new Map();
   let used = 0;
   let skipNoDate = 0;
   let skipStatus = 0;
+  let countFail = 0;
+  let countHuy = 0;
   for (let i = headIdx + 1; i < grid.length; i++) {
     const r = grid[i] || [];
     const san = String(r[col.san] ?? '').trim();
     if (!san) continue;
 
-    if (col.trang_thai >= 0) {
-      const st = norm(r[col.trang_thai]);
-      if (st && !st.includes('hoan tat')) { skipStatus++; continue; }
-    }
-    const dt = parseDate(r[col.ngay_hoan_tat]);
+    const sc = col.trang_thai >= 0 ? statusClass(r[col.trang_thai]) : 'ok';
+    if (sc === 'other') { skipStatus++; continue; }
+
+    /* Đơn thành công lấy Ngày hoàn tất; đơn fail/hủy chưa giao lấy Ngày tạo thay thế */
+    let dt = parseDate(r[col.ngay_hoan_tat]);
+    if (!dt && sc !== 'ok' && col.ngay_tao >= 0) dt = parseDate(r[col.ngay_tao]);
     if (!dt) { skipNoDate++; continue; }
     const ngay = `${dt.d}/${dt.m}/${dt.y}`;
     const sortKey = `${dt.y}${dt.m}${dt.d}`;
 
-    const doanhThuUsd = col.doanh_thu_usd >= 0 ? viNum(r[col.doanh_thu_usd]) : 0;
-    const phiSan = col.phi_san >= 0 ? viNum(r[col.phi_san]) : 0;
-    const dthuThuc = col.dthu_thuc >= 0 ? viNum(r[col.dthu_thuc]) : doanhThuUsd - phiSan;
-    const thanhTien = col.thanh_tien >= 0 ? viNum(r[col.thanh_tien]) : 0;
-    const giaVon = col.gia_von >= 0 ? viNum(r[col.gia_von]) : 0;
-    const loiNhuan = col.loi_nhuan >= 0 ? viNum(r[col.loi_nhuan]) : thanhTien - giaVon;
-
-    const key = `${sortKey}|${san}`;
+    const spdv = spdvOf(col.dich_vu >= 0 ? r[col.dich_vu] : '', col.game >= 0 ? r[col.game] : '', col.san_pham >= 0 ? r[col.san_pham] : '');
+    const key = `${sortKey}|${san}|${spdv}`;
     if (!agg.has(key)) {
       agg.set(key, {
         ngay,
         sortKey,
         san,
+        spdv,
         bu: col.bu >= 0 && String(r[col.bu] ?? '').trim() ? String(r[col.bu]).trim().toUpperCase() : (san.match(/^[A-Za-z]+/)?.[0] || san).toUpperCase(),
         so_don: 0,
+        don_fail: 0,
+        don_huy: 0,
         doanh_thu_usd: 0,
         phi_san: 0,
+        phi_san_vnd: 0,
         dthu_thuc: 0,
         thanh_tien: 0,
         gia_von: 0,
@@ -172,9 +188,23 @@ export async function GET(request) {
       });
     }
     const a = agg.get(key);
+
+    if (sc === 'fail') { a.don_fail += 1; countFail++; continue; }
+    if (sc === 'huy') { a.don_huy += 1; countHuy++; continue; }
+
+    const doanhThuUsd = col.doanh_thu_usd >= 0 ? viNum(r[col.doanh_thu_usd]) : 0;
+    const phiSan = col.phi_san >= 0 ? viNum(r[col.phi_san]) : 0;
+    const dthuThuc = col.dthu_thuc >= 0 ? viNum(r[col.dthu_thuc]) : doanhThuUsd - phiSan;
+    const thanhTien = col.thanh_tien >= 0 ? viNum(r[col.thanh_tien]) : 0;
+    const giaVon = col.gia_von >= 0 ? viNum(r[col.gia_von]) : 0;
+    const loiNhuan = col.loi_nhuan >= 0 ? viNum(r[col.loi_nhuan]) : thanhTien - giaVon;
+    /* Phí sàn quy VND theo REV rate ẩn của chính dòng đó (Thành tiền / DThu thực nhận) */
+    const phiSanVnd = dthuThuc > 0 ? phiSan * (thanhTien / dthuThuc) : 0;
+
     a.so_don += 1;
     a.doanh_thu_usd += doanhThuUsd;
     a.phi_san += phiSan;
+    a.phi_san_vnd += phiSanVnd;
     a.dthu_thuc += dthuThuc;
     a.thanh_tien += thanhTien;
     a.gia_von += giaVon;
@@ -192,6 +222,8 @@ export async function GET(request) {
       gia_von_found: col.gia_von >= 0,
       bu_from_header: col.bu >= 0,
       rows_used: used,
+      don_fail: countFail,
+      don_huy: countHuy,
       rows_skip_no_date: skipNoDate,
       rows_skip_status: skipStatus,
       from: dates[0] || '',

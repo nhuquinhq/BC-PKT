@@ -7,12 +7,39 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { parseVNDate } from '@/lib/timeFilter';
+import { teamOf } from '@/lib/cpvDims';
 
 const REFRESH_MS = 60 * 1000;
 
 const sum = (rows, k) => rows.reduce((t, r) => t + (r[k] || 0), 0);
 
-const NUM_KEYS = ['so_don', 'doanh_thu_usd', 'phi_san', 'dthu_thuc', 'thanh_tien', 'gia_von', 'loi_nhuan'];
+const NUM_KEYS = ['so_don', 'don_fail', 'don_huy', 'doanh_thu_usd', 'phi_san', 'phi_san_vnd', 'dthu_thuc', 'thanh_tien', 'gia_von', 'loi_nhuan'];
+
+/* Tiêu chí KQKD: GMV = Thành tiền · PL1 = Lợi nhuận (GMV − Giá vốn) ·
+   PL2A = PL1 − phí sàn quy VND · ARPO = GMV / số đơn A3 */
+const kqkd = (r) => {
+  const gmv = r.thanh_tien;
+  const pl1 = r.loi_nhuan;
+  const pl2a = pl1 - r.phi_san_vnd;
+  return {
+    ...r,
+    gmv,
+    pl1,
+    pct_pl1: gmv ? (pl1 / gmv) * 100 : null,
+    pl2a,
+    pct_pl2a: gmv ? (pl2a / gmv) * 100 : null,
+    arpo: r.so_don ? gmv / r.so_don : null,
+  };
+};
+
+const donStats = (r) => {
+  const tong = r.so_don + r.don_fail + r.don_huy;
+  return {
+    ...r,
+    ti_le_fail: tong ? (r.don_fail / tong) * 100 : null,
+    ti_le_huy: tong ? (r.don_huy / tong) * 100 : null,
+  };
+};
 
 function groupBy(rows, keyFn, labelKeys) {
   const m = new Map();
@@ -65,9 +92,18 @@ export default function CpvBoard({ report, onLive, range }) {
         return true;
       });
     }
+    /* Gắn Team từ BU trước khi gộp */
+    rows = rows.map((r) => ({ ...r, team: teamOf(r.bu) }));
+
     const cpv_ngay = groupBy(rows, (r) => r.ngay, ['ngay']);
     const cpv_san = groupBy(rows, (r) => r.san, ['san', 'bu']).sort((a, b) => b.thanh_tien - a.thanh_tien);
     const cpv_bu = groupBy(rows, (r) => r.bu, ['bu']).sort((a, b) => b.thanh_tien - a.thanh_tien);
+    const byTeam = groupBy(rows, (r) => r.team, ['team']).sort((a, b) => b.thanh_tien - a.thanh_tien);
+    const bySpdv = groupBy(rows, (r) => r.spdv, ['spdv']).sort((a, b) => b.thanh_tien - a.thanh_tien);
+    const kqkd_team = byTeam.map(kqkd);
+    const kqkd_spdv = bySpdv.map(kqkd);
+    const don_team = byTeam.map(donStats);
+    const don_spdv = bySpdv.map(donStats);
     const thanh_tien = sum(rows, 'thanh_tien');
     const gia_von = sum(rows, 'gia_von');
     const loi_nhuan = sum(rows, 'loi_nhuan');
@@ -79,8 +115,10 @@ export default function CpvBoard({ report, onLive, range }) {
       bien_ln: thanh_tien ? (loi_nhuan / thanh_tien) * 100 : null,
       so_don: sum(rows, 'so_don'),
       doanh_thu_usd: sum(rows, 'doanh_thu_usd'),
+      don_fail: sum(rows, 'don_fail'),
+      don_huy: sum(rows, 'don_huy'),
     };
-    return { tables: { cpv_ngay, cpv_san, cpv_bu }, kpis };
+    return { tables: { cpv_ngay, cpv_san, cpv_bu, kqkd_team, kqkd_spdv, don_team, don_spdv }, kpis };
   }, [state.detail, state.status, range]);
 
   useEffect(() => {
