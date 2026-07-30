@@ -137,8 +137,7 @@ export default function CpvBoard({ report, onLive, range }) {
             <span className="tag live-tag">● LIVE</span>
           </h2>
           <div className="hint">
-            Đọc từ Google Sheet {cfg.label ? `“${cfg.label}”` : ''}
-            {state.at ? ` · Cập nhật ${state.at.toLocaleTimeString('vi-VN')}` : ''} · Tự làm mới 60s
+            {state.at ? `Cập nhật ${state.at.toLocaleTimeString('vi-VN')} · ` : ''}Tự làm mới 60s
             {m ? ` · ${m.rows_used.toLocaleString('vi-VN')} đơn Hoàn Tất · Ngày hoàn tất ${m.from} → ${m.to}` : ''}
           </div>
         </div>
