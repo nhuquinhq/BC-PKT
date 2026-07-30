@@ -5,7 +5,7 @@ import PwaRegister from '@/components/PwaRegister';
 
 export const metadata = {
   title: 'Trung tâm Báo cáo PKT — HQ Group',
-  description: 'Trung tâm 7 báo cáo quản trị tài chính PKT1–PKT7 của HQ Group, đọc realtime từ Google Sheet',
+  description: 'Trung tâm 8 báo cáo quản trị tài chính PKT1–PKT8 của HQ Group, đọc realtime từ Google Sheet',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

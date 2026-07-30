@@ -41,7 +41,7 @@ export default function Sidebar() {
           <Link href="/" className={`nav-item pinned${path === '/' ? ' active' : ''}`}>
             <span className="code">◆</span>
             <span className="dot" />
-            <span className="nm">Tổng quan (PKT1 → PKT7)</span>
+            <span className="nm">Tổng quan (PKT1 → PKT8)</span>
           </Link>
         ) : null}
 

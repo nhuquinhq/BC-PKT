@@ -128,7 +128,7 @@ function PermPanel({ data, err, call, load, meta }) {
       <div className="pm-usage">
         <b>Cách dùng:</b> chọn vai trò, mở ô “Báo cáo được xem” để <b>tick</b> đúng báo cáo cho người đó
         (hoặc <b>ALL</b> = xem hết · để nguyên “Mặc định theo vai trò”), rồi bấm <b>Lưu / Cấp quyền</b>.
-        Mặc định vai trò: <b>Admin</b> tất cả + Cấu hình · <b>Leader</b> TQ, PKT1 → PKT7 · <b>Nhân viên</b> {(ROLE_DEFAULT_PAGES.nhanvien || []).join(', ')}.
+        Mặc định vai trò: <b>Admin</b> tất cả + Cấu hình · <b>Leader</b> TQ, PKT1 → PKT8 · <b>Nhân viên</b> {(ROLE_DEFAULT_PAGES.nhanvien || []).join(', ')}.
       </div>
     </section>
   );
