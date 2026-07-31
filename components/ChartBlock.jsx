@@ -6,7 +6,28 @@ import {
 } from 'recharts';
 import { toNumber, fmtCompact, fmtRate } from '@/lib/format';
 
-const COLORS = ['#7c5cff', '#22d3ee', '#f472b6', '#34d399', '#fbbf24', '#4b8dff'];
+/* HQ COLOR CODE — các bậc màu thương hiệu đã chỉnh sáng cho nền navy tối
+   (kiểm định độ tương phản + phân biệt được với người mù màu). Thứ tự cố định. */
+const COLORS = ['#189BD8', '#7E9C00', '#1B75BB', '#00A99D', '#D96F00', '#00A651'];
+
+/* Màu theo ý nghĩa tài chính: doanh thu xanh HQ · giá vốn/chi cam HQ · lợi nhuận xanh lá HQ */
+const SERIES_COLORS = {
+  thanh_tien: '#189BD8',
+  gmv: '#189BD8',
+  re: '#189BD8',
+  doanh_thu_usd: '#189BD8',
+  du_kien_thu: '#189BD8',
+  gia_von: '#D96F00',
+  cogs: '#D96F00',
+  tong_chi: '#D96F00',
+  loi_nhuan: '#00A651',
+  pl1: '#00A651',
+  pl2: '#00A651',
+  pl2a: '#00A651',
+  pl7: '#1B75BB',
+};
+
+const colorOf = (key, i) => SERIES_COLORS[key] || COLORS[i % COLORS.length];
 
 const axisStyle = { fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', fill: '#6c7ba3' };
 const GRID = 'rgba(255,255,255,.07)';
@@ -48,7 +69,7 @@ export default function ChartBlock({ chart, rows = [] }) {
                 <Tooltip contentStyle={TIP} itemStyle={{ color: "#eaf0ff" }} labelStyle={{ color: "#a6b3d4" }} formatter={(v) => fmtY(v)} />
                 <Legend wrapperStyle={{ fontSize: 11, color: '#a6b3d4' }} />
                 {chart.series.map((s, i) => (
-                  <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={false} />
+                  <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={colorOf(s.key, i)} strokeWidth={2} dot={false} />
                 ))}
               </LineChart>
             ) : chart.type === 'bar' ? (
@@ -59,14 +80,14 @@ export default function ChartBlock({ chart, rows = [] }) {
                 <Tooltip contentStyle={TIP} itemStyle={{ color: "#eaf0ff" }} labelStyle={{ color: "#a6b3d4" }} formatter={(v) => fmtY(v)} />
                 <Legend wrapperStyle={{ fontSize: 11, color: '#a6b3d4' }} />
                 {chart.series.map((s, i) => (
-                  <Bar key={s.key} dataKey={s.key} name={s.label} fill={COLORS[i % COLORS.length]} radius={[2, 2, 0, 0]} />
+                  <Bar key={s.key} dataKey={s.key} name={s.label} fill={colorOf(s.key, i)} radius={[2, 2, 0, 0]} />
                 ))}
               </BarChart>
             ) : chart.type === 'pie' ? (
               <PieChart>
                 <Tooltip contentStyle={TIP} itemStyle={{ color: "#eaf0ff" }} labelStyle={{ color: "#a6b3d4" }} formatter={(v) => fmtY(v)} />
                 <Legend wrapperStyle={{ fontSize: 11, color: '#a6b3d4' }} />
-                <Pie data={data} dataKey={chart.series[0].key} nameKey={chart.x} outerRadius={100} innerRadius={54}>
+                <Pie data={data} dataKey={chart.series[0].key} nameKey={chart.x} outerRadius={100} innerRadius={54} stroke="#081426" strokeWidth={2}>
                   {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Pie>
               </PieChart>
@@ -76,7 +97,7 @@ export default function ChartBlock({ chart, rows = [] }) {
                 <XAxis type="number" dataKey={chart.x} name="Doanh thu" tick={axisStyle} tickFormatter={fmtCompact} />
                 <YAxis type="number" dataKey={chart.y} name="Biên LN" tick={axisStyle} width={64} />
                 <Tooltip contentStyle={TIP} itemStyle={{ color: "#eaf0ff" }} labelStyle={{ color: "#a6b3d4" }} cursor={{ strokeDasharray: '3 3' }} />
-                <Scatter data={data} fill="#22d3ee" />
+                <Scatter data={data} fill="#189BD8" />
               </ScatterChart>
             )}
           </ResponsiveContainer>
