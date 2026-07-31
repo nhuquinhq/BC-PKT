@@ -396,7 +396,12 @@ export async function GET(request) {
   let histFail = 0;
   let histHuy = 0;
   if (useHist) {
-    const histRows = HIST.flatMap((h) => h.detail);
+    /* Snapshot không lưu BU (file gốc ẩn cột) — gán lại bằng map Sàn→BU
+       học từ tháng đang live, cùng chuỗi dự phòng như dòng thường. */
+    const histRows = HIST.flatMap((h) => h.detail).map((r) => ({
+      ...r,
+      bu: r.bu || sanBu.get(r.san) || SAN_BU_MAP[r.san] || (r.san.match(/^[A-Za-z]+/)?.[0] || r.san).toUpperCase(),
+    }));
     if (histRows.length) {
       detail = histRows
         .concat(detail)
