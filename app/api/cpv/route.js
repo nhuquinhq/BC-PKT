@@ -239,6 +239,7 @@ export async function GET(request) {
      API chỉ BỔ SUNG những đơn file BE còn thiếu (so theo Order ID, kể cả
      bỏ đuôi -1/-2), giới hạn trong khoảng ngày của file BE. */
   let apiRows = [];
+  let apiAllRows = []; /* mọi đơn Hoàn Tất của file API — dùng cho bảng đối soát module */
   let apiMeta = null;
   let dedup = 0;
   let outOfRange = 0;
@@ -247,6 +248,7 @@ export async function GET(request) {
       const grid2 = await loadGrid(url2, gid2);
       const p2 = parseOrders(grid2, { defaultSan: san2 });
       apiMeta = p2.meta;
+      apiAllRows = p2.rows.filter((r) => r.sc === 'ok');
 
       const stripSuffix = (id) => id.replace(/-\d+$/, '');
       const mainIds = new Set();
@@ -295,6 +297,26 @@ export async function GET(request) {
   }
   const overallTw = twCnt > 0 ? twSum / twCnt : 0;
   const overallRate = sumNet > 0 ? sumTt / sumNet : 0;
+
+  /* Đối soát module: tổng SỐ GỐC của file API theo Ngày hoàn tất (cột Q) —
+     tính TRƯỚC khi khử trùng, gộp theo ngày để trình duyệt lọc thời gian.
+     Quy VND cùng công thức: nhân tỷ giá tuần. (Tính trước vòng quy đổi
+     bên dưới vì các đơn bổ sung dùng chung object và sẽ bị đổi sang VND.) */
+  const apiFileByDate = new Map();
+  for (const r of apiAllRows) {
+    const d0 = rateByDate.get(r.sortKey);
+    const rate = twByDate.get(r.sortKey) || overallTw || (d0 && d0.net > 0 ? d0.tt / d0.net : overallRate);
+    const a = apiFileByDate.get(r.sortKey) || { ngay: r.ngay, sortKey: r.sortKey, so_don: 0, doanh_thu_usd: 0, dthu_thuc: 0, thanh_tien: 0, gia_von: 0, loi_nhuan: 0 };
+    a.so_don += 1;
+    a.doanh_thu_usd += r.doanh_thu_usd;
+    a.dthu_thuc += r.dthu_thuc;
+    a.thanh_tien += r.dthu_thuc * rate;
+    a.gia_von += r.gia_von * rate;
+    a.loi_nhuan += (r.dthu_thuc - r.gia_von) * rate;
+    apiFileByDate.set(r.sortKey, a);
+  }
+  const api_file = [...apiFileByDate.values()].sort((x, y) => (x.sortKey < y.sortKey ? -1 : 1));
+
   let apiNoCost = 0;
   for (const r of apiRows) {
     if (r.sc !== 'ok') continue;
@@ -324,6 +346,7 @@ export async function GET(request) {
 
   return Response.json({
     detail,
+    api_file,
     meta: {
       ...mainMeta,
       rows_used: okRows.length,

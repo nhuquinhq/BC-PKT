@@ -72,7 +72,7 @@ export default function CpvBoard({ report, onLive, range }) {
       const res = await fetch(`/api/cpv?${qs}`, { cache: 'no-store' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Không đọc được dữ liệu');
-      setState({ status: 'ok', detail: json.detail, meta: json.meta, at: new Date() });
+      setState({ status: 'ok', detail: json.detail, apiFile: json.api_file || [], meta: json.meta, at: new Date() });
     } catch (e) {
       setState((s) => ({ ...s, status: 'err', error: e.message }));
     }
@@ -101,14 +101,25 @@ export default function CpvBoard({ report, onLive, range }) {
     rows = rows.map((r) => ({ ...r, team: teamOf(r.bu) }));
     if (cfg.teamFilter) rows = rows.filter((r) => r.team === cfg.teamFilter);
 
-    /* Đối soát theo module nguồn: dh = Quản lý đơn hàng (đã có VND trên file),
-       api = file API sàn (USD, quy VND theo tỷ giá học từ module đơn hàng) */
-    const NGUON_LABEL = { dh: 'Quản lý đơn hàng', api: 'API sàn (G1/G2)' };
-    const nguon_module = groupBy(rows, (r) => r.nguon || 'dh', ['nguon']).map((r) => ({
-      ...r,
-      module: NGUON_LABEL[r.nguon] || r.nguon,
-      ty_gia: r.dthu_thuc > 0 ? r.thanh_tien / r.dthu_thuc : null,
-    })).sort((a, b) => b.thanh_tien - a.thanh_tien);
+    /* Đối soát theo module nguồn — SỐ GỐC của từng file (đơn trùng giữa 2 file
+       được tính ở cả hai dòng; KPI và các bảng trên vẫn khử trùng):
+       - Quản lý đơn hàng: mọi đơn file BE (VND có sẵn trên file).
+       - API sàn: mọi đơn Hoàn Tất của file API theo Ngày hoàn tất (cột Q),
+         quy VND bằng tỷ giá tuần. */
+    const withTyGia = (r) => ({ ...r, ty_gia: r.dthu_thuc > 0 ? r.thanh_tien / r.dthu_thuc : null });
+    const inRange = (r) => {
+      if (!range || (!range.from && !range.to)) return true;
+      const d = parseVNDate(r.ngay);
+      if (!d) return true;
+      if (range.from && d < range.from) return false;
+      if (range.to && d > range.to) return false;
+      return true;
+    };
+    const dhRows = rows.filter((r) => (r.nguon || 'dh') === 'dh');
+    const nguon_module = [];
+    if (dhRows.length) nguon_module.push(withTyGia({ module: 'Quản lý đơn hàng', ...groupBy(dhRows, () => 'dh', [])[0] }));
+    const apiAgg = groupBy((state.apiFile || []).filter(inRange), () => 'api', []);
+    if (apiAgg.length) nguon_module.push(withTyGia({ module: 'API sàn (G1/G2)', ...apiAgg[0] }));
 
     const cpv_ngay = groupBy(rows, (r) => r.ngay, ['ngay']);
     const cpv_san = groupBy(rows, (r) => r.san, ['san', 'bu']).sort((a, b) => b.thanh_tien - a.thanh_tien);
