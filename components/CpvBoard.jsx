@@ -131,24 +131,13 @@ export default function CpvBoard({ report, onLive, range }) {
     if (agg) onLive?.(agg);
   }, [agg, onLive]);
 
-  const busy = state.status === 'loading' || state.status === 'refreshing';
   const m = state.meta;
 
-  return (
-    <section className="panel">
-      <div className="panel-head">
-        <div>
-          <h2>
-            {cfg.teamFilter ? `Doanh thu – Giá vốn · Team ${cfg.teamFilter}` : 'Doanh thu – Giá vốn theo đơn (BE HQS)'}
-            <span className="tag live-tag">● LIVE</span>
-          </h2>
-        </div>
-        <div className="stack">
-          <a className="btn ghost" href={cfg.url} target="_blank" rel="noreferrer">Mở sheet gốc ↗</a>
-          <button className="btn" onClick={load} disabled={busy}>{busy ? 'Đang đọc…' : 'Làm mới'}</button>
-        </div>
-      </div>
-      {state.status === 'err' ? (
+  /* Khối này chỉ lo tải + tổng hợp dữ liệu; bình thường không hiện gì
+     (tiêu đề trang và tên từng biểu đồ đã đủ). Chỉ hiện panel khi có sự cố. */
+  if (state.status === 'err') {
+    return (
+      <section className="panel">
         <div className="panel-body">
           <div className="empty-state">
             <b>Không đọc được dữ liệu đơn hàng.</b>
@@ -156,22 +145,28 @@ export default function CpvBoard({ report, onLive, range }) {
             <div style={{ marginTop: 10 }}>
               Kiểm tra: file đã <b>Publish to web</b> đúng tab Data chưa, và GID trong <span className="mono">lib/reports.js</span>.
             </div>
+            <div style={{ marginTop: 10 }}>
+              <button className="btn" onClick={load}>Thử lại</button>
+            </div>
           </div>
         </div>
-      ) : m?.api_error ? (
-        <div className="panel-body">
-          <div className="notice-amber" style={{ margin: 0 }}>
-            Số liệu đang hiển thị <b>chưa gồm file API sàn G1/G2</b> — lỗi đọc: {m.api_error}
-          </div>
-        </div>
-      ) : m && !m.gia_von_found ? (
-        <div className="panel-body">
-          <div className="notice-amber" style={{ margin: 0 }}>
-            Không tìm thấy cột <b>Giá vốn</b> trong tab Data — các cột giá vốn/lãi gộp đang bằng 0.
-            Báo tôi tên cột chính xác để map lại.
-          </div>
-        </div>
-      ) : null}
-    </section>
-  );
+      </section>
+    );
+  }
+  if (m?.api_error) {
+    return (
+      <div className="notice-amber" style={{ marginBottom: 18 }}>
+        Số liệu đang hiển thị <b>chưa gồm file API sàn G1/G2</b> — lỗi đọc: {m.api_error}
+      </div>
+    );
+  }
+  if (m && !m.gia_von_found) {
+    return (
+      <div className="notice-amber" style={{ marginBottom: 18 }}>
+        Không tìm thấy cột <b>Giá vốn</b> trong tab Data — các cột giá vốn/lãi gộp đang bằng 0.
+        Báo tôi tên cột chính xác để map lại.
+      </div>
+    );
+  }
+  return null;
 }

@@ -157,11 +157,11 @@ export default function ReportView({ report }) {
               {tables}
             </>
           ) : report.sheet?.mode === 'order_cpv' ? (
+            /* Trang CPV chạy LIVE hoàn toàn — không cần khối nạp tay */
             <>
               <CpvBoard report={report} onLive={applyLive} range={range} />
               {charts}
               {tables}
-              {source}
             </>
           ) : (
             <>
@@ -172,9 +172,11 @@ export default function ReportView({ report }) {
           );
         })()}
 
-        <div className="muted" style={{ marginTop: 8 }}>
-          {loaded ? `Cập nhật: ${data.meta.cap_nhat || '—'} · Người lập: ${data.meta.nguoi_lap || '—'}` : 'Đang tải dữ liệu…'}
-        </div>
+        {report.sheet?.mode !== 'order_cpv' ? (
+          <div className="muted" style={{ marginTop: 8 }}>
+            {loaded ? `Cập nhật: ${data.meta.cap_nhat || '—'} · Người lập: ${data.meta.nguoi_lap || '—'}` : 'Đang tải dữ liệu…'}
+          </div>
+        ) : null}
       </div>
     </>
   );
