@@ -142,13 +142,6 @@ export default function CpvBoard({ report, onLive, range }) {
             {cfg.teamFilter ? `Doanh thu – Giá vốn · Team ${cfg.teamFilter}` : 'Doanh thu – Giá vốn theo đơn (BE HQS)'}
             <span className="tag live-tag">● LIVE</span>
           </h2>
-          <div className="hint">
-            {state.at ? `Cập nhật ${state.at.toLocaleTimeString('vi-VN')} · ` : ''}Tự làm mới 60s
-            {m ? ` · ${m.rows_used.toLocaleString('vi-VN')} đơn Hoàn Tất · Ngày hoàn tất ${m.from} → ${m.to}` : ''}
-            {m?.api_used ? ` · bổ sung ${m.api_used.toLocaleString('vi-VN')} đơn từ file API sàn G1/G2` : ''}
-            {m?.dedup_removed ? ` (${m.dedup_removed.toLocaleString('vi-VN')} đơn API trùng đã có ở file BE)` : ''}
-            {m?.api_no_cost ? ` · ${m.api_no_cost.toLocaleString('vi-VN')} đơn API (Thủ công) chưa điền giá vốn cột X` : ''}
-          </div>
         </div>
         <div className="stack">
           <a className="btn ghost" href={cfg.url} target="_blank" rel="noreferrer">Mở sheet gốc ↗</a>
