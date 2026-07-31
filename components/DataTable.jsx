@@ -7,12 +7,41 @@ const TOTAL_HINT = /^(tổng|TỔNG|PL7|TA|TL|EQ|RE|= )/;
 
 export default function DataTable({ table, rows = [], live = false, onExport }) {
   const [q, setQ] = useState('');
+  const [sort, setSort] = useState(null); // { key, dir: 1 | -1 }
 
   const filtered = useMemo(() => {
-    if (!q.trim()) return rows;
-    const s = q.toLowerCase();
-    return rows.filter((r) => Object.values(r).some((v) => String(v ?? '').toLowerCase().includes(s)));
-  }, [rows, q]);
+    let out = rows;
+    if (q.trim()) {
+      const s = q.toLowerCase();
+      out = out.filter((r) => Object.values(r).some((v) => String(v ?? '').toLowerCase().includes(s)));
+    }
+    if (sort) {
+      const col = table.columns.find((c) => c.key === sort.key);
+      const num = col && isNumericType(col.type);
+      out = [...out].sort((a, b) => {
+        const va = a[sort.key];
+        const vb = b[sort.key];
+        if (va == null || va === '') return 1;
+        if (vb == null || vb === '') return -1;
+        if (num) {
+          const na = toNumber(va);
+          const nb = toNumber(vb);
+          return ((na ?? -Infinity) - (nb ?? -Infinity)) * sort.dir;
+        }
+        return String(va).localeCompare(String(vb), 'vi', { numeric: true }) * sort.dir;
+      });
+    }
+    return out;
+  }, [rows, q, sort, table.columns]);
+
+  /* Bấm tiêu đề cột: lần 1 giảm dần, lần 2 tăng dần, lần 3 bỏ sắp xếp */
+  const toggleSort = (key) => {
+    setSort((s) => {
+      if (!s || s.key !== key) return { key, dir: -1 };
+      if (s.dir === -1) return { key, dir: 1 };
+      return null;
+    });
+  };
 
   const hasData = rows.length > 0;
 
@@ -47,7 +76,15 @@ export default function DataTable({ table, rows = [], live = false, onExport }) 
               <thead>
                 <tr>
                   {table.columns.map((c) => (
-                    <th key={c.key} className={isNumericType(c.type) ? 'num' : ''}>{c.label}</th>
+                    <th
+                      key={c.key}
+                      className={`sortable${isNumericType(c.type) ? ' num' : ''}${sort?.key === c.key ? ' sorted' : ''}`}
+                      title="Bấm để sắp xếp"
+                      onClick={() => toggleSort(c.key)}
+                    >
+                      {c.label}
+                      {sort?.key === c.key ? <span className="sort-arrow">{sort.dir === -1 ? ' ▼' : ' ▲'}</span> : null}
+                    </th>
                   ))}
                 </tr>
               </thead>
