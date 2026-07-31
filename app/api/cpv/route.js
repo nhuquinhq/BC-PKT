@@ -243,6 +243,7 @@ export async function GET(request) {
   let apiMeta = null;
   let dedup = 0;
   let outOfRange = 0;
+  const dupList = [];
   if (url2) {
     try {
       const grid2 = await loadGrid(url2, gid2);
@@ -252,17 +253,37 @@ export async function GET(request) {
 
       const stripSuffix = (id) => id.replace(/-\d+$/, '');
       const mainIds = new Set();
+      const mainById = new Map(); /* để trả danh sách đơn trùng kèm số phía BE */
       for (const r of mainRows) {
         if (!r.id) continue;
         mainIds.add(r.id);
         mainIds.add(stripSuffix(r.id));
+        if (!mainById.has(r.id)) mainById.set(r.id, r);
+        const s = stripSuffix(r.id);
+        if (!mainById.has(s)) mainById.set(s, r);
       }
       const minKey = mainRows.reduce((m, r) => (m && m < r.sortKey ? m : r.sortKey), '');
       const maxKey = mainRows.reduce((m, r) => (m > r.sortKey ? m : r.sortKey), '');
 
       for (const r of p2.rows) {
         if (minKey && (r.sortKey < minKey || r.sortKey > maxKey)) { outOfRange++; continue; }
-        if (r.id && (mainIds.has(r.id) || mainIds.has(stripSuffix(r.id)))) { dedup++; continue; }
+        if (r.id && (mainIds.has(r.id) || mainIds.has(stripSuffix(r.id)))) {
+          dedup++;
+          const m = mainById.get(r.id) || mainById.get(stripSuffix(r.id));
+          if (dupList.length < 1000) {
+            dupList.push({
+              order_id: r.id,
+              san: r.san,
+              ngay: r.ngay,
+              usd_api: r.doanh_thu_usd,
+              order_id_be: m?.id || '',
+              ngay_be: m?.ngay || '',
+              usd_be: m?.doanh_thu_usd || 0,
+              lech: r.doanh_thu_usd - (m?.doanh_thu_usd || 0),
+            });
+          }
+          continue;
+        }
         apiRows.push(r);
       }
     } catch (e) {
@@ -347,6 +368,7 @@ export async function GET(request) {
   return Response.json({
     detail,
     api_file,
+    dup_list: dupList,
     meta: {
       ...mainMeta,
       rows_used: okRows.length,

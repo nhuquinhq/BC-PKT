@@ -72,7 +72,7 @@ export default function CpvBoard({ report, onLive, range }) {
       const res = await fetch(`/api/cpv?${qs}`, { cache: 'no-store' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Không đọc được dữ liệu');
-      setState({ status: 'ok', detail: json.detail, apiFile: json.api_file || [], meta: json.meta, at: new Date() });
+      setState({ status: 'ok', detail: json.detail, apiFile: json.api_file || [], dupList: json.dup_list || [], meta: json.meta, at: new Date() });
     } catch (e) {
       setState((s) => ({ ...s, status: 'err', error: e.message }));
     }
@@ -121,6 +121,9 @@ export default function CpvBoard({ report, onLive, range }) {
     const apiAgg = groupBy((state.apiFile || []).filter(inRange), () => 'api', []);
     if (apiAgg.length) nguon_module.push(withTyGia({ module: 'API sàn (G1/G2)', ...apiAgg[0] }));
 
+    /* Danh sách đơn trùng giữa 2 module (đã khử trong báo cáo) — để PKT đối chiếu */
+    const dup_don = (state.dupList || []).filter(inRange);
+
     const cpv_ngay = groupBy(rows, (r) => r.ngay, ['ngay']);
     const cpv_san = groupBy(rows, (r) => r.san, ['san', 'bu']).sort((a, b) => b.thanh_tien - a.thanh_tien);
     const cpv_bu = groupBy(rows, (r) => r.bu, ['bu']).sort((a, b) => b.thanh_tien - a.thanh_tien);
@@ -144,7 +147,7 @@ export default function CpvBoard({ report, onLive, range }) {
       don_fail: sum(rows, 'don_fail'),
       don_huy: sum(rows, 'don_huy'),
     };
-    return { tables: { cpv_ngay, cpv_san, cpv_bu, kqkd_team, kqkd_spdv, don_team, don_spdv, nguon_module }, kpis };
+    return { tables: { cpv_ngay, cpv_san, cpv_bu, kqkd_team, kqkd_spdv, don_team, don_spdv, nguon_module, dup_don }, kpis };
   }, [state.detail, state.status, range, cfg.teamFilter]);
 
   useEffect(() => {
