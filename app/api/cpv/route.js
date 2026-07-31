@@ -101,7 +101,15 @@ function parseOrders(grid, { defaultSan = '' } = {}) {
   }
   if (headIdx < 0) throw new Error('Không tìm thấy dòng tiêu đề bảng đơn hàng.');
 
+  /* File có thể có nhiều cột trùng tên "Giá Vốn" (cột phụ đối soát NCC…).
+     Cột giá vốn THẬT là cột đứng ngay trước cột Lợi Nhuận (AJ→AK);
+     không tìm được mới rơi về cột cuối cùng. */
   const giaVonIdx = headers.reduce((acc, h, i) => (h === 'gia von' ? [...acc, i] : acc), []);
+  const loiNhuanIdx = headers.indexOf('loi nhuan');
+  const giaVonPick =
+    giaVonIdx.length > 1
+      ? giaVonIdx.find((i) => i === loiNhuanIdx - 1) ?? giaVonIdx[giaVonIdx.length - 1]
+      : giaVonIdx[0] ?? -1;
   const col = {
     id: findCol(headers, ['order id', 'order_id', 'ma don', '~order id', '~ma don hang', 'id don', '~id don']),
     san: findCol(headers, ['san', '~san giao dich']),
@@ -109,7 +117,7 @@ function parseOrders(grid, { defaultSan = '' } = {}) {
     phi_san: findCol(headers, ['phi', '~phi san', '~phi']),
     dthu_thuc: findCol(headers, ['~thuc nhan', '~doanh thu thuan']),
     gia_von_usd: giaVonIdx[0] ?? -1,
-    gia_von: giaVonIdx.length > 1 ? giaVonIdx[giaVonIdx.length - 1] : giaVonIdx[0] ?? -1,
+    gia_von: giaVonPick,
     thanh_tien: findCol(headers, ['thanh tien', '~thanh tien']),
     loi_nhuan: findCol(headers, ['loi nhuan', '~loi nhuan']),
     trang_thai: findCol(headers, ['trang thai', '~trang thai', 'status']),
