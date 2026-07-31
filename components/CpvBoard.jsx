@@ -63,7 +63,14 @@ export default function CpvBoard({ report, onLive, range }) {
   const load = useCallback(async () => {
     setState((s) => ({ ...s, status: s.detail ? 'refreshing' : 'loading' }));
     try {
-      const qs = new URLSearchParams({ url: cfg.url, gid: cfg.gid || '0' });
+      const qs = new URLSearchParams();
+      qs.append('url', cfg.url);
+      qs.append('gid', cfg.gid || '0');
+      /* Các file tháng trước cùng form (module Quản lý đơn hàng) */
+      for (const m of cfg.mains || []) {
+        qs.append('url', m.url);
+        qs.append('gid', m.gid || '0');
+      }
       if (cfg.api?.url) {
         qs.set('url2', cfg.api.url);
         qs.set('gid2', cfg.api.gid || '0');
@@ -179,6 +186,13 @@ export default function CpvBoard({ report, onLive, range }) {
           </div>
         </div>
       </section>
+    );
+  }
+  if (m?.main_error) {
+    return (
+      <div className="notice-amber" style={{ marginBottom: 18 }}>
+        Số liệu đang hiển thị <b>thiếu file tháng trước của module Quản lý đơn hàng</b> — lỗi đọc: {m.main_error}
+      </div>
     );
   }
   if (m?.api_error) {

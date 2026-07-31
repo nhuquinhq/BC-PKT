@@ -217,22 +217,35 @@ function aggregate(rows) {
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const url = searchParams.get('url');
-  const gid = searchParams.get('gid') || '0';
+  /* Nguồn chính có thể gồm NHIỀU file cùng form (mỗi tháng một file):
+     truyền lặp ?url=...&gid=...&url=...&gid=... — file đầu là file chủ đạo. */
+  const urls = searchParams.getAll('url');
+  const gids = searchParams.getAll('gid');
   const url2 = searchParams.get('url2');
   const gid2 = searchParams.get('gid2') || '0';
   const san2 = searchParams.get('san2') || ''; // sàn mặc định cho file API nếu thiếu cột Sàn
-  if (!url) return Response.json({ error: 'Thiếu url' }, { status: 400 });
+  if (!urls.length) return Response.json({ error: 'Thiếu url' }, { status: 400 });
 
   let mainRows = [];
   let mainMeta = {};
-  try {
-    const grid = await loadGrid(url, gid);
-    const p = parseOrders(grid);
-    mainRows = p.rows;
-    mainMeta = p.meta;
-  } catch (e) {
-    return Response.json({ error: `File tổng hợp: ${e.message}` }, { status: 502 });
+  const mainErrors = [];
+  const loaded = await Promise.all(
+    urls.map((u, i) =>
+      loadGrid(u, gids[i] || '0')
+        .then((grid) => ({ grid }))
+        .catch((e) => ({ err: e }))
+    )
+  );
+  for (let i = 0; i < loaded.length; i++) {
+    try {
+      if (loaded[i].err) throw loaded[i].err;
+      const p = parseOrders(loaded[i].grid);
+      if (i === 0) mainMeta = p.meta;
+      mainRows = mainRows.concat(p.rows);
+    } catch (e) {
+      if (i === 0) return Response.json({ error: `File tổng hợp: ${e.message}` }, { status: 502 });
+      mainErrors.push(`file ${i + 1}: ${e.message}`);
+    }
   }
 
   /* File API từ sàn (chỉ G1/G2): file BE ƯU TIÊN vì đã đối soát;
@@ -378,6 +391,8 @@ export async function GET(request) {
       api_used: apiRows.filter((r) => r.sc === 'ok').length,
       api_no_cost: apiNoCost,
       api_error: apiMeta?.error || null,
+      main_files: urls.length,
+      main_error: mainErrors.length ? mainErrors.join(' · ') : null,
       dedup_removed: dedup,
       api_out_of_range: outOfRange,
       from: dates[0] || '',
