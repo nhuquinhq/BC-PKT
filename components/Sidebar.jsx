@@ -33,7 +33,7 @@ export default function Sidebar() {
           <span className="logo"><img src="/logo-hq-group.png" alt="HQ Group" /></span>
           <span className="brand-text">
             <span className="title">Trung tâm Báo cáo PKT</span>
-            <span className="sub">Realtime Google Sheet · v3</span>
+            <span className="sub">Số liệu realtime · v3</span>
           </span>
         </Link>
 

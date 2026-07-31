@@ -114,7 +114,7 @@ export default function AuthGate({ children }) {
         <div className="login-card">
           <span className="logo"><img src="/logo-hq-group.png" alt="HQ Group" /></span>
           <h1>TRUNG TÂM BÁO CÁO PKT</h1>
-          <div className="sub">Realtime Google Sheet · truy cập nội bộ</div>
+          <div className="sub">Truy cập nội bộ · cần đăng nhập & cấp quyền</div>
           <div className="g-slot" ref={btnRef} />
           {gisFail ? <div className="login-err">Không tải được nút đăng nhập Google — kiểm tra mạng, hoặc domain chưa được thêm vào Authorized JavaScript origins.</div> : null}
           <div className="login-note">

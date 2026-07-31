@@ -68,9 +68,6 @@ export default function SourceHealth() {
           <div>
             <div className="eyebrow">SRC · Thiết lập hệ thống</div>
             <h1>Nguồn &amp; Cấu hình</h1>
-            <div className="range-line">
-              <span className="hint">Đọc trực tiếp Google Sheet (publish CSV) · qua <span className="mono">/api/sheet</span> trên Vercel</span>
-            </div>
           </div>
           <div className="src-updated">
             <span className="dot-ok">●</span> Cập nhật {timeTxt} · Tự làm mới 60s
@@ -83,7 +80,7 @@ export default function SourceHealth() {
           <div className="stat-card">
             <div className="sc-label">Nguồn dữ liệu</div>
             <div className="sc-val">{okCount}/{live.length} {okCount === live.length ? '✓' : ''}</div>
-            <div className="sc-sub">{live.length} tab · {files.length} file Google Sheet</div>
+            <div className="sc-sub">{live.length} tab · {files.length} file nguồn</div>
           </div>
           <div className="stat-card">
             <div className="sc-label">Cách đọc</div>
@@ -104,7 +101,7 @@ export default function SourceHealth() {
 
         {pending.length ? (
           <div className="notice-amber">
-            <b>{pending.length}/{REPORTS.length} báo cáo chưa có nguồn LIVE.</b> Publish file Google Sheet tương ứng
+            <b>{pending.length}/{REPORTS.length} báo cáo chưa có nguồn LIVE.</b> Publish file nguồn tương ứng
             (File → Share → Publish to web) rồi khai báo <span className="mono">url + gid</span> vào khối{' '}
             <span className="mono">sheet</span> của báo cáo trong <span className="mono">lib/reports.js</span> — web sẽ tự đọc như PKT1.
           </div>
@@ -159,7 +156,7 @@ export default function SourceHealth() {
 
         <div className="flow-legend">
           <span className="lg-label">Luồng dữ liệu:</span>
-          <span className="chip">Google Sheet</span> →
+          <span className="chip">File nguồn</span> →
           <span className="chip">Publish CSV</span> →
           <span className="chip">/api/sheet trên Vercel</span> →
           <span className="chip">Dashboard (60s/lần)</span>

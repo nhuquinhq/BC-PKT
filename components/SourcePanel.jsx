@@ -54,7 +54,7 @@ export default function SourcePanel({ report, onApply, onApplyKpis, onReset }) {
       <div className="panel-head">
         <div>
           <h2>Nguồn dữ liệu</h2>
-          <div className="hint">Nguồn gốc: {report.source}</div>
+          <div className="hint">Nạp tay khi cần bổ sung số liệu ngoài luồng tự động</div>
         </div>
         <div className="stack">
           <button className="btn ghost" onClick={onReset}>Xoá dữ liệu đã nạp</button>

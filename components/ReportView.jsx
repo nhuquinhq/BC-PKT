@@ -116,7 +116,7 @@ export default function ReportView({ report }) {
       <div className="topbar">
         <div className="topbar-row">
           <div>
-            <div className="eyebrow">{report.code} · SLA {report.sla} · Nguồn: {report.source}</div>
+            <div className="eyebrow">{report.code} · SLA {report.sla}</div>
             <h1>{report.name}</h1>
             <div className="range-line">
               <span className="range-pill">

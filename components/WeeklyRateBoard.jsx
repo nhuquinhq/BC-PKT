@@ -129,8 +129,7 @@ export default function WeeklyRateBoard({ report, onLive, range }) {
             <span className="tag live-tag">● LIVE</span>
           </h2>
           <div className="hint">
-            Đọc trực tiếp từ Google Sheet {cfg.label ? `“${cfg.label}”` : ''}
-            {state.at ? ` · Cập nhật ${state.at.toLocaleTimeString('vi-VN')}` : ''} · Tự làm mới 60s
+            {state.at ? `Cập nhật ${state.at.toLocaleTimeString('vi-VN')} · ` : ''}Tự làm mới 60s
           </div>
         </div>
         <div className="stack">
@@ -141,10 +140,10 @@ export default function WeeklyRateBoard({ report, onLive, range }) {
 
       <div className="panel-body" style={{ padding: state.status === 'ok' ? 0 : 18 }}>
         {state.status === 'loading' ? (
-          <div className="empty-state">Đang đọc dữ liệu tỉ giá từ Google Sheet…</div>
+          <div className="empty-state">Đang đọc dữ liệu tỉ giá…</div>
         ) : state.status === 'err' ? (
           <div className="empty-state">
-            <b>Không đọc được Google Sheet.</b>
+            <b>Không đọc được dữ liệu tỉ giá.</b>
             <div style={{ marginTop: 6 }}>{state.error}</div>
             <div style={{ marginTop: 10 }}>
               Kiểm tra: sheet đã <b>File → Share → Publish to web</b> chưa, và link/GID trong <code className="mono">lib/reports.js</code> có đúng tab WEEKLY RATE không.

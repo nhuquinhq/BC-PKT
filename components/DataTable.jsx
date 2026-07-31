@@ -74,7 +74,7 @@ export default function DataTable({ table, rows = [], live = false, onExport }) 
           <div className="empty-state">
             <b>Bảng chưa có dữ liệu.</b>
             <div style={{ marginTop: 6 }}>
-              Nạp bằng khối <b>Nguồn dữ liệu</b> ở đầu trang: dán CSV, kết nối Google Sheet, hoặc sửa file <code className="mono">public/data/{'{mã}'}.json</code>.
+              Nạp bằng khối <b>Nguồn dữ liệu</b> ở đầu trang (dán CSV / kết nối sheet nguồn).
             </div>
             <div className="mono" style={{ marginTop: 10, fontSize: 11 }}>
               Cột cần chuẩn bị: {table.columns.map((c) => c.key).join(' · ')}
