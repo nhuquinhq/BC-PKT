@@ -30,6 +30,7 @@ const SERIES_COLORS = {
   pct_pl1: '#00A651',
   pct_pl2a: '#1B75BB',
   ty_le_co: '#D96F00',
+  bien_ln: '#00A651',
 };
 
 const colorOf = (key, i) => SERIES_COLORS[key] || COLORS[i % COLORS.length];
@@ -78,24 +79,43 @@ export default function ChartBlock({ chart, rows = [] }) {
                 ))}
               </LineChart>
             ) : chart.type === 'bar' ? (
-              /* Cột (thang tiền, trục trái); series kind:'line' vẽ đường % theo trục phải */
+              /* Cột (thang tiền, trục trái); series kind:'line' vẽ đường % theo trục phải.
+                 chart.pct: thang % 0–100; series stack:true chồng cột (cột chồng 100%). */
               (() => {
                 const bars = chart.series.filter((s) => s.kind !== 'line');
                 const lines = chart.series.filter((s) => s.kind === 'line');
                 const pctKeys = new Set(lines.map((s) => s.key));
-                const fmtVal = (v, _n, item) => (pctKeys.has(item?.dataKey) ? fmtCell(v, 'pct') : fmtY(v));
+                const fmtVal = (v, _n, item) => (chart.pct || pctKeys.has(item?.dataKey) ? fmtCell(v, 'pct') : fmtY(v));
+                const fmtLeft = chart.pct ? (v) => `${v}%` : fmtY;
                 return (
                   <ComposedChart data={data} margin={{ top: 6, right: 8, left: 4, bottom: 4 }}>
                     <CartesianGrid stroke={GRID} vertical={false} />
                     <XAxis dataKey={chart.x} tick={axisStyle} tickLine={false} />
-                    <YAxis yAxisId="l" tick={axisStyle} tickLine={false} tickFormatter={fmtY} width={72} />
+                    <YAxis
+                      yAxisId="l"
+                      tick={axisStyle}
+                      tickLine={false}
+                      tickFormatter={fmtLeft}
+                      width={chart.pct ? 46 : 72}
+                      domain={chart.pct ? [0, 100] : undefined}
+                      ticks={chart.pct ? [0, 25, 50, 75, 100] : undefined}
+                      allowDataOverflow={chart.pct ? true : undefined}
+                    />
                     {lines.length ? (
                       <YAxis yAxisId="r" orientation="right" tick={axisStyle} tickLine={false} tickFormatter={(v) => `${v}%`} width={46} />
                     ) : null}
                     <Tooltip contentStyle={TIP} itemStyle={{ color: "#eaf0ff" }} labelStyle={{ color: "#a6b3d4" }} formatter={fmtVal} />
                     <Legend wrapperStyle={{ fontSize: 11, color: '#a6b3d4' }} />
                     {bars.map((s, i) => (
-                      <Bar key={s.key} yAxisId="l" dataKey={s.key} name={s.label} fill={colorOf(s.key, i)} radius={[2, 2, 0, 0]} />
+                      <Bar
+                        key={s.key}
+                        yAxisId="l"
+                        dataKey={s.key}
+                        name={s.label}
+                        fill={colorOf(s.key, i)}
+                        stackId={s.stack ? 'st' : undefined}
+                        radius={s.stack && i < bars.length - 1 ? [0, 0, 0, 0] : [2, 2, 0, 0]}
+                      />
                     ))}
                     {lines.map((s, i) => (
                       <Line key={s.key} yAxisId="r" type="monotone" dataKey={s.key} name={s.label} stroke={colorOf(s.key, bars.length + i)} strokeWidth={2} dot={data.length > 14 ? false : { r: 3 }} />
