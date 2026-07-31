@@ -121,7 +121,7 @@ export async function GET(request) {
     ngay_hoan_tat: findCol(headers, ['ngay hoan tat', '~ngay hoan tat', '~hoan tat luc', '~ngay hoan thanh']),
     ngay_tao: findCol(headers, ['ngay tao', '~ngay tao']),
     bu: findCol(headers, ['bu', '~khoi kd']),
-    dich_vu: findCol(headers, ['dich vu', '~dich vu']),
+    dich_vu: findCol(headers, ['loai dich vu', 'dich vu', '~loai dich vu', '~dich vu']),
     game: findCol(headers, ['game']),
     san_pham: findCol(headers, ['~san pham']),
   };
