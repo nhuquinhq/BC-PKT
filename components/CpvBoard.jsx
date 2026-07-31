@@ -133,6 +133,18 @@ export default function CpvBoard({ report, sheet, onLive, range }) {
     /* Danh sách đơn trùng giữa 2 module (đã khử trong báo cáo) — để PKT đối chiếu */
     const dup_don = (state.dupList || []).filter(inRange);
 
+    /* Đối soát NGUYÊN TỆ theo tháng × module: dọc tháng, ngang 2 module (USD gốc từng file) */
+    const mt = new Map();
+    const mtGet = (t) => {
+      if (!mt.has(t)) mt.set(t, { thang: t, usd_dh: 0, usd_api: 0, usd_tong: 0 });
+      return mt.get(t);
+    };
+    for (const r of dhRows) mtGet(r.ngay.slice(3)).usd_dh += r.doanh_thu_usd || 0;
+    for (const r of (state.apiFile || []).filter(inRange)) mtGet(r.ngay.slice(3)).usd_api += r.doanh_thu_usd || 0;
+    const module_thang = [...mt.values()]
+      .map((a) => ({ ...a, usd_tong: a.usd_dh + a.usd_api }))
+      .sort((x, y) => (x.thang.slice(3) + x.thang.slice(0, 2)).localeCompare(y.thang.slice(3) + y.thang.slice(0, 2)));
+
     const cpv_ngay = groupBy(rows, (r) => r.ngay, ['ngay']);
     /* Gộp theo tháng (MM/yyyy) — so sánh tháng với đủ chỉ số KQKD + đơn hàng */
     const cpv_thang = groupBy(rows.map((r) => ({ ...r, thang: r.ngay.slice(3) })), (r) => r.thang, ['thang'])
@@ -166,7 +178,7 @@ export default function CpvBoard({ report, sheet, onLive, range }) {
       don_trung: dup_don.length,
       lech_trung_usd: dup_don.reduce((t, r) => t + (r.lech || 0), 0),
     };
-    return { tables: { cpv_ngay, cpv_thang, cpv_san, cpv_bu, kqkd_team, kqkd_spdv, don_team, don_spdv, nguon_module, dup_don }, kpis };
+    return { tables: { cpv_ngay, cpv_thang, cpv_san, cpv_bu, kqkd_team, kqkd_spdv, don_team, don_spdv, nguon_module, module_thang, dup_don }, kpis };
   }, [state.detail, state.status, range, cfg.teamFilter]);
 
   useEffect(() => {
