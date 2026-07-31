@@ -299,6 +299,8 @@ export async function GET(request) {
 
       for (const r of p2.rows) {
         if (minKey && (r.sortKey < minKey || r.sortKey > maxKey)) { outOfRange++; continue; }
+        /* Đơn trùng Order ID với BE = đơn BÙ trả thiếu hàng cho khách:
+           VẪN TÍNH doanh thu (không loại), chỉ ghi vào bảng đối soát. */
         if (r.id && (mainIds.has(r.id) || mainIds.has(stripSuffix(r.id)))) {
           dedup++;
           const m = mainById.get(r.id) || mainById.get(stripSuffix(r.id));
@@ -314,7 +316,6 @@ export async function GET(request) {
               lech: r.doanh_thu_usd - (m?.doanh_thu_usd || 0),
             });
           }
-          continue;
         }
         apiRows.push(r);
       }
