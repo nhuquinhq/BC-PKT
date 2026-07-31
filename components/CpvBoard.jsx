@@ -132,6 +132,9 @@ export default function CpvBoard({ report, onLive, range }) {
     const dup_don = (state.dupList || []).filter(inRange);
 
     const cpv_ngay = groupBy(rows, (r) => r.ngay, ['ngay']);
+    /* Gộp theo tháng (MM/yyyy) — phục vụ so sánh tháng khi lọc Cả năm */
+    const cpv_thang = groupBy(rows.map((r) => ({ ...r, thang: r.ngay.slice(3) })), (r) => r.thang, ['thang'])
+      .sort((a, b) => (a.thang.slice(3) + a.thang.slice(0, 2)).localeCompare(b.thang.slice(3) + b.thang.slice(0, 2)));
     const cpv_san = groupBy(rows, (r) => r.san, ['san', 'bu']).sort((a, b) => b.thanh_tien - a.thanh_tien);
     const cpv_bu = groupBy(rows, (r) => r.bu, ['bu']).sort((a, b) => b.thanh_tien - a.thanh_tien);
     const byTeam = groupBy(rows, (r) => r.team, ['team']).sort((a, b) => b.thanh_tien - a.thanh_tien);
@@ -159,7 +162,7 @@ export default function CpvBoard({ report, onLive, range }) {
       don_trung: dup_don.length,
       lech_trung_usd: dup_don.reduce((t, r) => t + (r.lech || 0), 0),
     };
-    return { tables: { cpv_ngay, cpv_san, cpv_bu, kqkd_team, kqkd_spdv, don_team, don_spdv, nguon_module, dup_don }, kpis };
+    return { tables: { cpv_ngay, cpv_thang, cpv_san, cpv_bu, kqkd_team, kqkd_spdv, don_team, don_spdv, nguon_module, dup_don }, kpis };
   }, [state.detail, state.status, range, cfg.teamFilter]);
 
   useEffect(() => {

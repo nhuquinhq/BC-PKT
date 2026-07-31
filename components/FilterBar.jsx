@@ -20,6 +20,7 @@ export default function FilterBar({ range, onChange }) {
     if (key === '7d') onChange({ from: day(-6), to: today, preset: key });
     else if (key === '30d') onChange({ from: day(-29), to: today, preset: key });
     else if (key === 'month') onChange({ from: new Date(today.getFullYear(), today.getMonth(), 1), to: today, preset: key });
+    else if (key === 'year') onChange({ from: new Date(today.getFullYear(), 0, 1), to: new Date(today.getFullYear(), 11, 31), preset: key });
     else onChange({ from: null, to: null, preset: 'all' });
   };
 
@@ -44,7 +45,7 @@ export default function FilterBar({ range, onChange }) {
       <div className="fdate">
         <label>Nhanh</label>
         <div className="quick">
-          {[['7d', '7N'], ['30d', '30N'], ['month', 'Tháng này'], ['all', 'Cả kỳ']].map(([key, label]) => (
+          {[['7d', '7N'], ['30d', '30N'], ['month', 'Tháng này'], ['year', 'Cả năm'], ['all', 'Cả kỳ']].map(([key, label]) => (
             <button key={key} className={`qbtn${range.preset === key ? ' on' : ''}`} onClick={() => setPreset(key)}>
               {label}
             </button>
