@@ -420,10 +420,14 @@ export async function GET(request) {
   const okRows = all.filter((r) => r.sc === 'ok');
   const dates = detail.map((x) => x.ngay);
 
+  /* Đối soát các tháng đã chốt: api_file + danh sách trùng lấy từ datalake */
+  const apiFileOut = useHist ? HIST.flatMap((h) => h.api_file || []).concat(api_file) : api_file;
+  const dupOut = useHist ? HIST.flatMap((h) => h.dup_list || []).concat(dupList) : dupList;
+
   return Response.json({
     detail,
-    api_file,
-    dup_list: dupList,
+    api_file: apiFileOut,
+    dup_list: dupOut,
     meta: {
       ...mainMeta,
       rows_used: okRows.length + histOk,
