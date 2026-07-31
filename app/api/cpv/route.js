@@ -15,10 +15,14 @@ import { spdvOf, SAN_BU_MAP } from '@/lib/cpvDims';
 /* "Datalake" tháng đã chốt sổ: dữ liệu đã gộp sẵn (Ngày × Sàn × SPDV) đóng gói
    tĩnh theo app — không phải đọc lại Google Sheet các tháng cũ ở mỗi lượt xem.
    Sinh file bằng chính API này (xem README trong lib/data nếu cần làm lại). */
+import histT1 from '@/lib/data/cpv-2026-01.json';
+import histT2 from '@/lib/data/cpv-2026-02.json';
+import histT3 from '@/lib/data/cpv-2026-03.json';
+import histT4 from '@/lib/data/cpv-2026-04.json';
 import histT5 from '@/lib/data/cpv-2026-05.json';
 import histT6 from '@/lib/data/cpv-2026-06.json';
 
-const HIST = [histT5, histT6];
+const HIST = [histT1, histT2, histT3, histT4, histT5, histT6];
 
 export const dynamic = 'force-dynamic';
 
