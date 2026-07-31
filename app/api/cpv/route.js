@@ -1,9 +1,11 @@
 /* ============================================================
    API tổng hợp Doanh thu – Giá vốn cho PKT8 (đa nguồn):
    - Nguồn chính: file "Giá Vốn HQS10000 - BE" tab Data (mọi sàn).
-   - Nguồn phụ (tuỳ chọn, url2/gid2): file API trực tiếp từ sàn
-     (hiện chỉ có G1, G2) — được ƯU TIÊN: đơn trùng Order ID trong
-     file chính sẽ bị loại để không đếm đôi.
+   - Nguồn phụ (tuỳ chọn, url2/gid2): file "Báo cáo đơn hàng tự động"
+     lấy trực tiếp từ sàn (hiện chỉ có G1, G2) — cùng layout cột với
+     file BE nhưng tiền tệ toàn bộ là USD (Doanh thu / Phí sàn /
+     DThu thực nhận / Giá vốn cột X); không có Thành tiền VND, BU.
+     File BE ưu tiên: đơn API trùng Order ID sẽ bị loại.
    Server đọc, lọc, gộp theo (Ngày hoàn tất × Sàn × SPDV) rồi trả
    bản compact cho trình duyệt.
    ============================================================ */
@@ -172,76 +174,6 @@ function parseOrders(grid, { defaultSan = '' } = {}) {
   return { rows, meta: { header_row: headIdx + 1, gia_von_found: col.gia_von >= 0, skipNoDate, skipStatus } };
 }
 
-/* File "G2G History" (API robot lấy từ sàn G2G — chỉ G1/G2), tab Payment:
-   Tên Sàn | OrderID | Date | Activity Description | Debit | Credit | ... |
-   ID | Số Tiền (USD net, phẩy thập phân) | dd/mm/yyyy | Tháng/Năm.
-   Không có giá vốn / SPDV / BU — chỉ bổ sung doanh thu đơn còn thiếu. */
-function parseG2G(grid) {
-  let headIdx = -1;
-  let headers = [];
-  for (let i = 0; i < Math.min(grid.length, 15); i++) {
-    const h = (grid[i] || []).map(norm);
-    if (h.includes('ten san') && (h.includes('orderid') || h.includes('order id'))) {
-      headIdx = i;
-      headers = h;
-      break;
-    }
-  }
-  if (headIdx < 0) return null; /* không phải layout G2G */
-
-  const col = {
-    san: findCol(headers, ['ten san']),
-    orderid: findCol(headers, ['orderid', 'order id']),
-    id: findCol(headers, ['id']),
-    activity: findCol(headers, ['~activity']),
-    so_tien: findCol(headers, ['so tien', '~so tien']),
-    ngay: findCol(headers, ['dd/mm/yyyy', '~dd/mm']),
-    date_en: findCol(headers, ['date']),
-  };
-
-  const EN_MONTHS = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
-  const parseEnDate = (s) => {
-    const m = String(s || '').toLowerCase().match(/([a-z]+)\s+(\d{1,2}),?\s+(\d{4})/);
-    if (!m || !EN_MONTHS[m[1]]) return null;
-    return { y: m[3], m: String(EN_MONTHS[m[1]]).padStart(2, '0'), d: m[2].padStart(2, '0') };
-  };
-
-  const rows = [];
-  for (let i = headIdx + 1; i < grid.length; i++) {
-    const r = grid[i] || [];
-    const san = String(r[col.san] ?? '').trim().toUpperCase();
-    const orderId = String(r[col.orderid >= 0 ? col.orderid : col.id] ?? '').trim();
-    if (!san || !orderId) continue; /* dòng rút tiền / phí ví không có OrderID */
-    const act = col.activity >= 0 ? norm(r[col.activity]) : '';
-    if (act && !act.includes('sell')) continue; /* chỉ lấy tiền bán hàng */
-
-    let dt = col.ngay >= 0 ? parseDate(r[col.ngay]) : null;
-    if (!dt && col.date_en >= 0) dt = parseEnDate(r[col.date_en]);
-    if (!dt) continue;
-
-    const amount = col.so_tien >= 0 ? viNum(r[col.so_tien]) : 0;
-    if (!amount) continue;
-
-    rows.push({
-      id: orderId,
-      san,
-      bu: '',
-      spdv: 'KHÁC',
-      sc: 'ok',
-      ngay: `${dt.d}/${dt.m}/${dt.y}`,
-      sortKey: `${dt.y}${dt.m}${dt.d}`,
-      doanh_thu_usd: amount,
-      phi_san: 0,
-      phi_san_vnd: 0,
-      dthu_thuc: amount,
-      thanh_tien: 0, /* quy đổi VND sau, theo tỷ giá học từ file chính */
-      gia_von: 0,
-      loi_nhuan: 0,
-    });
-  }
-  return { rows, meta: { header_row: headIdx + 1, layout: 'g2g' } };
-}
-
 function aggregate(rows) {
   const agg = new Map();
   for (const r of rows) {
@@ -301,8 +233,8 @@ export async function GET(request) {
     return Response.json({ error: `File tổng hợp: ${e.message}` }, { status: 502 });
   }
 
-  /* File API từ sàn (G2G — chỉ G1/G2): file BE ƯU TIÊN vì có giá vốn/SPDV;
-     API chỉ BỔ SUNG những đơn file BE còn thiếu (so theo OrderID, kể cả
+  /* File API từ sàn (chỉ G1/G2): file BE ƯU TIÊN vì đã đối soát;
+     API chỉ BỔ SUNG những đơn file BE còn thiếu (so theo Order ID, kể cả
      bỏ đuôi -1/-2), giới hạn trong khoảng ngày của file BE. */
   let apiRows = [];
   let apiMeta = null;
@@ -311,7 +243,7 @@ export async function GET(request) {
   if (url2) {
     try {
       const grid2 = await loadGrid(url2, gid2);
-      const p2 = parseG2G(grid2) || parseOrders(grid2, { defaultSan: san2 });
+      const p2 = parseOrders(grid2, { defaultSan: san2 });
       apiMeta = p2.meta;
 
       const stripSuffix = (id) => id.replace(/-\d+$/, '');
@@ -334,7 +266,8 @@ export async function GET(request) {
     }
   }
 
-  /* Quy đổi VND cho đơn API (file G2G chỉ có USD): tỷ giá học từ file BE theo ngày */
+  /* Quy đổi VND cho đơn API (file sàn toàn USD: doanh thu, phí, giá vốn cột X):
+     tỷ giá học từ file BE theo ngày (Σ Thành tiền / Σ DThu thực nhận). */
   const rateByDate = new Map();
   let sumTt = 0;
   let sumNet = 0;
@@ -348,11 +281,16 @@ export async function GET(request) {
     sumNet += r.dthu_thuc;
   }
   const overallRate = sumNet > 0 ? sumTt / sumNet : 0;
+  let apiNoCost = 0;
   for (const r of apiRows) {
-    if (r.thanh_tien === 0 && r.dthu_thuc > 0) {
+    if (r.sc !== 'ok') continue;
+    if (!r.gia_von) apiNoCost++; /* đơn Thủ công chưa điền giá vốn cột X */
+    if (r.thanh_tien === 0) {
       const d = rateByDate.get(r.sortKey);
       const rate = d && d.net > 0 ? d.tt / d.net : overallRate;
       r.thanh_tien = r.dthu_thuc * rate;
+      r.gia_von = r.gia_von * rate;
+      r.phi_san_vnd = r.phi_san * rate;
       r.loi_nhuan = r.thanh_tien - r.gia_von;
     }
   }
@@ -378,6 +316,7 @@ export async function GET(request) {
       don_huy: all.filter((r) => r.sc === 'huy').length,
       main_used: mainRows.filter((r) => r.sc === 'ok').length,
       api_used: apiRows.filter((r) => r.sc === 'ok').length,
+      api_no_cost: apiNoCost,
       api_error: apiMeta?.error || null,
       dedup_removed: dedup,
       api_out_of_range: outOfRange,
