@@ -156,6 +156,7 @@ function parseOrders(grid, { defaultSan = '' } = {}) {
       loi_nhuan: 0,
     };
     if (sc === 'ok') {
+      rec.ty_gia_tuan = col.ty_gia_co >= 0 ? viNum(r[col.ty_gia_co]) : 0;
       const doanhThuUsd = col.doanh_thu_usd >= 0 ? viNum(r[col.doanh_thu_usd]) : 0;
       const phiSan = col.phi_san >= 0 ? viNum(r[col.phi_san]) : 0;
       const dthuThuc = col.dthu_thuc >= 0 ? viNum(r[col.dthu_thuc]) : doanhThuUsd - phiSan;
@@ -177,7 +178,7 @@ function parseOrders(grid, { defaultSan = '' } = {}) {
 function aggregate(rows) {
   const agg = new Map();
   for (const r of rows) {
-    const key = `${r.sortKey}|${r.san}|${r.spdv}`;
+    const key = `${r.sortKey}|${r.san}|${r.spdv}|${r.nguon || ''}`;
     if (!agg.has(key)) {
       agg.set(key, {
         ngay: r.ngay,
@@ -185,6 +186,7 @@ function aggregate(rows) {
         san: r.san,
         spdv: r.spdv,
         bu: r.bu,
+        nguon: r.nguon || 'dh',
         so_don: 0,
         don_fail: 0,
         don_huy: 0,
@@ -267,12 +269,23 @@ export async function GET(request) {
   }
 
   /* Quy đổi VND cho đơn API (file sàn toàn USD: doanh thu, phí, giá vốn cột X):
-     tỷ giá học từ file BE theo ngày (Σ Thành tiền / Σ DThu thực nhận). */
+     nhân với TỶ GIÁ TUẦN — đọc từ cột "Tỷ giá tuần" của file BE, theo ngày
+     hoàn tất của đơn. Thiếu tỷ giá tuần mới rơi về tỷ giá suy từ doanh thu
+     (Σ Thành tiền / Σ DThu thực nhận). */
+  const twByDate = new Map();
+  let twSum = 0;
+  let twCnt = 0;
   const rateByDate = new Map();
   let sumTt = 0;
   let sumNet = 0;
   for (const r of mainRows) {
-    if (r.sc !== 'ok' || r.dthu_thuc <= 0 || r.thanh_tien <= 0) continue;
+    if (r.sc !== 'ok') continue;
+    if (r.ty_gia_tuan > 0) {
+      if (!twByDate.has(r.sortKey)) twByDate.set(r.sortKey, r.ty_gia_tuan);
+      twSum += r.ty_gia_tuan;
+      twCnt += 1;
+    }
+    if (r.dthu_thuc <= 0 || r.thanh_tien <= 0) continue;
     const cur = rateByDate.get(r.sortKey) || { tt: 0, net: 0 };
     cur.tt += r.thanh_tien;
     cur.net += r.dthu_thuc;
@@ -280,6 +293,7 @@ export async function GET(request) {
     sumTt += r.thanh_tien;
     sumNet += r.dthu_thuc;
   }
+  const overallTw = twCnt > 0 ? twSum / twCnt : 0;
   const overallRate = sumNet > 0 ? sumTt / sumNet : 0;
   let apiNoCost = 0;
   for (const r of apiRows) {
@@ -287,7 +301,7 @@ export async function GET(request) {
     if (!r.gia_von) apiNoCost++; /* đơn Thủ công chưa điền giá vốn cột X */
     if (r.thanh_tien === 0) {
       const d = rateByDate.get(r.sortKey);
-      const rate = d && d.net > 0 ? d.tt / d.net : overallRate;
+      const rate = twByDate.get(r.sortKey) || overallTw || (d && d.net > 0 ? d.tt / d.net : overallRate);
       r.thanh_tien = r.dthu_thuc * rate;
       r.gia_von = r.gia_von * rate;
       r.phi_san_vnd = r.phi_san * rate;
@@ -295,10 +309,11 @@ export async function GET(request) {
     }
   }
 
-  /* Gắn BU cho dòng thiếu: học từ file BE theo sàn → map thủ công → tiền tố */
+  /* Gắn BU cho dòng thiếu: học từ file BE theo sàn → map thủ công → tiền tố.
+     nguon: module gốc của đơn — dh (Quản lý đơn hàng) / api (file API sàn). */
   const sanBu = new Map();
   for (const r of mainRows) if (r.bu && !sanBu.has(r.san)) sanBu.set(r.san, r.bu);
-  const all = [...mainRows, ...apiRows].map((r) => ({
+  const all = [...mainRows.map((r) => ({ ...r, nguon: 'dh' })), ...apiRows.map((r) => ({ ...r, nguon: 'api' }))].map((r) => ({
     ...r,
     bu: r.bu || sanBu.get(r.san) || SAN_BU_MAP[r.san] || (r.san.match(/^[A-Za-z]+/)?.[0] || r.san).toUpperCase(),
   }));

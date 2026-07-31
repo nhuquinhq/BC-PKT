@@ -101,6 +101,15 @@ export default function CpvBoard({ report, onLive, range }) {
     rows = rows.map((r) => ({ ...r, team: teamOf(r.bu) }));
     if (cfg.teamFilter) rows = rows.filter((r) => r.team === cfg.teamFilter);
 
+    /* Đối soát theo module nguồn: dh = Quản lý đơn hàng (đã có VND trên file),
+       api = file API sàn (USD, quy VND theo tỷ giá học từ module đơn hàng) */
+    const NGUON_LABEL = { dh: 'Quản lý đơn hàng', api: 'API sàn (G1/G2)' };
+    const nguon_module = groupBy(rows, (r) => r.nguon || 'dh', ['nguon']).map((r) => ({
+      ...r,
+      module: NGUON_LABEL[r.nguon] || r.nguon,
+      ty_gia: r.dthu_thuc > 0 ? r.thanh_tien / r.dthu_thuc : null,
+    })).sort((a, b) => b.thanh_tien - a.thanh_tien);
+
     const cpv_ngay = groupBy(rows, (r) => r.ngay, ['ngay']);
     const cpv_san = groupBy(rows, (r) => r.san, ['san', 'bu']).sort((a, b) => b.thanh_tien - a.thanh_tien);
     const cpv_bu = groupBy(rows, (r) => r.bu, ['bu']).sort((a, b) => b.thanh_tien - a.thanh_tien);
@@ -124,7 +133,7 @@ export default function CpvBoard({ report, onLive, range }) {
       don_fail: sum(rows, 'don_fail'),
       don_huy: sum(rows, 'don_huy'),
     };
-    return { tables: { cpv_ngay, cpv_san, cpv_bu, kqkd_team, kqkd_spdv, don_team, don_spdv }, kpis };
+    return { tables: { cpv_ngay, cpv_san, cpv_bu, kqkd_team, kqkd_spdv, don_team, don_spdv, nguon_module }, kpis };
   }, [state.detail, state.status, range, cfg.teamFilter]);
 
   useEffect(() => {
