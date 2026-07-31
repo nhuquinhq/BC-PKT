@@ -442,6 +442,7 @@ table.tbl .sort-arrow { font-size: 9px; }
 
 /* ---------- Bộ lọc thời gian (kiểu Trung tâm PVH) ---------- */
 .range-line { margin-top: 9px; }
+.src-toggle { display: inline-flex; gap: 6px; }
 .range-pill {
   display: inline-block;
   padding: 5px 14px;
@@ -483,7 +484,8 @@ table.tbl .sort-arrow { font-size: 9px; }
 .filter-bar input[type='date']:focus { border-color: var(--cy); box-shadow: 0 0 0 3px rgba(47, 217, 255, .14); }
 
 .filter-bar .quick { display: flex; gap: 6px; }
-.filter-bar .qbtn {
+.filter-bar .qbtn,
+.src-toggle .qbtn {
   background: var(--glass);
   border: 1px solid var(--line-strong);
   border-radius: 9px;
@@ -495,8 +497,10 @@ table.tbl .sort-arrow { font-size: 9px; }
   cursor: pointer;
   transition: all .15s;
 }
-.filter-bar .qbtn:hover { color: var(--ink); border-color: var(--cy); }
-.filter-bar .qbtn.on {
+.filter-bar .qbtn:hover,
+.src-toggle .qbtn:hover { color: var(--ink); border-color: var(--cy); }
+.filter-bar .qbtn.on,
+.src-toggle .qbtn.on {
   color: #041022;
   background: linear-gradient(100deg, var(--cy), var(--bl));
   border-color: transparent;

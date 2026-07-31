@@ -56,8 +56,8 @@ function groupBy(rows, keyFn, labelKeys) {
   }));
 }
 
-export default function CpvBoard({ report, onLive, range }) {
-  const cfg = report.sheet;
+export default function CpvBoard({ report, sheet, onLive, range }) {
+  const cfg = sheet || report.sheet; /* trang team có thể truyền nguồn thay thế (LS Ví) */
   const [state, setState] = useState({ status: 'loading' });
 
   const load = useCallback(async () => {

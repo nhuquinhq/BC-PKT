@@ -18,6 +18,9 @@ export default function ReportView({ report }) {
   const [live, setLive] = useState({ kpis: {}, tables: {} });
   const [range, setRange] = useState({ from: null, to: null, preset: 'all' });
   const [loaded, setLoaded] = useState(false);
+  /* Trang team có 2 kiểu xem: CPV theo BE (mặc định) / CPV theo lịch sử ví */
+  const [srcView, setSrcView] = useState('be');
+  const activeSheet = report.sheetVi && srcView === 'vi' ? report.sheetVi : report.sheet;
 
   useEffect(() => {
     let alive = true;
@@ -119,11 +122,18 @@ export default function ReportView({ report }) {
             <div className="eyebrow">{report.code} · SLA {report.sla}</div>
             <h1>{report.name}</h1>
             <div className="range-line">
-              <span className="range-pill">
-                Phạm vi: {range.from || range.to
-                  ? `${fmtRangeDate(range.from) || '…'} → ${fmtRangeDate(range.to) || '…'}`
-                  : 'Cả kỳ — toàn bộ dữ liệu'}
-              </span>
+              {report.sheetVi ? (
+                <span className="src-toggle">
+                  <button className={`qbtn${srcView === 'be' ? ' on' : ''}`} onClick={() => setSrcView('be')}>CPV theo BE</button>
+                  <button className={`qbtn${srcView === 'vi' ? ' on' : ''}`} onClick={() => setSrcView('vi')}>CPV theo LS Ví</button>
+                </span>
+              ) : (
+                <span className="range-pill">
+                  Phạm vi: {range.from || range.to
+                    ? `${fmtRangeDate(range.from) || '…'} → ${fmtRangeDate(range.to) || '…'}`
+                    : 'Cả kỳ — toàn bộ dữ liệu'}
+                </span>
+              )}
             </div>
           </div>
           <FilterBar range={range} onChange={setRange} />
@@ -159,7 +169,7 @@ export default function ReportView({ report }) {
           ) : report.sheet?.mode === 'order_cpv' ? (
             /* Trang CPV chạy LIVE hoàn toàn — không cần khối nạp tay */
             <>
-              <CpvBoard report={report} onLive={applyLive} range={range} />
+              <CpvBoard key={srcView} report={report} sheet={activeSheet} onLive={applyLive} range={range} />
               {charts}
               {tables}
             </>
