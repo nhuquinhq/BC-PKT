@@ -29,6 +29,7 @@ const SERIES_COLORS = {
   /* Đường % cùng màu với cột tương ứng — nhận diện theo cặp cột/đường */
   pct_pl1: '#00A651',
   pct_pl2a: '#1B75BB',
+  ty_le_co: '#D96F00',
 };
 
 const colorOf = (key, i) => SERIES_COLORS[key] || COLORS[i % COLORS.length];
@@ -97,7 +98,7 @@ export default function ChartBlock({ chart, rows = [] }) {
                       <Bar key={s.key} yAxisId="l" dataKey={s.key} name={s.label} fill={colorOf(s.key, i)} radius={[2, 2, 0, 0]} />
                     ))}
                     {lines.map((s, i) => (
-                      <Line key={s.key} yAxisId="r" type="monotone" dataKey={s.key} name={s.label} stroke={colorOf(s.key, bars.length + i)} strokeWidth={2} dot={{ r: 3 }} />
+                      <Line key={s.key} yAxisId="r" type="monotone" dataKey={s.key} name={s.label} stroke={colorOf(s.key, bars.length + i)} strokeWidth={2} dot={data.length > 14 ? false : { r: 3 }} />
                     ))}
                   </ComposedChart>
                 );
