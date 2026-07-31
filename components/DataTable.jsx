@@ -43,6 +43,30 @@ export default function DataTable({ table, rows = [], live = false, onExport }) 
     });
   };
 
+  /* Dòng TỔNG (bảng khai báo totals: true) — cộng theo đúng các dòng đang lọc.
+     Cột có totalOf: [tử, mẫu] tính lại tỉ lệ từ tổng (mẫu có thể là mảng cột). */
+  const sumKeys = (rws, keys) =>
+    (Array.isArray(keys) ? keys : [keys]).reduce(
+      (t, k) => t + rws.reduce((s, r) => s + (toNumber(r[k]) ?? 0), 0),
+      0
+    );
+  const totals = useMemo(() => {
+    if (!table.totals || !filtered.length) return null;
+    const out = {};
+    for (const c of table.columns) {
+      if (c.totalOf) {
+        const num = sumKeys(filtered, c.totalOf[0]);
+        const den = sumKeys(filtered, c.totalOf[1]);
+        out[c.key] = den ? (c.type === 'pct' ? (num / den) * 100 : num / den) : null;
+      } else if (['num', 'money', 'usd'].includes(c.type)) {
+        out[c.key] = filtered.reduce((s, r) => s + (toNumber(r[c.key]) ?? 0), 0);
+      } else {
+        out[c.key] = null;
+      }
+    }
+    return out;
+  }, [filtered, table]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const hasData = rows.length > 0;
 
   return (
@@ -105,6 +129,21 @@ export default function DataTable({ table, rows = [], live = false, onExport }) 
                   );
                 })}
               </tbody>
+              {totals ? (
+                <tfoot>
+                  <tr>
+                    {table.columns.map((c, idx) => {
+                      if (idx === 0) return <td key={c.key}>TỔNG · {filtered.length} dòng</td>;
+                      const v = totals[c.key];
+                      return (
+                        <td key={c.key} className={isNumericType(c.type) ? 'num' : ''}>
+                          {v == null ? '—' : fmtCell(v, c.type)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tfoot>
+              ) : null}
             </table>
           </div>
         ) : (

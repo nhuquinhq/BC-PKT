@@ -423,6 +423,17 @@ table.tbl tbody tr:hover td { background: rgba(120, 170, 255, .06); }
 table.tbl tr.group td { background: rgba(61, 123, 253, .14); font-weight: 600; }
 table.tbl tr.total td { background: rgba(47, 217, 255, .09); font-weight: 600; border-top: 1px solid rgba(47, 217, 255, .45); }
 
+/* ---------- Dòng TỔNG cuối bảng ---------- */
+table.tbl tfoot td {
+  font-weight: 700;
+  color: var(--ink);
+  background: rgba(47, 217, 255, .08);
+  border-top: 2px solid var(--line-strong);
+  padding: 10px 14px;
+  font-family: var(--f-mono);
+  font-size: 13px;
+}
+
 /* ---------- Sắp xếp bảng theo cột ---------- */
 table.tbl th.sortable { cursor: pointer; user-select: none; }
 table.tbl th.sortable:hover { color: var(--cy); }
