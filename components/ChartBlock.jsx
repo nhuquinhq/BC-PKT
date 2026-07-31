@@ -2,9 +2,9 @@
 
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ScatterChart, Scatter, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
-import { toNumber, fmtCompact, fmtRate } from '@/lib/format';
+import { toNumber, fmtCompact, fmtRate, fmtCell } from '@/lib/format';
 
 /* HQ COLOR CODE — các bậc màu thương hiệu đã chỉnh sáng cho nền navy tối
    (kiểm định độ tương phản + phân biệt được với người mù màu). Thứ tự cố định. */
@@ -26,6 +26,9 @@ const SERIES_COLORS = {
   /* PL2A/PL7 (lãi sau thêm một lớp chi phí) dùng xanh thép để đứng cạnh PL1/PL2 xanh lá vẫn phân biệt rõ */
   pl2a: '#1B75BB',
   pl7: '#1B75BB',
+  /* Đường % cùng màu với cột tương ứng — nhận diện theo cặp cột/đường */
+  pct_pl1: '#00A651',
+  pct_pl2a: '#1B75BB',
 };
 
 const colorOf = (key, i) => SERIES_COLORS[key] || COLORS[i % COLORS.length];
@@ -74,16 +77,31 @@ export default function ChartBlock({ chart, rows = [] }) {
                 ))}
               </LineChart>
             ) : chart.type === 'bar' ? (
-              <BarChart data={data} margin={{ top: 6, right: 16, left: 4, bottom: 4 }}>
-                <CartesianGrid stroke={GRID} vertical={false} />
-                <XAxis dataKey={chart.x} tick={axisStyle} tickLine={false} />
-                <YAxis tick={axisStyle} tickLine={false} tickFormatter={fmtY} width={72} />
-                <Tooltip contentStyle={TIP} itemStyle={{ color: "#eaf0ff" }} labelStyle={{ color: "#a6b3d4" }} formatter={(v) => fmtY(v)} />
-                <Legend wrapperStyle={{ fontSize: 11, color: '#a6b3d4' }} />
-                {chart.series.map((s, i) => (
-                  <Bar key={s.key} dataKey={s.key} name={s.label} fill={colorOf(s.key, i)} radius={[2, 2, 0, 0]} />
-                ))}
-              </BarChart>
+              /* Cột (thang tiền, trục trái); series kind:'line' vẽ đường % theo trục phải */
+              (() => {
+                const bars = chart.series.filter((s) => s.kind !== 'line');
+                const lines = chart.series.filter((s) => s.kind === 'line');
+                const pctKeys = new Set(lines.map((s) => s.key));
+                const fmtVal = (v, _n, item) => (pctKeys.has(item?.dataKey) ? fmtCell(v, 'pct') : fmtY(v));
+                return (
+                  <ComposedChart data={data} margin={{ top: 6, right: 8, left: 4, bottom: 4 }}>
+                    <CartesianGrid stroke={GRID} vertical={false} />
+                    <XAxis dataKey={chart.x} tick={axisStyle} tickLine={false} />
+                    <YAxis yAxisId="l" tick={axisStyle} tickLine={false} tickFormatter={fmtY} width={72} />
+                    {lines.length ? (
+                      <YAxis yAxisId="r" orientation="right" tick={axisStyle} tickLine={false} tickFormatter={(v) => `${v}%`} width={46} />
+                    ) : null}
+                    <Tooltip contentStyle={TIP} itemStyle={{ color: "#eaf0ff" }} labelStyle={{ color: "#a6b3d4" }} formatter={fmtVal} />
+                    <Legend wrapperStyle={{ fontSize: 11, color: '#a6b3d4' }} />
+                    {bars.map((s, i) => (
+                      <Bar key={s.key} yAxisId="l" dataKey={s.key} name={s.label} fill={colorOf(s.key, i)} radius={[2, 2, 0, 0]} />
+                    ))}
+                    {lines.map((s, i) => (
+                      <Line key={s.key} yAxisId="r" type="monotone" dataKey={s.key} name={s.label} stroke={colorOf(s.key, bars.length + i)} strokeWidth={2} dot={{ r: 3 }} />
+                    ))}
+                  </ComposedChart>
+                );
+              })()
             ) : chart.type === 'pie' ? (
               <PieChart>
                 <Tooltip contentStyle={TIP} itemStyle={{ color: "#eaf0ff" }} labelStyle={{ color: "#a6b3d4" }} formatter={(v) => fmtY(v)} />
