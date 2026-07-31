@@ -12,6 +12,13 @@
 
 import Papa from 'papaparse';
 import { spdvOf, SAN_BU_MAP } from '@/lib/cpvDims';
+/* "Datalake" tháng đã chốt sổ: dữ liệu đã gộp sẵn (Ngày × Sàn × SPDV) đóng gói
+   tĩnh theo app — không phải đọc lại Google Sheet các tháng cũ ở mỗi lượt xem.
+   Sinh file bằng chính API này (xem README trong lib/data nếu cần làm lại). */
+import histT5 from '@/lib/data/cpv-2026-05.json';
+import histT6 from '@/lib/data/cpv-2026-06.json';
+
+const HIST = [histT5, histT6];
 
 export const dynamic = 'force-dynamic';
 
@@ -382,7 +389,25 @@ export async function GET(request) {
     bu: r.bu || sanBu.get(r.san) || SAN_BU_MAP[r.san] || (r.san.match(/^[A-Za-z]+/)?.[0] || r.san).toUpperCase(),
   }));
 
-  const detail = aggregate(all);
+  /* hist=1: nối thêm các tháng đã chốt từ datalake tĩnh */
+  const useHist = searchParams.get('hist') === '1';
+  let detail = aggregate(all);
+  let histOk = 0;
+  let histFail = 0;
+  let histHuy = 0;
+  if (useHist) {
+    const histRows = HIST.flatMap((h) => h.detail);
+    if (histRows.length) {
+      detail = histRows
+        .concat(detail)
+        .sort((x, y) => (x.sortKey < y.sortKey ? -1 : x.sortKey > y.sortKey ? 1 : x.san.localeCompare(y.san)));
+    }
+    for (const h of HIST) {
+      histOk += h.counts?.ok || 0;
+      histFail += h.counts?.fail || 0;
+      histHuy += h.counts?.huy || 0;
+    }
+  }
   const okRows = all.filter((r) => r.sc === 'ok');
   const dates = detail.map((x) => x.ngay);
 
@@ -392,10 +417,10 @@ export async function GET(request) {
     dup_list: dupList,
     meta: {
       ...mainMeta,
-      rows_used: okRows.length,
-      don_fail: all.filter((r) => r.sc === 'fail').length,
-      don_huy: all.filter((r) => r.sc === 'huy').length,
-      main_used: mainRows.filter((r) => r.sc === 'ok').length,
+      rows_used: okRows.length + histOk,
+      don_fail: all.filter((r) => r.sc === 'fail').length + histFail,
+      don_huy: all.filter((r) => r.sc === 'huy').length + histHuy,
+      main_used: mainRows.filter((r) => r.sc === 'ok').length + histOk,
       api_used: apiRows.filter((r) => r.sc === 'ok').length,
       api_no_cost: apiNoCost,
       api_error: apiMeta?.error || null,

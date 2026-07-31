@@ -71,6 +71,7 @@ export default function CpvBoard({ report, onLive, range }) {
         qs.append('url', m.url);
         qs.append('gid', m.gid || '0');
       }
+      if (cfg.hist) qs.set('hist', '1'); /* tháng đã chốt lấy từ datalake tĩnh */
       if (cfg.api?.url) {
         qs.set('url2', cfg.api.url);
         qs.set('gid2', cfg.api.gid || '0');
