@@ -64,6 +64,11 @@ export default function CpvBoard({ report, onLive, range }) {
     setState((s) => ({ ...s, status: s.detail ? 'refreshing' : 'loading' }));
     try {
       const qs = new URLSearchParams({ url: cfg.url, gid: cfg.gid || '0' });
+      if (cfg.api?.url) {
+        qs.set('url2', cfg.api.url);
+        qs.set('gid2', cfg.api.gid || '0');
+        if (cfg.api.san) qs.set('san2', cfg.api.san);
+      }
       const res = await fetch(`/api/cpv?${qs}`, { cache: 'no-store' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Không đọc được dữ liệu');
@@ -140,6 +145,8 @@ export default function CpvBoard({ report, onLive, range }) {
           <div className="hint">
             {state.at ? `Cập nhật ${state.at.toLocaleTimeString('vi-VN')} · ` : ''}Tự làm mới 60s
             {m ? ` · ${m.rows_used.toLocaleString('vi-VN')} đơn Hoàn Tất · Ngày hoàn tất ${m.from} → ${m.to}` : ''}
+            {m?.api_used ? ` · bổ sung ${m.api_used.toLocaleString('vi-VN')} đơn từ API sàn G2G` : ''}
+            {m?.dedup_removed ? ` (${m.dedup_removed.toLocaleString('vi-VN')} đơn API trùng đã có ở file BE)` : ''}
           </div>
         </div>
         <div className="stack">
@@ -155,6 +162,12 @@ export default function CpvBoard({ report, onLive, range }) {
             <div style={{ marginTop: 10 }}>
               Kiểm tra: file đã <b>Publish to web</b> đúng tab Data chưa, và GID trong <span className="mono">lib/reports.js</span>.
             </div>
+          </div>
+        </div>
+      ) : m?.api_error ? (
+        <div className="panel-body">
+          <div className="notice-amber" style={{ margin: 0 }}>
+            Số liệu đang hiển thị <b>chưa gồm file API sàn G1/G2</b> — lỗi đọc: {m.api_error}
           </div>
         </div>
       ) : m && !m.gia_von_found ? (

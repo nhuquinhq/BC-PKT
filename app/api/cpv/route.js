@@ -1,18 +1,18 @@
 /* ============================================================
-   API tổng hợp Doanh thu – Giá vốn từ file đơn hàng BE HQS
-   (Giá Vốn HQS10000 - BE · tab Data, publish CSV).
-
-   File gốc ~vài chục nghìn dòng đơn → server đọc, lọc đơn Hoàn Tất,
-   gộp theo (Ngày hoàn tất × Sàn) rồi trả về bản compact vài trăm dòng
-   cho trình duyệt tự tính các chiều Ngày / Sàn / BU.
+   API tổng hợp Doanh thu – Giá vốn cho PKT8 (đa nguồn):
+   - Nguồn chính: file "Giá Vốn HQS10000 - BE" tab Data (mọi sàn).
+   - Nguồn phụ (tuỳ chọn, url2/gid2): file API trực tiếp từ sàn
+     (hiện chỉ có G1, G2) — được ƯU TIÊN: đơn trùng Order ID trong
+     file chính sẽ bị loại để không đếm đôi.
+   Server đọc, lọc, gộp theo (Ngày hoàn tất × Sàn × SPDV) rồi trả
+   bản compact cho trình duyệt.
    ============================================================ */
 
 import Papa from 'papaparse';
-import { spdvOf } from '@/lib/cpvDims';
+import { spdvOf, SAN_BU_MAP } from '@/lib/cpvDims';
 
 export const dynamic = 'force-dynamic';
 
-/* Chuẩn hoá header: thường, bỏ dấu, gọn khoảng trắng */
 const norm = (s) =>
   String(s ?? '')
     .toLowerCase()
@@ -22,7 +22,6 @@ const norm = (s) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-/* Số kiểu VN: "7.103.732.354,81" → 7103732354.81 · "49,96" → 49.96 */
 function viNum(raw) {
   let s = String(raw ?? '').trim().replace(/\s/g, '').replace(/%$/, '');
   if (!s) return 0;
@@ -32,7 +31,6 @@ function viNum(raw) {
   return isNaN(n) ? 0 : n;
 }
 
-/* "Ngày hoàn tất" trên file dạng ISO: 2026-07-09 09:02:10 · dự phòng dd/mm/yyyy */
 const DATE_ISO = /(\d{4})-(\d{1,2})-(\d{1,2})/;
 const DATE_VN = /(\d{1,2})\/(\d{1,2})\/(\d{4})/;
 function parseDate(cell) {
@@ -54,11 +52,10 @@ function toCsvUrl(sheetUrl, gid) {
     if (m) return `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${gid || '0'}`;
     return null;
   } catch {
-    return sheetUrl; // cho phép URL CSV trực tiếp (mock/test)
+    return sheetUrl; // URL CSV trực tiếp (mock/test)
   }
 }
 
-/* Tìm cột theo danh sách ứng viên: 'ten' = so khớp bằng, '~ten' = chứa */
 function findCol(headers, candidates) {
   for (const c of candidates) {
     const contains = c.startsWith('~');
@@ -69,112 +66,193 @@ function findCol(headers, candidates) {
   return -1;
 }
 
-export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  const rawUrl = searchParams.get('url');
-  const gid = searchParams.get('gid') || '0';
-  if (!rawUrl) return Response.json({ error: 'Thiếu url' }, { status: 400 });
-  const csvUrl = toCsvUrl(rawUrl, gid) || rawUrl;
+const statusClass = (raw) => {
+  const st = norm(raw);
+  if (!st || st.includes('hoan tat') || st.includes('hoan thanh') || st.includes('complete') || st.includes('success')) return 'ok';
+  if (st.includes('hoan')) return 'huy';
+  if (st.includes('huy') || st.includes('refund') || st.includes('cancel')) return 'huy';
+  if (st.includes('that bai') || st.includes('fail') || st.includes('loi')) return 'fail';
+  return 'other';
+};
 
-  let text;
-  try {
-    const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store' });
-    if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
-    text = await res.text();
-  } catch (e) {
-    return Response.json({ error: `Không đọc được Google Sheet: ${e.message}` }, { status: 502 });
-  }
-  if (text.trim().startsWith('<')) {
-    return Response.json({ error: 'Nhận về HTML thay vì CSV — kiểm tra sheet đã Publish to web và GID đúng tab Data.' }, { status: 502 });
-  }
+async function loadGrid(url, gid) {
+  const csvUrl = toCsvUrl(url, gid) || url;
+  const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store' });
+  if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
+  const text = await res.text();
+  if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.');
+  return Papa.parse(text, { header: false, skipEmptyLines: false }).data;
+}
 
-  const grid = Papa.parse(text, { header: false, skipEmptyLines: false }).data;
-
-  /* Tìm dòng tiêu đề bảng đơn hàng */
+/* Đọc một lưới CSV đơn hàng → danh sách đơn đã chuẩn hoá.
+   defaultSan: file API theo sàn có thể không có cột Sàn. */
+function parseOrders(grid, { defaultSan = '' } = {}) {
   let headIdx = -1;
   let headers = [];
   for (let i = 0; i < Math.min(grid.length, 40); i++) {
     const h = (grid[i] || []).map(norm);
-    if (h.includes('order id') || (h.some((x) => x === 'san') && h.some((x) => x.startsWith('doanh thu')))) {
+    if (h.includes('order id') || h.includes('order_id') || h.includes('ma don') || (h.some((x) => x === 'san') && h.some((x) => x.startsWith('doanh thu')))) {
       headIdx = i;
       headers = h;
       break;
     }
   }
-  if (headIdx < 0) {
-    return Response.json({ error: 'Không tìm thấy dòng tiêu đề (Order ID / Sàn / Doanh thu) trong tab.' }, { status: 422 });
-  }
+  if (headIdx < 0) throw new Error('Không tìm thấy dòng tiêu đề bảng đơn hàng.');
 
-  /* File có 2 cột trùng tên "Giá vốn": cột đầu = đơn giá USD, cột sau = thành tiền VND */
   const giaVonIdx = headers.reduce((acc, h, i) => (h === 'gia von' ? [...acc, i] : acc), []);
-
   const col = {
+    id: findCol(headers, ['order id', 'order_id', 'ma don', '~order id', '~ma don hang', 'id don', '~id don']),
     san: findCol(headers, ['san', '~san giao dich']),
     doanh_thu_usd: findCol(headers, ['doanh thu', '~doanh thu']),
-    phi_san: findCol(headers, ['~phi san']),
-    dthu_thuc: findCol(headers, ['~thuc nhan']),
+    phi_san: findCol(headers, ['phi', '~phi san', '~phi']),
+    dthu_thuc: findCol(headers, ['~thuc nhan', '~doanh thu thuan']),
     gia_von_usd: giaVonIdx[0] ?? -1,
     gia_von: giaVonIdx.length > 1 ? giaVonIdx[giaVonIdx.length - 1] : giaVonIdx[0] ?? -1,
     thanh_tien: findCol(headers, ['thanh tien', '~thanh tien']),
     loi_nhuan: findCol(headers, ['loi nhuan', '~loi nhuan']),
-    trang_thai: findCol(headers, ['trang thai', '~trang thai']),
-    ngay_hoan_tat: findCol(headers, ['ngay hoan tat', '~ngay hoan tat', '~hoan tat luc', '~ngay hoan thanh']),
-    ngay_tao: findCol(headers, ['ngay tao', '~ngay tao']),
+    trang_thai: findCol(headers, ['trang thai', '~trang thai', 'status']),
+    ngay_hoan_tat: findCol(headers, ['ngay hoan tat', '~ngay hoan tat', '~hoan tat luc', '~ngay hoan thanh', '~completed']),
+    ngay_tao: findCol(headers, ['ngay tao', '~ngay tao', '~created']),
     bu: findCol(headers, ['bu', '~khoi kd']),
     dich_vu: findCol(headers, ['loai dich vu', 'dich vu', '~loai dich vu', '~dich vu']),
     game: findCol(headers, ['game']),
     san_pham: findCol(headers, ['~san pham']),
+    ty_gia_co: findCol(headers, ['~ty gia tuan']),
   };
+  if (col.san < 0 && !defaultSan) throw new Error('Không tìm thấy cột Sàn.');
+  if (col.ngay_hoan_tat < 0 && col.ngay_tao < 0) throw new Error('Không tìm thấy cột ngày.');
 
-  const missing = [];
-  if (col.san < 0) missing.push('Sàn');
-  if (col.thanh_tien < 0 && col.doanh_thu_usd < 0) missing.push('Thành tiền / Doanh thu');
-  if (col.ngay_hoan_tat < 0) missing.push('Ngày hoàn tất');
-  if (missing.length) {
-    return Response.json({ error: `Không tìm thấy cột: ${missing.join(', ')}. Header đọc được: ${headers.filter(Boolean).slice(0, 30).join(' | ')}` }, { status: 422 });
-  }
-
-  /* Phân loại trạng thái đơn: thành công / thất bại / hoàn hủy / khác */
-  const statusClass = (raw) => {
-    const st = norm(raw);
-    if (!st || st.includes('hoan tat') || st.includes('hoan thanh')) return 'ok';
-    if (st.includes('hoan')) return 'huy'; /* hoàn hủy / hoàn tiền */
-    if (st.includes('huy')) return 'huy';
-    if (st.includes('that bai') || st.includes('fail') || st.includes('loi')) return 'fail';
-    return 'other'; /* đang xử lý... không tính */
-  };
-
-  /* Gộp theo Ngày × Sàn × SPDV; đơn fail/hoàn hủy chỉ đếm số lượng */
-  const agg = new Map();
-  let used = 0;
+  const rows = [];
   let skipNoDate = 0;
   let skipStatus = 0;
-  let countFail = 0;
-  let countHuy = 0;
   for (let i = headIdx + 1; i < grid.length; i++) {
     const r = grid[i] || [];
-    const san = String(r[col.san] ?? '').trim();
+    const san = col.san >= 0 ? String(r[col.san] ?? '').trim() : defaultSan;
     if (!san) continue;
 
     const sc = col.trang_thai >= 0 ? statusClass(r[col.trang_thai]) : 'ok';
     if (sc === 'other') { skipStatus++; continue; }
 
-    /* Đơn thành công lấy Ngày hoàn tất; đơn fail/hủy chưa giao lấy Ngày tạo thay thế */
-    let dt = parseDate(r[col.ngay_hoan_tat]);
-    if (!dt && sc !== 'ok' && col.ngay_tao >= 0) dt = parseDate(r[col.ngay_tao]);
+    let dt = parseDate(col.ngay_hoan_tat >= 0 ? r[col.ngay_hoan_tat] : '');
+    if (!dt && col.ngay_tao >= 0 && sc !== 'ok') dt = parseDate(r[col.ngay_tao]);
     if (!dt) { skipNoDate++; continue; }
-    const ngay = `${dt.d}/${dt.m}/${dt.y}`;
-    const sortKey = `${dt.y}${dt.m}${dt.d}`;
 
-    const spdv = spdvOf(col.dich_vu >= 0 ? r[col.dich_vu] : '', col.game >= 0 ? r[col.game] : '', col.san_pham >= 0 ? r[col.san_pham] : '');
-    const key = `${sortKey}|${san}|${spdv}`;
+    const rec = {
+      id: col.id >= 0 ? String(r[col.id] ?? '').trim() : '',
+      san,
+      bu: col.bu >= 0 ? String(r[col.bu] ?? '').trim().toUpperCase() : '',
+      spdv: spdvOf(col.dich_vu >= 0 ? r[col.dich_vu] : '', col.game >= 0 ? r[col.game] : '', col.san_pham >= 0 ? r[col.san_pham] : ''),
+      sc,
+      ngay: `${dt.d}/${dt.m}/${dt.y}`,
+      sortKey: `${dt.y}${dt.m}${dt.d}`,
+      doanh_thu_usd: 0,
+      phi_san: 0,
+      phi_san_vnd: 0,
+      dthu_thuc: 0,
+      thanh_tien: 0,
+      gia_von: 0,
+      loi_nhuan: 0,
+    };
+    if (sc === 'ok') {
+      const doanhThuUsd = col.doanh_thu_usd >= 0 ? viNum(r[col.doanh_thu_usd]) : 0;
+      const phiSan = col.phi_san >= 0 ? viNum(r[col.phi_san]) : 0;
+      const dthuThuc = col.dthu_thuc >= 0 ? viNum(r[col.dthu_thuc]) : doanhThuUsd - phiSan;
+      const thanhTien = col.thanh_tien >= 0 ? viNum(r[col.thanh_tien]) : 0;
+      const giaVon = col.gia_von >= 0 ? viNum(r[col.gia_von]) : 0;
+      rec.doanh_thu_usd = doanhThuUsd;
+      rec.phi_san = phiSan;
+      rec.dthu_thuc = dthuThuc;
+      rec.thanh_tien = thanhTien;
+      rec.gia_von = giaVon;
+      rec.loi_nhuan = col.loi_nhuan >= 0 ? viNum(r[col.loi_nhuan]) : thanhTien - giaVon;
+      rec.phi_san_vnd = dthuThuc > 0 ? phiSan * (thanhTien / dthuThuc) : 0;
+    }
+    rows.push(rec);
+  }
+  return { rows, meta: { header_row: headIdx + 1, gia_von_found: col.gia_von >= 0, skipNoDate, skipStatus } };
+}
+
+/* File "G2G History" (API robot lấy từ sàn G2G — chỉ G1/G2), tab Payment:
+   Tên Sàn | OrderID | Date | Activity Description | Debit | Credit | ... |
+   ID | Số Tiền (USD net, phẩy thập phân) | dd/mm/yyyy | Tháng/Năm.
+   Không có giá vốn / SPDV / BU — chỉ bổ sung doanh thu đơn còn thiếu. */
+function parseG2G(grid) {
+  let headIdx = -1;
+  let headers = [];
+  for (let i = 0; i < Math.min(grid.length, 15); i++) {
+    const h = (grid[i] || []).map(norm);
+    if (h.includes('ten san') && (h.includes('orderid') || h.includes('order id'))) {
+      headIdx = i;
+      headers = h;
+      break;
+    }
+  }
+  if (headIdx < 0) return null; /* không phải layout G2G */
+
+  const col = {
+    san: findCol(headers, ['ten san']),
+    orderid: findCol(headers, ['orderid', 'order id']),
+    id: findCol(headers, ['id']),
+    activity: findCol(headers, ['~activity']),
+    so_tien: findCol(headers, ['so tien', '~so tien']),
+    ngay: findCol(headers, ['dd/mm/yyyy', '~dd/mm']),
+    date_en: findCol(headers, ['date']),
+  };
+
+  const EN_MONTHS = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
+  const parseEnDate = (s) => {
+    const m = String(s || '').toLowerCase().match(/([a-z]+)\s+(\d{1,2}),?\s+(\d{4})/);
+    if (!m || !EN_MONTHS[m[1]]) return null;
+    return { y: m[3], m: String(EN_MONTHS[m[1]]).padStart(2, '0'), d: m[2].padStart(2, '0') };
+  };
+
+  const rows = [];
+  for (let i = headIdx + 1; i < grid.length; i++) {
+    const r = grid[i] || [];
+    const san = String(r[col.san] ?? '').trim().toUpperCase();
+    const orderId = String(r[col.orderid >= 0 ? col.orderid : col.id] ?? '').trim();
+    if (!san || !orderId) continue; /* dòng rút tiền / phí ví không có OrderID */
+    const act = col.activity >= 0 ? norm(r[col.activity]) : '';
+    if (act && !act.includes('sell')) continue; /* chỉ lấy tiền bán hàng */
+
+    let dt = col.ngay >= 0 ? parseDate(r[col.ngay]) : null;
+    if (!dt && col.date_en >= 0) dt = parseEnDate(r[col.date_en]);
+    if (!dt) continue;
+
+    const amount = col.so_tien >= 0 ? viNum(r[col.so_tien]) : 0;
+    if (!amount) continue;
+
+    rows.push({
+      id: orderId,
+      san,
+      bu: '',
+      spdv: 'KHÁC',
+      sc: 'ok',
+      ngay: `${dt.d}/${dt.m}/${dt.y}`,
+      sortKey: `${dt.y}${dt.m}${dt.d}`,
+      doanh_thu_usd: amount,
+      phi_san: 0,
+      phi_san_vnd: 0,
+      dthu_thuc: amount,
+      thanh_tien: 0, /* quy đổi VND sau, theo tỷ giá học từ file chính */
+      gia_von: 0,
+      loi_nhuan: 0,
+    });
+  }
+  return { rows, meta: { header_row: headIdx + 1, layout: 'g2g' } };
+}
+
+function aggregate(rows) {
+  const agg = new Map();
+  for (const r of rows) {
+    const key = `${r.sortKey}|${r.san}|${r.spdv}`;
     if (!agg.has(key)) {
       agg.set(key, {
-        ngay,
-        sortKey,
-        san,
-        spdv,
-        bu: col.bu >= 0 && String(r[col.bu] ?? '').trim() ? String(r[col.bu]).trim().toUpperCase() : (san.match(/^[A-Za-z]+/)?.[0] || san).toUpperCase(),
+        ngay: r.ngay,
+        sortKey: r.sortKey,
+        san: r.san,
+        spdv: r.spdv,
+        bu: r.bu,
         so_don: 0,
         don_fail: 0,
         don_huy: 0,
@@ -188,47 +266,123 @@ export async function GET(request) {
       });
     }
     const a = agg.get(key);
-
-    if (sc === 'fail') { a.don_fail += 1; countFail++; continue; }
-    if (sc === 'huy') { a.don_huy += 1; countHuy++; continue; }
-
-    const doanhThuUsd = col.doanh_thu_usd >= 0 ? viNum(r[col.doanh_thu_usd]) : 0;
-    const phiSan = col.phi_san >= 0 ? viNum(r[col.phi_san]) : 0;
-    const dthuThuc = col.dthu_thuc >= 0 ? viNum(r[col.dthu_thuc]) : doanhThuUsd - phiSan;
-    const thanhTien = col.thanh_tien >= 0 ? viNum(r[col.thanh_tien]) : 0;
-    const giaVon = col.gia_von >= 0 ? viNum(r[col.gia_von]) : 0;
-    const loiNhuan = col.loi_nhuan >= 0 ? viNum(r[col.loi_nhuan]) : thanhTien - giaVon;
-    /* Phí sàn quy VND theo REV rate ẩn của chính dòng đó (Thành tiền / DThu thực nhận) */
-    const phiSanVnd = dthuThuc > 0 ? phiSan * (thanhTien / dthuThuc) : 0;
-
+    if (!a.bu && r.bu) a.bu = r.bu;
+    if (r.sc === 'fail') { a.don_fail += 1; continue; }
+    if (r.sc === 'huy') { a.don_huy += 1; continue; }
     a.so_don += 1;
-    a.doanh_thu_usd += doanhThuUsd;
-    a.phi_san += phiSan;
-    a.phi_san_vnd += phiSanVnd;
-    a.dthu_thuc += dthuThuc;
-    a.thanh_tien += thanhTien;
-    a.gia_von += giaVon;
-    a.loi_nhuan += loiNhuan;
-    used++;
+    a.doanh_thu_usd += r.doanh_thu_usd;
+    a.phi_san += r.phi_san;
+    a.phi_san_vnd += r.phi_san_vnd;
+    a.dthu_thuc += r.dthu_thuc;
+    a.thanh_tien += r.thanh_tien;
+    a.gia_von += r.gia_von;
+    a.loi_nhuan += r.loi_nhuan;
+  }
+  return [...agg.values()].sort((x, y) => (x.sortKey < y.sortKey ? -1 : x.sortKey > y.sortKey ? 1 : x.san.localeCompare(y.san)));
+}
+
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const url = searchParams.get('url');
+  const gid = searchParams.get('gid') || '0';
+  const url2 = searchParams.get('url2');
+  const gid2 = searchParams.get('gid2') || '0';
+  const san2 = searchParams.get('san2') || ''; // sàn mặc định cho file API nếu thiếu cột Sàn
+  if (!url) return Response.json({ error: 'Thiếu url' }, { status: 400 });
+
+  let mainRows = [];
+  let mainMeta = {};
+  try {
+    const grid = await loadGrid(url, gid);
+    const p = parseOrders(grid);
+    mainRows = p.rows;
+    mainMeta = p.meta;
+  } catch (e) {
+    return Response.json({ error: `File tổng hợp: ${e.message}` }, { status: 502 });
   }
 
-  const detail = [...agg.values()].sort((x, y) => (x.sortKey < y.sortKey ? -1 : x.sortKey > y.sortKey ? 1 : x.san.localeCompare(y.san)));
+  /* File API từ sàn (G2G — chỉ G1/G2): file BE ƯU TIÊN vì có giá vốn/SPDV;
+     API chỉ BỔ SUNG những đơn file BE còn thiếu (so theo OrderID, kể cả
+     bỏ đuôi -1/-2), giới hạn trong khoảng ngày của file BE. */
+  let apiRows = [];
+  let apiMeta = null;
+  let dedup = 0;
+  let outOfRange = 0;
+  if (url2) {
+    try {
+      const grid2 = await loadGrid(url2, gid2);
+      const p2 = parseG2G(grid2) || parseOrders(grid2, { defaultSan: san2 });
+      apiMeta = p2.meta;
+
+      const stripSuffix = (id) => id.replace(/-\d+$/, '');
+      const mainIds = new Set();
+      for (const r of mainRows) {
+        if (!r.id) continue;
+        mainIds.add(r.id);
+        mainIds.add(stripSuffix(r.id));
+      }
+      const minKey = mainRows.reduce((m, r) => (m && m < r.sortKey ? m : r.sortKey), '');
+      const maxKey = mainRows.reduce((m, r) => (m > r.sortKey ? m : r.sortKey), '');
+
+      for (const r of p2.rows) {
+        if (minKey && (r.sortKey < minKey || r.sortKey > maxKey)) { outOfRange++; continue; }
+        if (r.id && (mainIds.has(r.id) || mainIds.has(stripSuffix(r.id)))) { dedup++; continue; }
+        apiRows.push(r);
+      }
+    } catch (e) {
+      apiMeta = { error: e.message };
+    }
+  }
+
+  /* Quy đổi VND cho đơn API (file G2G chỉ có USD): tỷ giá học từ file BE theo ngày */
+  const rateByDate = new Map();
+  let sumTt = 0;
+  let sumNet = 0;
+  for (const r of mainRows) {
+    if (r.sc !== 'ok' || r.dthu_thuc <= 0 || r.thanh_tien <= 0) continue;
+    const cur = rateByDate.get(r.sortKey) || { tt: 0, net: 0 };
+    cur.tt += r.thanh_tien;
+    cur.net += r.dthu_thuc;
+    rateByDate.set(r.sortKey, cur);
+    sumTt += r.thanh_tien;
+    sumNet += r.dthu_thuc;
+  }
+  const overallRate = sumNet > 0 ? sumTt / sumNet : 0;
+  for (const r of apiRows) {
+    if (r.thanh_tien === 0 && r.dthu_thuc > 0) {
+      const d = rateByDate.get(r.sortKey);
+      const rate = d && d.net > 0 ? d.tt / d.net : overallRate;
+      r.thanh_tien = r.dthu_thuc * rate;
+      r.loi_nhuan = r.thanh_tien - r.gia_von;
+    }
+  }
+
+  /* Gắn BU cho dòng thiếu: học từ file BE theo sàn → map thủ công → tiền tố */
+  const sanBu = new Map();
+  for (const r of mainRows) if (r.bu && !sanBu.has(r.san)) sanBu.set(r.san, r.bu);
+  const all = [...mainRows, ...apiRows].map((r) => ({
+    ...r,
+    bu: r.bu || sanBu.get(r.san) || SAN_BU_MAP[r.san] || (r.san.match(/^[A-Za-z]+/)?.[0] || r.san).toUpperCase(),
+  }));
+
+  const detail = aggregate(all);
+  const okRows = all.filter((r) => r.sc === 'ok');
   const dates = detail.map((x) => x.ngay);
 
   return Response.json({
     detail,
     meta: {
-      header_row: headIdx + 1,
-      gia_von_found: col.gia_von >= 0,
-      bu_from_header: col.bu >= 0,
-      rows_used: used,
-      don_fail: countFail,
-      don_huy: countHuy,
-      rows_skip_no_date: skipNoDate,
-      rows_skip_status: skipStatus,
+      ...mainMeta,
+      rows_used: okRows.length,
+      don_fail: all.filter((r) => r.sc === 'fail').length,
+      don_huy: all.filter((r) => r.sc === 'huy').length,
+      main_used: mainRows.filter((r) => r.sc === 'ok').length,
+      api_used: apiRows.filter((r) => r.sc === 'ok').length,
+      api_error: apiMeta?.error || null,
+      dedup_removed: dedup,
+      api_out_of_range: outOfRange,
       from: dates[0] || '',
       to: dates[dates.length - 1] || '',
     },
-    csvUrl,
   });
 }
