@@ -132,9 +132,11 @@ export default function CpvBoard({ report, onLive, range }) {
     const dup_don = (state.dupList || []).filter(inRange);
 
     const cpv_ngay = groupBy(rows, (r) => r.ngay, ['ngay']);
-    /* Gộp theo tháng (MM/yyyy) — phục vụ so sánh tháng khi lọc Cả năm */
+    /* Gộp theo tháng (MM/yyyy) — so sánh tháng với đủ chỉ số KQKD + đơn hàng */
     const cpv_thang = groupBy(rows.map((r) => ({ ...r, thang: r.ngay.slice(3) })), (r) => r.thang, ['thang'])
-      .sort((a, b) => (a.thang.slice(3) + a.thang.slice(0, 2)).localeCompare(b.thang.slice(3) + b.thang.slice(0, 2)));
+      .sort((a, b) => (a.thang.slice(3) + a.thang.slice(0, 2)).localeCompare(b.thang.slice(3) + b.thang.slice(0, 2)))
+      .map(kqkd)
+      .map(donStats);
     const cpv_san = groupBy(rows, (r) => r.san, ['san', 'bu']).sort((a, b) => b.thanh_tien - a.thanh_tien);
     const cpv_bu = groupBy(rows, (r) => r.bu, ['bu']).sort((a, b) => b.thanh_tien - a.thanh_tien);
     const byTeam = groupBy(rows, (r) => r.team, ['team']).sort((a, b) => b.thanh_tien - a.thanh_tien);

@@ -31,6 +31,12 @@ const SERIES_COLORS = {
   pct_pl2a: '#1B75BB',
   ty_le_co: '#D96F00',
   bien_ln: '#00A651',
+  /* Trạng thái đơn: hoàn tất xanh dương · thất bại cam · hoàn hủy xanh ngọc */
+  so_don: '#189BD8',
+  don_fail: '#D96F00',
+  don_huy: '#00A99D',
+  ti_le_fail: '#D96F00',
+  ti_le_huy: '#00A99D',
 };
 
 const colorOf = (key, i) => SERIES_COLORS[key] || COLORS[i % COLORS.length];
