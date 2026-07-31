@@ -146,6 +146,11 @@ export default function CpvBoard({ report, onLive, range }) {
       doanh_thu_usd: sum(rows, 'doanh_thu_usd'),
       don_fail: sum(rows, 'don_fail'),
       don_huy: sum(rows, 'don_huy'),
+      /* KPI đối soát (PKT9) */
+      so_don_dh: sum(dhRows, 'so_don'),
+      so_don_api_file: apiAgg[0]?.so_don || 0,
+      don_trung: dup_don.length,
+      lech_trung_usd: dup_don.reduce((t, r) => t + (r.lech || 0), 0),
     };
     return { tables: { cpv_ngay, cpv_san, cpv_bu, kqkd_team, kqkd_spdv, don_team, don_spdv, nguon_module, dup_don }, kpis };
   }, [state.detail, state.status, range, cfg.teamFilter]);
