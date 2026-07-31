@@ -92,8 +92,9 @@ export default function CpvBoard({ report, onLive, range }) {
         return true;
       });
     }
-    /* Gắn Team từ BU trước khi gộp */
+    /* Gắn Team từ BU trước khi gộp; trang tầng 3 chỉ giữ dữ liệu team mình */
     rows = rows.map((r) => ({ ...r, team: teamOf(r.bu) }));
+    if (cfg.teamFilter) rows = rows.filter((r) => r.team === cfg.teamFilter);
 
     const cpv_ngay = groupBy(rows, (r) => r.ngay, ['ngay']);
     const cpv_san = groupBy(rows, (r) => r.san, ['san', 'bu']).sort((a, b) => b.thanh_tien - a.thanh_tien);
@@ -119,7 +120,7 @@ export default function CpvBoard({ report, onLive, range }) {
       don_huy: sum(rows, 'don_huy'),
     };
     return { tables: { cpv_ngay, cpv_san, cpv_bu, kqkd_team, kqkd_spdv, don_team, don_spdv }, kpis };
-  }, [state.detail, state.status, range]);
+  }, [state.detail, state.status, range, cfg.teamFilter]);
 
   useEffect(() => {
     if (agg) onLive?.(agg);
@@ -133,7 +134,7 @@ export default function CpvBoard({ report, onLive, range }) {
       <div className="panel-head">
         <div>
           <h2>
-            Doanh thu – Giá vốn theo đơn (BE HQS)
+            {cfg.teamFilter ? `Doanh thu – Giá vốn · Team ${cfg.teamFilter}` : 'Doanh thu – Giá vốn theo đơn (BE HQS)'}
             <span className="tag live-tag">● LIVE</span>
           </h2>
           <div className="hint">
