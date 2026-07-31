@@ -23,7 +23,8 @@ const SERIES_COLORS = {
   loi_nhuan: '#00A651',
   pl1: '#00A651',
   pl2: '#00A651',
-  pl2a: '#00A651',
+  /* PL2A/PL7 (lãi sau thêm một lớp chi phí) dùng xanh thép để đứng cạnh PL1/PL2 xanh lá vẫn phân biệt rõ */
+  pl2a: '#1B75BB',
   pl7: '#1B75BB',
 };
 
