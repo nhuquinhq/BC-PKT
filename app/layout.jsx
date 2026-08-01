@@ -1,6 +1,7 @@
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
 import AuthGate from '@/components/AuthGate';
+import HelpWidget from '@/components/HelpWidget';
 import PwaRegister from '@/components/PwaRegister';
 
 export const metadata = {
@@ -42,6 +43,7 @@ export default function RootLayout({ children }) {
             <Sidebar />
             <div className="main">{children}</div>
           </div>
+          <HelpWidget />
         </AuthGate>
       </body>
     </html>
