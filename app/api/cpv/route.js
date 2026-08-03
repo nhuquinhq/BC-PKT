@@ -240,8 +240,9 @@ export async function GET(request) {
      truyền lặp ?url=...&gid=...&url=...&gid=... — file đầu là file chủ đạo. */
   const urls = searchParams.getAll('url');
   const gids = searchParams.getAll('gid');
-  const url2 = searchParams.get('url2');
-  const gid2 = searchParams.get('gid2') || '0';
+  /* File API sàn cũng có thể nhiều file theo tháng: lặp url2/gid2 */
+  const url2s = searchParams.getAll('url2');
+  const gid2s = searchParams.getAll('gid2');
   const san2 = searchParams.get('san2') || ''; // sàn mặc định cho file API nếu thiếu cột Sàn
   if (!urls.length) return Response.json({ error: 'Thiếu url' }, { status: 400 });
 
@@ -276,52 +277,63 @@ export async function GET(request) {
   let dedup = 0;
   let outOfRange = 0;
   const dupList = [];
-  if (url2) {
-    try {
-      const grid2 = await loadGrid(url2, gid2);
-      const p2 = parseOrders(grid2, { defaultSan: san2 });
-      apiMeta = p2.meta;
-      apiAllRows = p2.rows.filter((r) => r.sc === 'ok');
-
-      const stripSuffix = (id) => id.replace(/-\d+$/, '');
-      const mainIds = new Set();
-      const mainById = new Map(); /* để trả danh sách đơn trùng kèm số phía BE */
-      for (const r of mainRows) {
-        if (!r.id) continue;
-        mainIds.add(r.id);
-        mainIds.add(stripSuffix(r.id));
-        if (!mainById.has(r.id)) mainById.set(r.id, r);
-        const s = stripSuffix(r.id);
-        if (!mainById.has(s)) mainById.set(s, r);
-      }
-      const minKey = mainRows.reduce((m, r) => (m && m < r.sortKey ? m : r.sortKey), '');
-      const maxKey = mainRows.reduce((m, r) => (m > r.sortKey ? m : r.sortKey), '');
-
-      for (const r of p2.rows) {
-        if (minKey && (r.sortKey < minKey || r.sortKey > maxKey)) { outOfRange++; continue; }
-        /* Đơn trùng Order ID với BE = đơn BÙ trả thiếu hàng cho khách:
-           VẪN TÍNH doanh thu (không loại), chỉ ghi vào bảng đối soát. */
-        if (r.id && (mainIds.has(r.id) || mainIds.has(stripSuffix(r.id)))) {
-          dedup++;
-          const m = mainById.get(r.id) || mainById.get(stripSuffix(r.id));
-          if (dupList.length < 1000) {
-            dupList.push({
-              order_id: r.id,
-              san: r.san,
-              ngay: r.ngay,
-              usd_api: r.doanh_thu_usd,
-              order_id_be: m?.id || '',
-              ngay_be: m?.ngay || '',
-              usd_be: m?.doanh_thu_usd || 0,
-              lech: r.doanh_thu_usd - (m?.doanh_thu_usd || 0),
-            });
-          }
-        }
-        apiRows.push(r);
-      }
-    } catch (e) {
-      apiMeta = { error: e.message };
+  if (url2s.length) {
+    const stripSuffix = (id) => id.replace(/-\d+$/, '');
+    const mainIds = new Set();
+    const mainById = new Map(); /* để trả danh sách đơn trùng kèm số phía BE */
+    for (const r of mainRows) {
+      if (!r.id) continue;
+      mainIds.add(r.id);
+      mainIds.add(stripSuffix(r.id));
+      if (!mainById.has(r.id)) mainById.set(r.id, r);
+      const s = stripSuffix(r.id);
+      if (!mainById.has(s)) mainById.set(s, r);
     }
+    const minKey = mainRows.reduce((m, r) => (m && m < r.sortKey ? m : r.sortKey), '');
+    const maxKey = mainRows.reduce((m, r) => (m > r.sortKey ? m : r.sortKey), '');
+
+    const apiErrors = [];
+    const apiGrids = await Promise.all(
+      url2s.map((u, i) =>
+        loadGrid(u, gid2s[i] || '0')
+          .then((grid) => ({ grid }))
+          .catch((e) => ({ err: e }))
+      )
+    );
+    for (let gi = 0; gi < apiGrids.length; gi++) {
+      try {
+        if (apiGrids[gi].err) throw apiGrids[gi].err;
+        const p2 = parseOrders(apiGrids[gi].grid, { defaultSan: san2 });
+        if (!apiMeta) apiMeta = p2.meta;
+        apiAllRows = apiAllRows.concat(p2.rows.filter((r) => r.sc === 'ok'));
+
+        for (const r of p2.rows) {
+          if (minKey && (r.sortKey < minKey || r.sortKey > maxKey)) { outOfRange++; continue; }
+          /* Đơn trùng Order ID với BE = đơn BÙ trả thiếu hàng cho khách:
+             VẪN TÍNH doanh thu (không loại), chỉ ghi vào bảng đối soát. */
+          if (r.id && (mainIds.has(r.id) || mainIds.has(stripSuffix(r.id)))) {
+            dedup++;
+            const m = mainById.get(r.id) || mainById.get(stripSuffix(r.id));
+            if (dupList.length < 1000) {
+              dupList.push({
+                order_id: r.id,
+                san: r.san,
+                ngay: r.ngay,
+                usd_api: r.doanh_thu_usd,
+                order_id_be: m?.id || '',
+                ngay_be: m?.ngay || '',
+                usd_be: m?.doanh_thu_usd || 0,
+                lech: r.doanh_thu_usd - (m?.doanh_thu_usd || 0),
+              });
+            }
+          }
+          apiRows.push(r);
+        }
+      } catch (e) {
+        apiErrors.push(`file API ${gi + 1}: ${e.message}`);
+      }
+    }
+    if (apiErrors.length) apiMeta = { ...(apiMeta || {}), error: apiErrors.join(' · ') };
   }
 
   /* Quy đổi VND cho đơn API (file sàn toàn USD: doanh thu, phí, giá vốn cột X):

@@ -73,10 +73,11 @@ export default function CpvBoard({ report, sheet, onLive, range }) {
       }
       if (cfg.hist) qs.set('hist', '1'); /* tháng đã chốt lấy từ datalake tĩnh */
       for (const [k, v] of Object.entries(cfg.qs || {})) qs.set(k, v); /* tham số riêng (vd month/year tab ví) */
-      if (cfg.api?.url) {
-        qs.set('url2', cfg.api.url);
-        qs.set('gid2', cfg.api.gid || '0');
-        if (cfg.api.san) qs.set('san2', cfg.api.san);
+      /* File API sàn — có thể nhiều file theo tháng */
+      for (const a of Array.isArray(cfg.api) ? cfg.api : cfg.api?.url ? [cfg.api] : []) {
+        qs.append('url2', a.url);
+        qs.append('gid2', a.gid || '0');
+        if (a.san) qs.set('san2', a.san);
       }
       const res = await fetch(`${cfg.endpoint || '/api/cpv'}?${qs}`, { cache: 'no-store' });
       const json = await res.json();
