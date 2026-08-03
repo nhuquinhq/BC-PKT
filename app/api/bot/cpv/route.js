@@ -2,9 +2,10 @@
    BOT bắn CPV theo BE qua Telegram — lịch gọi đặt ở GitHub Actions
    (.github/workflows/bot-cpv.yml, 10h · 15h · 18h · 21h · 23h giờ VN;
    không dùng Vercel Cron vì gói Hobby chỉ cho chạy 1 lần/ngày).
-   Nội dung: GMV hôm nay (tổng + theo sàn) và lũy kế tháng, kèm ảnh
-   biểu đồ GMV theo ngày (vẽ qua quickchart.io — Telegram tự tải URL ảnh,
-   nên server này không cần thư viện vẽ; ảnh lỗi thì lùi về tin chữ).
+   Nội dung: GMV hôm nay và lũy kế tháng, kèm ảnh biểu đồ so sánh các
+   sàn (cột = doanh thu USD, đường = số đơn; vẽ qua quickchart.io —
+   Telegram tự tải URL ảnh nên server này không cần thư viện vẽ;
+   ảnh lỗi thì lùi về tin chữ).
 
    Cấu hình env trên Vercel:
    - TELEGRAM_BOT_TOKEN: token bot từ @BotFather
@@ -95,52 +96,55 @@ export async function GET(request) {
   /* Tỷ giá USDT/VND đang áp = Thành tiền ÷ DThu thực nhận (tỷ giá tuần trên file BE) */
   const tyGia = netNgay > 0 ? gmvNgay / netNgay : netThang > 0 ? gmvThang / netThang : 0;
 
-  const bySan = new Map();
-  for (const r of homNay) {
-    const cur = bySan.get(r.san) || { vnd: 0, usd: 0 };
-    cur.vnd += r.thanh_tien || 0;
-    cur.usd += r.doanh_thu_usd || 0;
-    bySan.set(r.san, cur);
-  }
-  const sanLines = [...bySan.entries()]
-    .filter(([, v]) => v.vnd > 0)
-    .sort((a, b) => b[1].vnd - a[1].vnd)
-    .map(([san, v]) => `  • ${san}: ${fmtVnd(v.vnd)} · ${fmtUsd(v.usd)}`);
-
   const lines = [
-    `🤖 <b>CPV theo BE</b> — ${now.gio} ${ngay}`,
+    `🤖 <b>Báo cáo CPV theo BE</b> — ${now.gio} ${ngay}`,
     '',
-    `📅 <b>Hôm nay ${ngay.slice(0, 5)}</b>: GMV <b>${fmtVnd(gmvNgay)}</b> · nguyên tệ <b>${fmtUsd(usdNgay)}</b> · ${donNgay.toLocaleString('vi-VN')} đơn`,
+    `📅 <b>Hôm nay ${ngay.slice(0, 5)}:</b>`,
+    `GMV ($): <b>${fmtUsd(usdNgay)}</b>`,
+    `GMV (VND): <b>${fmtVnd(gmvNgay)}</b>`,
+    `Số đơn: <b>${donNgay.toLocaleString('vi-VN')} đơn</b>`,
   ];
   if (tyGia > 0) lines.push(`💱 Tỷ giá quy đổi: <b>${Math.round(tyGia).toLocaleString('vi-VN')} đ/USDT</b>`);
-  if (sanLines.length) {
-    lines.push('🏪 GMV theo sàn (VND · nguyên tệ):');
-    lines.push(...sanLines);
-  } else {
-    lines.push('🏪 Chưa ghi nhận GMV trong hôm nay.');
-  }
   lines.push('');
-  lines.push(`📈 <b>Lũy kế tháng ${thang}</b>: GMV <b>${fmtVnd(gmvThang)}</b> · nguyên tệ <b>${fmtUsd(usdThang)}</b> · ${donThang.toLocaleString('vi-VN')} đơn`);
+  lines.push(`📈 <b>Lũy kế tháng ${thang}:</b>`);
+  lines.push(`GMV ($): <b>${fmtUsd(usdThang)}</b>`);
+  lines.push(`GMV (VND): <b>${fmtVnd(gmvThang)}</b>`);
+  lines.push(`Số đơn: <b>${donThang.toLocaleString('vi-VN')} đơn</b>`);
   lines.push(`🔗 bc-pkt.vercel.app/bao-cao/pkt8`);
   const text = lines.join('\n');
 
-  /* Ảnh biểu đồ: GMV theo ngày trong tháng (triệu đ), cột màu xanh HQ */
-  const byDay = new Map();
-  for (const r of trongThang) {
-    const d = r.ngay.slice(0, 2);
-    byDay.set(d, (byDay.get(d) || 0) + (r.thanh_tien || 0));
+  /* Ảnh biểu đồ: so sánh các sàn xếp theo doanh thu USD giảm dần —
+     cột xanh HQ = doanh thu USD (trục trái), đường cam = số đơn (trục phải).
+     Hôm nay chưa có số thì vẽ theo lũy kế tháng. */
+  const scopeRows = homNay.length ? homNay : trongThang;
+  const scopeLabel = homNay.length ? `hôm nay ${ngay.slice(0, 5)}` : `lũy kế tháng ${thang}`;
+  const bySan = new Map();
+  for (const r of scopeRows) {
+    const cur = bySan.get(r.san) || { usd: 0, don: 0 };
+    cur.usd += r.doanh_thu_usd || 0;
+    cur.don += r.so_don || 0;
+    bySan.set(r.san, cur);
   }
-  const days = [...byDay.keys()].sort();
+  const sanRows = [...bySan.entries()]
+    .filter(([, v]) => v.usd > 0 || v.don > 0)
+    .sort((a, b) => b[1].usd - a[1].usd);
   const chartCfg = {
     type: 'bar',
     data: {
-      labels: days,
-      datasets: [{ label: 'GMV (triệu đ)', data: days.map((d) => Math.round(byDay.get(d) / 1e6)), backgroundColor: '#189BD8' }],
+      labels: sanRows.map(([san]) => san),
+      datasets: [
+        { label: 'Doanh thu (USD)', data: sanRows.map(([, v]) => Math.round(v.usd)), backgroundColor: '#189BD8', yAxisID: 'A' },
+        { type: 'line', label: 'Số đơn', data: sanRows.map(([, v]) => v.don), borderColor: '#D96F00', pointBackgroundColor: '#D96F00', fill: false, lineTension: 0, yAxisID: 'B' },
+      ],
     },
     options: {
-      plugins: {
-        title: { display: true, text: `GMV theo ngày — tháng ${thang} (triệu đ)`, font: { size: 16 } },
-        legend: { display: false },
+      title: { display: true, text: `Doanh thu USD & số đơn theo sàn — ${scopeLabel}`, fontSize: 16 },
+      legend: { display: true, position: 'bottom' },
+      scales: {
+        yAxes: [
+          { id: 'A', position: 'left', ticks: { beginAtZero: true } },
+          { id: 'B', position: 'right', ticks: { beginAtZero: true }, gridLines: { drawOnChartArea: false } },
+        ],
       },
     },
   };
@@ -170,13 +174,13 @@ export async function GET(request) {
     /* Ưu tiên gửi ảnh kèm caption (Telegram giới hạn caption 1024 ký tự);
        ảnh/caption không gửi được thì lùi về tin nhắn chữ như cũ. */
     let anh = false;
-    if (days.length && text.length <= 1000) {
+    if (sanRows.length && text.length <= 1000) {
       anh = (await sendTg('sendPhoto', { photo: chartUrl, caption: text, parse_mode: 'HTML' })).ok === true;
     }
     if (!anh) {
       const tgJson = await sendTg('sendMessage', { text, parse_mode: 'HTML', disable_web_page_preview: true });
       if (!tgJson.ok) throw new Error(tgJson.description || 'Telegram từ chối');
-      if (days.length && text.length > 1000) {
+      if (sanRows.length && text.length > 1000) {
         anh = (await sendTg('sendPhoto', { photo: chartUrl, caption: `📊 GMV theo ngày — tháng ${thang}` })).ok === true;
       }
     }
