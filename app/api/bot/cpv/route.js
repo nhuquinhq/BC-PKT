@@ -80,31 +80,44 @@ export async function GET(request) {
   const trongThang = detail.filter((r) => r.ngay.slice(3) === thang);
   const sum = (rows, k) => rows.reduce((t, r) => t + (r[k] || 0), 0);
 
+  const fmtUsd = (v) => `$${v.toLocaleString('vi-VN', { maximumFractionDigits: 0 })}`;
   const gmvNgay = sum(homNay, 'thanh_tien');
+  const usdNgay = sum(homNay, 'doanh_thu_usd');
+  const netNgay = sum(homNay, 'dthu_thuc');
   const donNgay = sum(homNay, 'so_don');
   const gmvThang = sum(trongThang, 'thanh_tien');
+  const usdThang = sum(trongThang, 'doanh_thu_usd');
+  const netThang = sum(trongThang, 'dthu_thuc');
   const donThang = sum(trongThang, 'so_don');
+  /* Tỷ giá USDT/VND đang áp = Thành tiền ÷ DThu thực nhận (tỷ giá tuần trên file BE) */
+  const tyGia = netNgay > 0 ? gmvNgay / netNgay : netThang > 0 ? gmvThang / netThang : 0;
 
   const bySan = new Map();
-  for (const r of homNay) bySan.set(r.san, (bySan.get(r.san) || 0) + (r.thanh_tien || 0));
+  for (const r of homNay) {
+    const cur = bySan.get(r.san) || { vnd: 0, usd: 0 };
+    cur.vnd += r.thanh_tien || 0;
+    cur.usd += r.doanh_thu_usd || 0;
+    bySan.set(r.san, cur);
+  }
   const sanLines = [...bySan.entries()]
-    .filter(([, v]) => v > 0)
-    .sort((a, b) => b[1] - a[1])
-    .map(([san, v]) => `  • ${san}: ${fmtVnd(v)}`);
+    .filter(([, v]) => v.vnd > 0)
+    .sort((a, b) => b[1].vnd - a[1].vnd)
+    .map(([san, v]) => `  • ${san}: ${fmtVnd(v.vnd)} · ${fmtUsd(v.usd)}`);
 
   const lines = [
     `🤖 <b>CPV theo BE</b> — ${now.gio} ${ngay}`,
     '',
-    `📅 <b>Hôm nay ${ngay.slice(0, 5)}</b>: GMV <b>${fmtVnd(gmvNgay)}</b> · ${donNgay.toLocaleString('vi-VN')} đơn`,
+    `📅 <b>Hôm nay ${ngay.slice(0, 5)}</b>: GMV <b>${fmtVnd(gmvNgay)}</b> · nguyên tệ <b>${fmtUsd(usdNgay)}</b> · ${donNgay.toLocaleString('vi-VN')} đơn`,
   ];
+  if (tyGia > 0) lines.push(`💱 Tỷ giá quy đổi: <b>${Math.round(tyGia).toLocaleString('vi-VN')} đ/USDT</b>`);
   if (sanLines.length) {
-    lines.push('🏪 GMV theo sàn:');
+    lines.push('🏪 GMV theo sàn (VND · nguyên tệ):');
     lines.push(...sanLines);
   } else {
     lines.push('🏪 Chưa ghi nhận GMV trong hôm nay.');
   }
   lines.push('');
-  lines.push(`📈 <b>Lũy kế tháng ${thang}</b>: GMV <b>${fmtVnd(gmvThang)}</b> · ${donThang.toLocaleString('vi-VN')} đơn`);
+  lines.push(`📈 <b>Lũy kế tháng ${thang}</b>: GMV <b>${fmtVnd(gmvThang)}</b> · nguyên tệ <b>${fmtUsd(usdThang)}</b> · ${donThang.toLocaleString('vi-VN')} đơn`);
   lines.push(`🔗 bc-pkt.vercel.app/bao-cao/pkt8`);
   const text = lines.join('\n');
 
