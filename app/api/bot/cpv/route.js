@@ -2,7 +2,9 @@
    BOT bắn CPV theo BE qua Telegram — lịch gọi đặt ở GitHub Actions
    (.github/workflows/bot-cpv.yml, 10h · 15h · 18h · 21h · 23h giờ VN;
    không dùng Vercel Cron vì gói Hobby chỉ cho chạy 1 lần/ngày).
-   Nội dung: GMV hôm nay (tổng + theo sàn) và lũy kế tháng.
+   Nội dung: GMV hôm nay (tổng + theo sàn) và lũy kế tháng, kèm ảnh
+   biểu đồ GMV theo ngày (vẽ qua quickchart.io — Telegram tự tải URL ảnh,
+   nên server này không cần thư viện vẽ; ảnh lỗi thì lùi về tin chữ).
 
    Cấu hình env trên Vercel:
    - TELEGRAM_BOT_TOKEN: token bot từ @BotFather
@@ -122,6 +124,28 @@ export async function GET(request) {
   lines.push(`🔗 bc-pkt.vercel.app/bao-cao/pkt8`);
   const text = lines.join('\n');
 
+  /* Ảnh biểu đồ: GMV theo ngày trong tháng (triệu đ), cột màu xanh HQ */
+  const byDay = new Map();
+  for (const r of trongThang) {
+    const d = r.ngay.slice(0, 2);
+    byDay.set(d, (byDay.get(d) || 0) + (r.thanh_tien || 0));
+  }
+  const days = [...byDay.keys()].sort();
+  const chartCfg = {
+    type: 'bar',
+    data: {
+      labels: days,
+      datasets: [{ label: 'GMV (triệu đ)', data: days.map((d) => Math.round(byDay.get(d) / 1e6)), backgroundColor: '#189BD8' }],
+    },
+    options: {
+      plugins: {
+        title: { display: true, text: `GMV theo ngày — tháng ${thang} (triệu đ)`, font: { size: 16 } },
+        legend: { display: false },
+      },
+    },
+  };
+  const chartUrl = `https://quickchart.io/chart?w=900&h=420&format=png&bkg=white&c=${encodeURIComponent(JSON.stringify(chartCfg))}`;
+
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chatId || preview) {
@@ -129,18 +153,34 @@ export async function GET(request) {
       sent: false,
       reason: preview ? 'preview' : 'Chưa cấu hình TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID trên Vercel',
       message: text,
+      chart_url: chartUrl,
     });
   }
 
-  try {
-    const tg = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  const sendTg = async (method, payload) => {
+    const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+      body: JSON.stringify({ chat_id: chatId, ...payload }),
     });
-    const tgJson = await tg.json();
-    if (!tgJson.ok) throw new Error(tgJson.description || 'Telegram từ chối');
-    return Response.json({ sent: true });
+    return res.json();
+  };
+
+  try {
+    /* Ưu tiên gửi ảnh kèm caption (Telegram giới hạn caption 1024 ký tự);
+       ảnh/caption không gửi được thì lùi về tin nhắn chữ như cũ. */
+    let anh = false;
+    if (days.length && text.length <= 1000) {
+      anh = (await sendTg('sendPhoto', { photo: chartUrl, caption: text, parse_mode: 'HTML' })).ok === true;
+    }
+    if (!anh) {
+      const tgJson = await sendTg('sendMessage', { text, parse_mode: 'HTML', disable_web_page_preview: true });
+      if (!tgJson.ok) throw new Error(tgJson.description || 'Telegram từ chối');
+      if (days.length && text.length > 1000) {
+        anh = (await sendTg('sendPhoto', { photo: chartUrl, caption: `📊 GMV theo ngày — tháng ${thang}` })).ok === true;
+      }
+    }
+    return Response.json({ sent: true, anh });
   } catch (e) {
     return Response.json({ error: `Gửi Telegram lỗi: ${e.message}`, message: text }, { status: 502 });
   }
