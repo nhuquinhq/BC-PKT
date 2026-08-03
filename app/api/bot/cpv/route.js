@@ -128,17 +128,37 @@ export async function GET(request) {
   const sanRows = [...bySan.entries()]
     .filter(([, v]) => v.usd > 0 || v.don > 0)
     .sort((a, b) => b[1].usd - a[1].usd);
-  const chartCfg = {
+  /* Cấu hình gửi QuickChart ở dạng JS (không phải JSON) để nhúng được hàm:
+     nhãn tiền chỉ hiện trên 5 sàn doanh thu cao nhất (danh sách đã xếp giảm dần). */
+  const chartCfgStr = `{
     type: 'bar',
     data: {
-      labels: sanRows.map(([san]) => san),
+      labels: ${JSON.stringify(sanRows.map(([san]) => san))},
       datasets: [
-        { label: 'Doanh thu (USD)', data: sanRows.map(([, v]) => Math.round(v.usd)), backgroundColor: '#189BD8', yAxisID: 'A' },
-        { type: 'line', label: 'Số đơn', data: sanRows.map(([, v]) => v.don), borderColor: '#D96F00', pointBackgroundColor: '#D96F00', fill: false, lineTension: 0, yAxisID: 'B' },
+        {
+          label: 'Doanh thu (USD)',
+          data: ${JSON.stringify(sanRows.map(([, v]) => Math.round(v.usd)))},
+          backgroundColor: '#189BD8',
+          yAxisID: 'A',
+          datalabels: {
+            display: (c) => c.dataIndex < 5,
+            anchor: 'end', align: 'top', color: '#1B75BB',
+            font: { weight: 'bold', size: 12 },
+            formatter: (v) => '$' + String(v).replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.'),
+          },
+        },
+        {
+          type: 'line', label: 'Số đơn',
+          data: ${JSON.stringify(sanRows.map(([, v]) => v.don))},
+          borderColor: '#D96F00', pointBackgroundColor: '#D96F00',
+          fill: false, lineTension: 0, yAxisID: 'B',
+          datalabels: { display: false },
+        },
       ],
     },
     options: {
-      title: { display: true, text: `Doanh thu USD & số đơn theo sàn — ${scopeLabel}`, fontSize: 16 },
+      layout: { padding: { top: 28 } },
+      title: { display: true, text: ${JSON.stringify(`Doanh thu USD & số đơn theo sàn — ${scopeLabel}`)}, fontSize: 16 },
       legend: { display: true, position: 'bottom' },
       scales: {
         yAxes: [
@@ -147,8 +167,19 @@ export async function GET(request) {
         ],
       },
     },
-  };
-  const chartUrl = `https://quickchart.io/chart?w=900&h=420&format=png&bkg=white&c=${encodeURIComponent(JSON.stringify(chartCfg))}`;
+  }`;
+  /* Đổi sang link ngắn qua QuickChart (URL dài dễ vượt giới hạn của Telegram);
+     tạo link ngắn lỗi thì vẫn dùng URL dài. */
+  let chartUrl = `https://quickchart.io/chart?w=900&h=420&format=png&bkg=white&c=${encodeURIComponent(chartCfgStr)}`;
+  try {
+    const qc = await fetch('https://quickchart.io/chart/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chart: chartCfgStr, width: 900, height: 420, format: 'png', backgroundColor: 'white' }),
+    });
+    const qcJson = await qc.json();
+    if (qcJson?.success && qcJson.url) chartUrl = qcJson.url;
+  } catch {}
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
