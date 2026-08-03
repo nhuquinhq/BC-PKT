@@ -13,7 +13,7 @@ const REFRESH_MS = 60 * 1000;
 
 const sum = (rows, k) => rows.reduce((t, r) => t + (r[k] || 0), 0);
 
-const NUM_KEYS = ['so_don', 'don_fail', 'don_huy', 'doanh_thu_usd', 'phi_san', 'phi_san_vnd', 'dthu_thuc', 'thanh_tien', 'gia_von', 'loi_nhuan'];
+const NUM_KEYS = ['so_don', 'don_fail', 'don_huy', 'nc_don', 'nc_gmv', 'doanh_thu_usd', 'phi_san', 'phi_san_vnd', 'dthu_thuc', 'thanh_tien', 'gia_von', 'loi_nhuan'];
 
 /* Tiêu chí KQKD: GMV = Thành tiền · PL1 = Lợi nhuận (GMV − Giá vốn) ·
    PL2A = PL1 − phí sàn quy VND · ARPO = GMV / số đơn A3 */
@@ -53,6 +53,7 @@ function groupBy(rows, keyFn, labelKeys) {
     ...r,
     ty_le_co: r.thanh_tien ? (r.gia_von / r.thanh_tien) * 100 : null,
     bien_ln: r.thanh_tien ? (r.loi_nhuan / r.thanh_tien) * 100 : null,
+    ti_le_nc: r.so_don ? (r.nc_don / r.so_don) * 100 : null,
   }));
 }
 
@@ -176,6 +177,10 @@ export default function CpvBoard({ report, sheet, onLive, range }) {
       doanh_thu_usd: sum(rows, 'doanh_thu_usd'),
       don_fail: sum(rows, 'don_fail'),
       don_huy: sum(rows, 'don_huy'),
+      /* KPI đơn chưa có giá vốn (PKT10) */
+      nc_don: sum(rows, 'nc_don'),
+      nc_gmv: sum(rows, 'nc_gmv'),
+      ti_le_nc: sum(rows, 'so_don') ? (sum(rows, 'nc_don') / sum(rows, 'so_don')) * 100 : null,
       /* KPI đối soát (PKT9) */
       so_don_dh: sum(dhRows, 'so_don'),
       so_don_api_file: apiAgg[0]?.so_don || 0,
@@ -214,7 +219,7 @@ export default function CpvBoard({ report, sheet, onLive, range }) {
   if (m?.main_error) {
     return (
       <div className="notice-amber" style={{ marginBottom: 18 }}>
-        Số liệu đang hiển thị <b>thiếu file tháng trước của module Quản lý đơn hàng</b> — lỗi đọc: {m.main_error}
+        Số liệu đang hiển thị <b>thiếu một phần file Quản lý đơn hàng</b> (file tháng mới có thể chưa có dữ liệu) — lỗi đọc: {m.main_error}
       </div>
     );
   }

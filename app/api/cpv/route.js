@@ -209,6 +209,8 @@ function aggregate(rows) {
         so_don: 0,
         don_fail: 0,
         don_huy: 0,
+        nc_don: 0,
+        nc_gmv: 0,
         doanh_thu_usd: 0,
         phi_san: 0,
         phi_san_vnd: 0,
@@ -223,6 +225,7 @@ function aggregate(rows) {
     if (r.sc === 'fail') { a.don_fail += 1; continue; }
     if (r.sc === 'huy') { a.don_huy += 1; continue; }
     a.so_don += 1;
+    if (r.nc) { a.nc_don += 1; a.nc_gmv += r.thanh_tien; }
     a.doanh_thu_usd += r.doanh_thu_usd;
     a.phi_san += r.phi_san;
     a.phi_san_vnd += r.phi_san_vnd;
@@ -258,16 +261,22 @@ export async function GET(request) {
         .catch((e) => ({ err: e }))
     )
   );
+  let mainOkCount = 0;
   for (let i = 0; i < loaded.length; i++) {
     try {
       if (loaded[i].err) throw loaded[i].err;
       const p = parseOrders(loaded[i].grid);
-      if (i === 0) mainMeta = p.meta;
+      if (!mainOkCount) mainMeta = p.meta;
+      mainOkCount += 1;
       mainRows = mainRows.concat(p.rows);
     } catch (e) {
-      if (i === 0) return Response.json({ error: `File tổng hợp: ${e.message}` }, { status: 502 });
       mainErrors.push(`file ${i + 1}: ${e.message}`);
     }
+  }
+  /* Chỉ chặn khi KHÔNG đọc được file nào; 1 file lỗi (vd file tháng mới
+     chưa có dữ liệu) thì cảnh báo vàng và vẫn chạy các file còn lại */
+  if (!mainOkCount) {
+    return Response.json({ error: `File tổng hợp: ${mainErrors.join(' · ')}` }, { status: 502 });
   }
 
   /* File API từ sàn (chỉ G1/G2): file BE ƯU TIÊN vì đã đối soát;
@@ -408,21 +417,27 @@ export async function GET(request) {
     bu: r.bu || sanBu.get(r.san) || SAN_BU_MAP[r.san] || (r.san.match(/^[A-Za-z]+/)?.[0] || r.san).toUpperCase(),
   }));
 
-  /* PKT10 — đơn chưa tìm được giá vốn: chỉ đơn Hoàn Tất có doanh thu mà giá vốn = 0.
-     Trả kèm danh sách từng đơn để PKT xử lý bóc vốn (chỉ các tháng đang đọc live). */
+  /* Đánh dấu đơn CHƯA TÌM ĐƯỢC GIÁ VỐN (PKT10): đơn BE Hoàn Tất có doanh thu
+     mà Giá Vốn = 0 — đếm song song với tổng để tính tỉ lệ đơn không CO / tổng. */
+  all = all.map((r) => ({
+    ...r,
+    nc: r.nguon === 'dh' && r.sc === 'ok' && r.thanh_tien > 0 && !r.gia_von ? 1 : 0,
+  }));
   let noCostList = null;
   if (nocost) {
-    all = all.filter((r) => r.nguon === 'dh' && r.sc === 'ok' && r.thanh_tien > 0 && !r.gia_von);
-    noCostList = all.slice(0, 3000).map((r) => ({
-      order_id: r.id,
-      san: r.san,
-      bu: r.bu,
-      spdv: r.spdv,
-      ngay: r.ngay,
-      sortKey: r.sortKey,
-      doanh_thu_usd: r.doanh_thu_usd,
-      thanh_tien: r.thanh_tien,
-    }));
+    noCostList = all
+      .filter((r) => r.nc)
+      .slice(0, 3000)
+      .map((r) => ({
+        order_id: r.id,
+        san: r.san,
+        bu: r.bu,
+        spdv: r.spdv,
+        ngay: r.ngay,
+        sortKey: r.sortKey,
+        doanh_thu_usd: r.doanh_thu_usd,
+        thanh_tien: r.thanh_tien,
+      }));
   }
 
   /* hist=1: nối thêm các tháng đã chốt từ datalake tĩnh */

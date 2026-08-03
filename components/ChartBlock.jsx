@@ -37,6 +37,10 @@ const SERIES_COLORS = {
   don_huy: '#00A99D',
   ti_le_fail: '#D96F00',
   ti_le_huy: '#00A99D',
+  /* PKT10: đơn chưa tìm được giá vốn */
+  nc_don: '#D96F00',
+  nc_gmv: '#D96F00',
+  ti_le_nc: '#D96F00',
 };
 
 const colorOf = (key, i) => SERIES_COLORS[key] || COLORS[i % COLORS.length];
