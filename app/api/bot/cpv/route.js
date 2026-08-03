@@ -2,10 +2,13 @@
    BOT bắn CPV theo BE qua Telegram — lịch gọi đặt ở GitHub Actions
    (.github/workflows/bot-cpv.yml, 10h · 15h · 18h · 21h · 23h giờ VN;
    không dùng Vercel Cron vì gói Hobby chỉ cho chạy 1 lần/ngày).
-   Nội dung: GMV hôm nay và lũy kế tháng, kèm ảnh biểu đồ so sánh các
-   sàn (cột = doanh thu USD, đường = số đơn; vẽ qua quickchart.io —
-   Telegram tự tải URL ảnh nên server này không cần thư viện vẽ;
-   ảnh lỗi thì lùi về tin chữ).
+   Mỗi lần bắn 2 tin, mỗi tin kèm 1 ảnh biểu đồ:
+   1) CPV tổng: số hôm nay + lũy kế tháng; ảnh GMV theo ngày (cột)
+      và đường lũy kế trong tháng.
+   2) CPV theo sàn: top 5 sàn GMV hôm nay; ảnh so sánh GMV USD các
+      sàn lũy kế tháng (nhãn tiền trên 5 sàn cao nhất).
+   Ảnh vẽ qua quickchart.io (Telegram tự tải URL ảnh nên server
+   không cần thư viện vẽ; ảnh lỗi thì lùi về tin chữ).
 
    Cấu hình env trên Vercel:
    - TELEGRAM_BOT_TOKEN: token bot từ @BotFather
@@ -96,6 +99,7 @@ export async function GET(request) {
   /* Tỷ giá USDT/VND đang áp = Thành tiền ÷ DThu thực nhận (tỷ giá tuần trên file BE) */
   const tyGia = netNgay > 0 ? gmvNgay / netNgay : netThang > 0 ? gmvThang / netThang : 0;
 
+  /* ---------- Tin 1: Báo cáo CPV tổng ---------- */
   const lines = [
     `🤖 <b>Báo cáo CPV theo BE</b> — ${now.gio} ${ngay}`,
     '',
@@ -111,33 +115,71 @@ export async function GET(request) {
   lines.push(`GMV (VND): <b>${fmtVnd(gmvThang)}</b>`);
   lines.push(`Số đơn: <b>${donThang.toLocaleString('vi-VN')} đơn</b>`);
   lines.push(`🔗 bc-pkt.vercel.app/bao-cao/pkt8`);
-  const text = lines.join('\n');
+  const text1 = lines.join('\n');
 
-  /* Ảnh biểu đồ: so sánh các sàn xếp theo doanh thu USD giảm dần —
-     cột xanh HQ = doanh thu USD (trục trái), đường cam = số đơn (trục phải).
-     Hôm nay chưa có số thì vẽ theo lũy kế tháng. */
-  const scopeRows = homNay.length ? homNay : trongThang;
-  const scopeLabel = homNay.length ? `hôm nay ${ngay.slice(0, 5)}` : `lũy kế tháng ${thang}`;
-  const bySan = new Map();
-  for (const r of scopeRows) {
-    const cur = bySan.get(r.san) || { usd: 0, don: 0 };
-    cur.usd += r.doanh_thu_usd || 0;
-    cur.don += r.so_don || 0;
-    bySan.set(r.san, cur);
-  }
-  const sanRows = [...bySan.entries()]
-    .filter(([, v]) => v.usd > 0 || v.don > 0)
-    .sort((a, b) => b[1].usd - a[1].usd);
-  /* Cấu hình gửi QuickChart ở dạng JS (không phải JSON) để nhúng được hàm:
-     nhãn tiền chỉ hiện trên 5 sàn doanh thu cao nhất (danh sách đã xếp giảm dần). */
-  const chartCfgStr = `{
+  /* Ảnh 1: GMV theo ngày (cột) + đường lũy kế trong tháng (triệu đ) */
+  const byDay = new Map();
+  for (const r of trongThang) byDay.set(r.ngay, (byDay.get(r.ngay) || 0) + (r.thanh_tien || 0));
+  const dayKeys = [...byDay.keys()].sort(); /* cùng 1 tháng nên so chuỗi dd/mm/yyyy là đúng thứ tự */
+  const gmvTheoNgay = dayKeys.map((d) => Math.round(byDay.get(d) / 1e6));
+  let luyKe = 0;
+  const luyKeTheoNgay = gmvTheoNgay.map((v) => (luyKe += v));
+  const chart1Cfg = {
     type: 'bar',
     data: {
-      labels: ${JSON.stringify(sanRows.map(([san]) => san))},
+      labels: dayKeys.map((d) => d.slice(0, 5)),
+      datasets: [
+        { label: 'GMV ngày (triệu đ)', data: gmvTheoNgay, backgroundColor: '#189BD8', yAxisID: 'A' },
+        { type: 'line', label: 'Lũy kế (triệu đ)', data: luyKeTheoNgay, borderColor: '#00A651', pointBackgroundColor: '#00A651', fill: false, lineTension: 0, yAxisID: 'B' },
+      ],
+    },
+    options: {
+      title: { display: true, text: `GMV theo ngày & lũy kế — tháng ${thang} (triệu đ)`, fontSize: 16 },
+      legend: { display: true, position: 'bottom' },
+      scales: {
+        yAxes: [
+          { id: 'A', position: 'left', ticks: { beginAtZero: true } },
+          { id: 'B', position: 'right', ticks: { beginAtZero: true }, gridLines: { drawOnChartArea: false } },
+        ],
+      },
+    },
+  };
+
+  /* ---------- Tin 2: Báo cáo CPV theo sàn ---------- */
+  const gomTheoSan = (rows) => {
+    const m = new Map();
+    for (const r of rows) {
+      const cur = m.get(r.san) || { usd: 0, don: 0 };
+      cur.usd += r.doanh_thu_usd || 0;
+      cur.don += r.so_don || 0;
+      m.set(r.san, cur);
+    }
+    return [...m.entries()].filter(([, v]) => v.usd > 0 || v.don > 0).sort((a, b) => b[1].usd - a[1].usd);
+  };
+  const sanNgay = gomTheoSan(homNay);
+  const sanThang = gomTheoSan(trongThang);
+
+  const lines2 = [`🏪 <b>Báo cáo CPV theo sàn</b> — ${now.gio} ${ngay}`, ''];
+  if (sanNgay.length) {
+    lines2.push(`🏆 <b>Top 5 sàn GMV hôm nay ${ngay.slice(0, 5)}:</b>`);
+    sanNgay.slice(0, 5).forEach(([san, v], i) => {
+      lines2.push(`${i + 1}. ${san}: <b>${fmtUsd(v.usd)}</b> · ${v.don.toLocaleString('vi-VN')} đơn`);
+    });
+  } else {
+    lines2.push('Chưa ghi nhận GMV trong hôm nay.');
+  }
+  const text2 = lines2.join('\n');
+
+  /* Ảnh 2: GMV USD các sàn lũy kế tháng — cấu hình gửi QuickChart ở dạng JS
+     (không phải JSON) để nhúng được hàm: nhãn tiền chỉ hiện trên 5 sàn cao nhất. */
+  const chart2CfgStr = `{
+    type: 'bar',
+    data: {
+      labels: ${JSON.stringify(sanThang.map(([san]) => san))},
       datasets: [
         {
-          label: 'Doanh thu (USD)',
-          data: ${JSON.stringify(sanRows.map(([, v]) => Math.round(v.usd)))},
+          label: 'GMV tháng (USD)',
+          data: ${JSON.stringify(sanThang.map(([, v]) => Math.round(v.usd)))},
           backgroundColor: '#189BD8',
           yAxisID: 'A',
           datalabels: {
@@ -148,8 +190,8 @@ export async function GET(request) {
           },
         },
         {
-          type: 'line', label: 'Số đơn',
-          data: ${JSON.stringify(sanRows.map(([, v]) => v.don))},
+          type: 'line', label: 'Số đơn tháng',
+          data: ${JSON.stringify(sanThang.map(([, v]) => v.don))},
           borderColor: '#D96F00', pointBackgroundColor: '#D96F00',
           fill: false, lineTension: 0, yAxisID: 'B',
           datalabels: { display: false },
@@ -158,7 +200,7 @@ export async function GET(request) {
     },
     options: {
       layout: { padding: { top: 28 } },
-      title: { display: true, text: ${JSON.stringify(`Doanh thu USD & số đơn theo sàn — ${scopeLabel}`)}, fontSize: 16 },
+      title: { display: true, text: ${JSON.stringify(`GMV USD theo sàn — lũy kế tháng ${thang}`)}, fontSize: 16 },
       legend: { display: true, position: 'bottom' },
       scales: {
         yAxes: [
@@ -168,18 +210,25 @@ export async function GET(request) {
       },
     },
   }`;
-  /* Đổi sang link ngắn qua QuickChart (URL dài dễ vượt giới hạn của Telegram);
+
+  /* Link ảnh: ưu tiên link ngắn của QuickChart (URL dài dễ vượt giới hạn Telegram);
      tạo link ngắn lỗi thì vẫn dùng URL dài. */
-  let chartUrl = `https://quickchart.io/chart?w=900&h=420&format=png&bkg=white&c=${encodeURIComponent(chartCfgStr)}`;
-  try {
-    const qc = await fetch('https://quickchart.io/chart/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chart: chartCfgStr, width: 900, height: 420, format: 'png', backgroundColor: 'white' }),
-    });
-    const qcJson = await qc.json();
-    if (qcJson?.success && qcJson.url) chartUrl = qcJson.url;
-  } catch {}
+  const toChartUrl = async (cfg) => {
+    const chart = typeof cfg === 'string' ? cfg : JSON.stringify(cfg);
+    let url = `https://quickchart.io/chart?w=900&h=420&format=png&bkg=white&c=${encodeURIComponent(chart)}`;
+    try {
+      const qc = await fetch('https://quickchart.io/chart/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chart, width: 900, height: 420, format: 'png', backgroundColor: 'white' }),
+      });
+      const qcJson = await qc.json();
+      if (qcJson?.success && qcJson.url) url = qcJson.url;
+    } catch {}
+    return url;
+  };
+  const chart1Url = dayKeys.length ? await toChartUrl(chart1Cfg) : null;
+  const chart2Url = sanThang.length ? await toChartUrl(chart2CfgStr) : null;
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -187,8 +236,10 @@ export async function GET(request) {
     return Response.json({
       sent: false,
       reason: preview ? 'preview' : 'Chưa cấu hình TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID trên Vercel',
-      message: text,
-      chart_url: chartUrl,
+      message: text1,
+      message2: text2,
+      chart_url: chart1Url,
+      chart2_url: chart2Url,
     });
   }
 
@@ -201,22 +252,28 @@ export async function GET(request) {
     return res.json();
   };
 
+  /* Gửi 1 tin: ưu tiên ảnh kèm caption (Telegram giới hạn caption 1024 ký tự);
+     ảnh lỗi thì lùi về tin chữ, caption quá dài thì gửi chữ trước ảnh sau. */
+  const guiTin = async (text, chartUrl, tenAnh) => {
+    if (chartUrl && text.length <= 1000) {
+      const r = await sendTg('sendPhoto', { photo: chartUrl, caption: text, parse_mode: 'HTML' });
+      if (r.ok) return { ok: true, anh: true };
+    }
+    const r2 = await sendTg('sendMessage', { text, parse_mode: 'HTML', disable_web_page_preview: true });
+    if (!r2.ok) return { ok: false, loi: r2.description || 'Telegram từ chối' };
+    if (chartUrl && text.length > 1000) {
+      const r3 = await sendTg('sendPhoto', { photo: chartUrl, caption: tenAnh });
+      return { ok: true, anh: r3.ok === true };
+    }
+    return { ok: true, anh: false };
+  };
+
   try {
-    /* Ưu tiên gửi ảnh kèm caption (Telegram giới hạn caption 1024 ký tự);
-       ảnh/caption không gửi được thì lùi về tin nhắn chữ như cũ. */
-    let anh = false;
-    if (sanRows.length && text.length <= 1000) {
-      anh = (await sendTg('sendPhoto', { photo: chartUrl, caption: text, parse_mode: 'HTML' })).ok === true;
-    }
-    if (!anh) {
-      const tgJson = await sendTg('sendMessage', { text, parse_mode: 'HTML', disable_web_page_preview: true });
-      if (!tgJson.ok) throw new Error(tgJson.description || 'Telegram từ chối');
-      if (sanRows.length && text.length > 1000) {
-        anh = (await sendTg('sendPhoto', { photo: chartUrl, caption: `📊 GMV theo ngày — tháng ${thang}` })).ok === true;
-      }
-    }
-    return Response.json({ sent: true, anh });
+    const tin1 = await guiTin(text1, chart1Url, `📊 GMV theo ngày & lũy kế — tháng ${thang}`);
+    const tin2 = await guiTin(text2, chart2Url, `📊 GMV USD theo sàn — tháng ${thang}`);
+    if (!tin1.ok || !tin2.ok) throw new Error(tin1.loi || tin2.loi || 'Telegram từ chối');
+    return Response.json({ sent: true, tin1, tin2 });
   } catch (e) {
-    return Response.json({ error: `Gửi Telegram lỗi: ${e.message}`, message: text }, { status: 502 });
+    return Response.json({ error: `Gửi Telegram lỗi: ${e.message}`, message: text1 }, { status: 502 });
   }
 }
