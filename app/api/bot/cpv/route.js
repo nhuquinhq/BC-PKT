@@ -1,6 +1,7 @@
 /* ============================================================
-   BOT bắn CPV theo BE qua Telegram — chạy theo lịch Vercel Cron
-   (10h · 15h · 18h · 21h · 23h giờ VN, khai báo trong vercel.json).
+   BOT bắn CPV theo BE qua Telegram — lịch gọi đặt ở GitHub Actions
+   (.github/workflows/bot-cpv.yml, 10h · 15h · 18h · 21h · 23h giờ VN;
+   không dùng Vercel Cron vì gói Hobby chỉ cho chạy 1 lần/ngày).
    Nội dung: GMV hôm nay (tổng + theo sàn) và lũy kế tháng.
 
    Cấu hình env trên Vercel:

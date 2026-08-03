@@ -1,9 +1,3 @@
 {
-  "framework": "nextjs",
-  "crons": [
-    {
-      "path": "/api/bot/cpv",
-      "schedule": "0 3,8,11,14,16 * * *"
-    }
-  ]
+  "framework": "nextjs"
 }

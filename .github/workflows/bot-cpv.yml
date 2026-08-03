@@ -1,0 +1,23 @@
+# Đồng hồ hẹn giờ cho bot CPV Telegram: gọi endpoint trên Vercel theo
+# 5 khung giờ VN 10h·15h·18h·21h·23h (cron của GitHub tính theo UTC).
+# Dùng GitHub Actions vì Vercel gói Hobby chỉ cho cron chạy 1 lần/ngày.
+name: Bot CPV Telegram
+
+on:
+  schedule:
+    - cron: '0 3,8,11,14,16 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ban-cpv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Goi endpoint bot
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -m 90 "https://bc-pkt.vercel.app/api/bot/cpv") && [ "$code" = "200" ] && break
+            echo "Lan $i loi (HTTP $code), thu lai sau 30s..."; cat /tmp/resp.json || true; sleep 30
+          done
+          cat /tmp/resp.json
+          [ "$code" = "200" ]
