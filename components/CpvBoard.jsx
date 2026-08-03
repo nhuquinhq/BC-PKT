@@ -82,7 +82,7 @@ export default function CpvBoard({ report, sheet, onLive, range }) {
       const res = await fetch(`${cfg.endpoint || '/api/cpv'}?${qs}`, { cache: 'no-store' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Không đọc được dữ liệu');
-      setState({ status: 'ok', detail: json.detail, apiFile: json.api_file || [], dupList: json.dup_list || [], meta: json.meta, at: new Date() });
+      setState({ status: 'ok', detail: json.detail, apiFile: json.api_file || [], dupList: json.dup_list || [], ncList: json.no_cost_list || [], meta: json.meta, at: new Date() });
     } catch (e) {
       setState((s) => ({ ...s, status: 'err', error: e.message }));
     }
@@ -134,6 +134,9 @@ export default function CpvBoard({ report, sheet, onLive, range }) {
     /* Danh sách đơn trùng giữa 2 module (đã khử trong báo cáo) — để PKT đối chiếu */
     const dup_don = (state.dupList || []).filter(inRange);
 
+    /* PKT10: danh sách từng đơn chưa tìm được giá vốn (gắn Team từ BU) */
+    const nc_don = (state.ncList || []).filter(inRange).map((r) => ({ ...r, team: teamOf(r.bu) }));
+
     /* Đối soát NGUYÊN TỆ theo tháng × module: dọc tháng, ngang 2 module (USD gốc từng file) */
     const mt = new Map();
     const mtGet = (t) => {
@@ -179,7 +182,7 @@ export default function CpvBoard({ report, sheet, onLive, range }) {
       don_trung: dup_don.length,
       lech_trung_usd: dup_don.reduce((t, r) => t + (r.lech || 0), 0),
     };
-    return { tables: { cpv_ngay, cpv_thang, cpv_san, cpv_bu, kqkd_team, kqkd_spdv, don_team, don_spdv, nguon_module, module_thang, dup_don }, kpis };
+    return { tables: { cpv_ngay, cpv_thang, cpv_san, cpv_bu, kqkd_team, kqkd_spdv, don_team, don_spdv, nguon_module, module_thang, dup_don, nc_don }, kpis };
   }, [state.detail, state.status, range, cfg.teamFilter]);
 
   useEffect(() => {

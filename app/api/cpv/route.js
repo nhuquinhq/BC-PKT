@@ -244,6 +244,8 @@ export async function GET(request) {
   const url2s = searchParams.getAll('url2');
   const gid2s = searchParams.getAll('gid2');
   const san2 = searchParams.get('san2') || ''; // sàn mặc định cho file API nếu thiếu cột Sàn
+  /* nocost=1 (PKT10): chỉ giữ đơn Hoàn Tất CHƯA TÌM ĐƯỢC GIÁ VỐN (có doanh thu, giá vốn = 0) */
+  const nocost = searchParams.get('nocost') === '1';
   if (!urls.length) return Response.json({ error: 'Thiếu url' }, { status: 400 });
 
   let mainRows = [];
@@ -401,10 +403,27 @@ export async function GET(request) {
      nguon: module gốc của đơn — dh (Quản lý đơn hàng) / api (file API sàn). */
   const sanBu = new Map();
   for (const r of mainRows) if (r.bu && !sanBu.has(r.san)) sanBu.set(r.san, r.bu);
-  const all = [...mainRows.map((r) => ({ ...r, nguon: 'dh' })), ...apiRows.map((r) => ({ ...r, nguon: 'api' }))].map((r) => ({
+  let all = [...mainRows.map((r) => ({ ...r, nguon: 'dh' })), ...apiRows.map((r) => ({ ...r, nguon: 'api' }))].map((r) => ({
     ...r,
     bu: r.bu || sanBu.get(r.san) || SAN_BU_MAP[r.san] || (r.san.match(/^[A-Za-z]+/)?.[0] || r.san).toUpperCase(),
   }));
+
+  /* PKT10 — đơn chưa tìm được giá vốn: chỉ đơn Hoàn Tất có doanh thu mà giá vốn = 0.
+     Trả kèm danh sách từng đơn để PKT xử lý bóc vốn (chỉ các tháng đang đọc live). */
+  let noCostList = null;
+  if (nocost) {
+    all = all.filter((r) => r.nguon === 'dh' && r.sc === 'ok' && r.thanh_tien > 0 && !r.gia_von);
+    noCostList = all.slice(0, 3000).map((r) => ({
+      order_id: r.id,
+      san: r.san,
+      bu: r.bu,
+      spdv: r.spdv,
+      ngay: r.ngay,
+      sortKey: r.sortKey,
+      doanh_thu_usd: r.doanh_thu_usd,
+      thanh_tien: r.thanh_tien,
+    }));
+  }
 
   /* hist=1: nối thêm các tháng đã chốt từ datalake tĩnh */
   const useHist = searchParams.get('hist') === '1';
@@ -441,6 +460,7 @@ export async function GET(request) {
     detail,
     api_file: apiFileOut,
     dup_list: dupOut,
+    no_cost_list: noCostList || undefined,
     meta: {
       ...mainMeta,
       rows_used: okRows.length + histOk,
