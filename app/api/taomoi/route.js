@@ -79,6 +79,7 @@ function parseTaoMoi(grid) {
     ngay_tao: headers.indexOf('ngay tao'),
     trang_thai: headers.indexOf('trang thai'),
     loai_don: headers.indexOf('loai don'),
+    nguon: headers.indexOf('nguon'), /* cột W "Nguồn" — nguồn NCC (vd RBX) */
     gia_von: giaVonIdx[0] ?? -1, /* cột X "Giá vốn" (USD) — bỏ cột AA "(auto/thủ công)" vì không trùng tên chính xác */
   };
 
@@ -100,6 +101,7 @@ function parseTaoMoi(grid) {
         loai_don: String(r[col.loai_don] ?? '').trim() || '—',
         ngay: `${dt.d}/${dt.m}/${dt.y}`,
         sortKey: `${dt.y}${dt.m}${dt.d}`,
+        nguon_ncc: '',
         doanh_thu_usd: 0,
         gia_von: 0,
       });
@@ -107,6 +109,8 @@ function parseTaoMoi(grid) {
     const o = orders.get(id);
     o.doanh_thu_usd += col.doanh_thu >= 0 ? viNum(r[col.doanh_thu]) : 0;
     o.gia_von += col.gia_von >= 0 ? viNum(r[col.gia_von]) : 0;
+    /* Nguồn NCC nằm rải trên dòng bất kỳ của đơn — lấy giá trị đầu tiên có */
+    if (!o.nguon_ncc && col.nguon >= 0) o.nguon_ncc = String(r[col.nguon] ?? '').trim().toUpperCase();
   }
   return [...orders.values()];
 }
@@ -151,6 +155,7 @@ export async function GET(request) {
         bu: '',
         spdv: nhom,
         loai_don: o.loai_don,
+        nguon_ncc: o.nguon_ncc || '—',
         co0: co0 ? 'CO = 0' : '',
         ngay: o.ngay,
         sortKey: o.sortKey,
