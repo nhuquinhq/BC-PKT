@@ -638,6 +638,17 @@ table.tbl .sort-arrow { font-size: 9px; }
   color: #0f172a; background: #fff; outline: none;
 }
 .pm-mail:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+/* Ô tìm nhanh trong dropdown chọn trang */
+.pm-pop .pm-search {
+  display: block;
+  width: calc(100% - 16px);
+  margin: 8px;
+  border: 1px solid #cbd5e1; border-radius: 8px;
+  padding: 7px 10px;
+  font-family: var(--f-mono); font-size: 12.5px;
+  color: #0f172a; background: #fff; outline: none;
+}
+.pm-pop .pm-search:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
 .pm-pending .pm-acc { flex: 1; min-width: 200px; }
 
 table.pm-table { width: 100%; border-collapse: collapse; }

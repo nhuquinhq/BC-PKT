@@ -7,6 +7,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthGate';
 import { PAGES, ROLE_LABEL, ROLE_DEFAULT_PAGES } from '@/lib/authConfig';
+import { TEAM_MAP, TEAM_SAN_MAP } from '@/lib/cpvDims';
+
+/* Sàn → {bu, team} để hiện "BU2 · SÀN FP1" và tìm theo BU trong dropdown */
+const TEAM_BU = {};
+for (const [bu, team] of Object.entries(TEAM_MAP)) if (/^BU\d+$/.test(bu) && !TEAM_BU[team]) TEAM_BU[team] = bu;
+const SAN_INFO = {};
+for (const [team, sans] of Object.entries(TEAM_SAN_MAP)) for (const s of sans) SAN_INFO[s] = { team, bu: TEAM_BU[team] || '' };
+
+const sanOf = (code) => (code.startsWith('SÀN ') ? code.slice(4) : null);
+const normQ = (s) =>
+  String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd');
 
 const initials = (email) => (email || '?').slice(0, 2).toUpperCase();
 const AVATAR_COLORS = ['#7c3aed', '#dc2626', '#b45309', '#2563eb', '#0d9488', '#db2777', '#4f46e5'];
@@ -166,9 +181,12 @@ function RoleSelect({ value, onChange }) {
 
 /* Dropdown tick báo cáo — giống ô multiselect của PVH.
    simple=true (chế độ leader): chỉ tick từng trang trong `options`,
-   không có ALL / mặc định vai trò. */
+   không có ALL / mặc định vai trò.
+   Trang SÀN hiện "BU2 · SÀN FP1", xếp theo BU; ô tìm nhận cả mã BU/team
+   (gõ "bu2" ra đủ sàn BU2) + nút tick hết kết quả đang lọc. */
 function PagesDropdown({ value, onChange, options = PAGES, simple = false }) {
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
   const wrapRef = useRef(null);
 
   useEffect(() => {
@@ -184,38 +202,82 @@ function PagesDropdown({ value, onChange, options = PAGES, simple = false }) {
     onChange(base.includes(code) ? base.filter((c) => c !== code) : [...base, code]);
   };
 
+  /* Trang thường giữ nguyên thứ tự, trang SÀN dồn cuối và xếp theo BU */
+  const sortKey = (p) => {
+    const san = sanOf(p.code);
+    if (!san) return null;
+    const info = SAN_INFO[san];
+    return info ? `${info.bu}-${san}` : `ZZZ-${san}`;
+  };
+  const sorted = [...options].sort((a, b) => {
+    const ka = sortKey(a);
+    const kb = sortKey(b);
+    if (!ka && !kb) return 0;
+    if (!ka) return -1;
+    if (!kb) return 1;
+    return ka.localeCompare(kb);
+  });
+  const dispCode = (p) => {
+    const info = SAN_INFO[sanOf(p.code) || ''];
+    return info ? `${info.bu} · ${p.code}` : p.code;
+  };
+  const dispLabel = (p) => {
+    const info = SAN_INFO[sanOf(p.code) || ''];
+    return info ? info.team : p.label;
+  };
+  const hay = (p) => {
+    const info = SAN_INFO[sanOf(p.code) || ''];
+    return normQ(`${p.code} ${p.label} ${info ? `${info.bu} ${info.team}` : ''}`);
+  };
+  const shownOpts = q.trim() ? sorted.filter((p) => hay(p).includes(normQ(q))) : sorted;
+  const tickAllShown = () => {
+    const base = Array.isArray(value) ? [...value] : value === 'all' ? options.map((p) => p.code) : [];
+    onChange([...new Set([...base, ...shownOpts.map((p) => p.code)])]);
+  };
+
   const label = simple && (value == null || (Array.isArray(value) && !value.length))
     ? '— chọn sàn cho nhân viên —'
     : pagesText(value);
 
   return (
     <div className="pm-pages" ref={wrapRef}>
-      <button type="button" className="pm-pages-btn" onClick={() => setOpen(!open)}>
+      <button type="button" className="pm-pages-btn" onClick={() => { setOpen(!open); setQ(''); }}>
         <span>{label}</span><i>▾</i>
       </button>
       {open ? (
         <div className="pm-pop">
+          <input
+            className="pm-search"
+            placeholder="Tìm nhanh: gõ BU2 / HQS200 / FP…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            autoFocus
+          />
           <div className="pm-pop-actions">
+            {q.trim() && shownOpts.length ? (
+              <button type="button" onClick={tickAllShown}>✓ Tick hết {shownOpts.length} kết quả</button>
+            ) : null}
             {!simple ? <button type="button" onClick={() => onChange('all')}>Chọn tất cả</button> : null}
             <button type="button" onClick={() => onChange([])}>Bỏ chọn</button>
             {!simple ? <button type="button" onClick={() => onChange(null)}>Mặc định vai trò</button> : null}
           </div>
-          {!simple ? (
+          {!simple && !q.trim() ? (
             <label className="pm-check">
               <input type="checkbox" checked={value === 'all'} onChange={() => onChange(value === 'all' ? [] : 'all')} />
               <b>ALL</b><span>Tất cả báo cáo</span>
             </label>
           ) : null}
-          {options.map((p) => (
+          {shownOpts.map((p) => (
             <label key={p.code} className="pm-check">
               <input
                 type="checkbox"
                 checked={value === 'all' || arr.includes(p.code)}
                 onChange={() => toggle(p.code)}
               />
-              <b>{p.code}</b><span>{p.label}</span>
+              <b>{dispCode(p)}</b><span>{dispLabel(p)}</span>
             </label>
           ))}
+          {!shownOpts.length ? <div className="pm-muted" style={{ padding: '8px 12px' }}>Không có trang nào khớp “{q}”.</div> : null}
         </div>
       ) : null}
     </div>
