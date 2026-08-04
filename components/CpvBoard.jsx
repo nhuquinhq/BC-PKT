@@ -108,9 +108,11 @@ export default function CpvBoard({ report, sheet, onLive, range }) {
         return true;
       });
     }
-    /* Gắn Team từ BU trước khi gộp; trang tầng 3 chỉ giữ dữ liệu team mình */
+    /* Gắn Team từ BU trước khi gộp; trang tầng 3 chỉ giữ dữ liệu team mình,
+       trang lead sàn chỉ giữ dữ liệu sàn mình */
     rows = rows.map((r) => ({ ...r, team: teamOf(r.bu) }));
     if (cfg.teamFilter) rows = rows.filter((r) => r.team === cfg.teamFilter);
+    if (cfg.sanFilter) rows = rows.filter((r) => r.san === cfg.sanFilter);
 
     /* Đối soát theo module nguồn — SỐ GỐC của từng file (đơn trùng giữa 2 file
        được tính ở cả hai dòng; KPI và các bảng trên vẫn khử trùng):
@@ -188,7 +190,7 @@ export default function CpvBoard({ report, sheet, onLive, range }) {
       lech_trung_usd: dup_don.reduce((t, r) => t + (r.lech || 0), 0),
     };
     return { tables: { cpv_ngay, cpv_thang, cpv_san, cpv_bu, kqkd_team, kqkd_spdv, don_team, don_spdv, nguon_module, module_thang, dup_don, nc_don }, kpis };
-  }, [state.detail, state.status, range, cfg.teamFilter]);
+  }, [state.detail, state.status, range, cfg.teamFilter, cfg.sanFilter]);
 
   useEffect(() => {
     if (agg) onLive?.(agg);
