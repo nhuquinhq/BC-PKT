@@ -1,14 +1,15 @@
 # Đồng hồ hẹn giờ cho bot CPV Telegram. Cron của GitHub hay bị trễ /
 # bỏ chuyến lúc cao điểm (đã dính: bỏ hẳn khung 10h & 15h ngày 04/08),
-# nên gọi DÀY mỗi 15 phút (né phút :00 đông đúc) với ?auto=1 — server
-# tự quyết: chỉ bắn đúng khung 10·15·18·21·23h VN, mỗi khung 1 lần
-# (khóa chống trùng nằm ở Upstash KV). Dùng GitHub Actions vì Vercel
-# gói Hobby chỉ cho cron chạy 1 lần/ngày.
+# nên gọi NHIỀU LẦN quanh giờ hẹn (né phút :00 đông đúc) với ?auto=1 —
+# server tự quyết: chỉ bắn đúng khung 12h · 18h · 23h30 VN, mỗi khung
+# 1 lần (khóa chống trùng nằm ở Upstash KV). Giờ cron dưới là UTC:
+# 5h = 12h VN · 11h = 18h VN · 16h30+ = 23h30 VN. Dùng GitHub Actions
+# vì Vercel gói Hobby chỉ cho cron chạy 1 lần/ngày.
 name: Bot CPV Telegram
 
 on:
   schedule:
-    - cron: '3,18,33,48 * * * *'
+    - cron: '3,18,33,48,55 5,11,16 * * *'
   workflow_dispatch: {}
 
 jobs:

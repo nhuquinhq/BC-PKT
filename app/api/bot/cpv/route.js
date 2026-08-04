@@ -1,7 +1,7 @@
 /* ============================================================
-   BOT bắn CPV theo BE qua Telegram — GitHub Actions gọi ?auto=1 mỗi
-   15 phút (.github/workflows/bot-cpv.yml), server tự bắn đúng khung
-   10h · 15h · 18h · 21h · 23h giờ VN, mỗi khung 1 lần (khóa KV);
+   BOT bắn CPV theo BE qua Telegram — GitHub Actions gọi ?auto=1 nhiều
+   lần quanh giờ hẹn (.github/workflows/bot-cpv.yml), server tự bắn
+   đúng khung 12h · 18h · 23h30 giờ VN, mỗi khung 1 lần (khóa KV);
    không dùng Vercel Cron vì gói Hobby chỉ cho chạy 1 lần/ngày.
    Mỗi lần bắn 2 tin, mỗi tin kèm 1 ảnh biểu đồ:
    1) CPV tổng: số hôm nay + lũy kế tháng; ảnh GMV theo ngày (cột)
@@ -59,9 +59,16 @@ export async function GET(request) {
      gửi trùng đặt ở Upstash KV (cùng store với phân quyền). */
   const nowVN = vnNow();
   if (searchParams.get('auto') === '1') {
-    const gioVN = Number(nowVN.gio.slice(0, 2));
-    const SLOTS = [10, 15, 18, 21, 23];
-    if (!SLOTS.includes(gioVN)) {
+    const phutVN = Number(nowVN.gio.slice(0, 2)) * 60 + Number(nowVN.gio.slice(3, 5));
+    /* Khung bắn 12h · 18h · 23h30 — cửa sổ chờ đến hết giờ đó
+       (23h30 → 23h59), lần gọi đầu rơi vào cửa sổ sẽ bắn. */
+    const SLOTS = [
+      { key: '12h', a: 12 * 60, b: 12 * 60 + 59 },
+      { key: '18h', a: 18 * 60, b: 18 * 60 + 59 },
+      { key: '23h30', a: 23 * 60 + 30, b: 23 * 60 + 59 },
+    ];
+    const slot = SLOTS.find((s) => phutVN >= s.a && phutVN <= s.b);
+    if (!slot) {
       return Response.json({ sent: false, skip: `ngoài khung giờ bắn (hiện ${nowVN.gio} VN)` });
     }
     const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || '';
@@ -71,15 +78,15 @@ export async function GET(request) {
         const r = await fetch(kvUrl, {
           method: 'POST',
           headers: { Authorization: `Bearer ${kvToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(['SET', `pkt:bot:${nowVN.ngay}:${gioVN}h`, '1', 'NX', 'EX', 86400]),
+          body: JSON.stringify(['SET', `pkt:bot:${nowVN.ngay}:${slot.key}`, '1', 'NX', 'EX', 86400]),
           cache: 'no-store',
         });
         const j = await r.json();
-        if (j.result === null) return Response.json({ sent: false, skip: `khung ${gioVN}h hôm nay đã gửi rồi` });
+        if (j.result === null) return Response.json({ sent: false, skip: `khung ${slot.key} hôm nay đã gửi rồi` });
       } catch { /* KV lỗi thì vẫn gửi — thà trùng còn hơn sót */ }
-    } else if (Number(nowVN.gio.slice(3, 5)) > 20) {
-      /* chưa nối KV: chỉ cho lần gọi đầu giờ đi qua để không gửi trùng */
-      return Response.json({ sent: false, skip: 'chưa nối KV — chỉ gửi lần gọi đầu giờ' });
+    } else if (phutVN - slot.a > 20) {
+      /* chưa nối KV: chỉ cho lần gọi đầu cửa sổ đi qua để không gửi trùng */
+      return Response.json({ sent: false, skip: 'chưa nối KV — chỉ gửi lần gọi đầu khung' });
     }
   }
 
