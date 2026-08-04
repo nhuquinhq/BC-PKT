@@ -470,7 +470,8 @@ table.tbl .sort-arrow { font-size: 9px; }
   text-transform: uppercase;
   color: var(--ink-3);
 }
-.filter-bar input[type='date'] {
+.filter-bar input[type='date'],
+.filter-bar select {
   background: var(--glass);
   border: 1px solid var(--line-strong);
   border-radius: 9px;
@@ -481,7 +482,10 @@ table.tbl .sort-arrow { font-size: 9px; }
   outline: none;
   color-scheme: dark;
 }
-.filter-bar input[type='date']:focus { border-color: var(--cy); box-shadow: 0 0 0 3px rgba(47, 217, 255, .14); }
+.filter-bar select { cursor: pointer; }
+.filter-bar select option { background: #0b1020; color: var(--ink); }
+.filter-bar input[type='date']:focus,
+.filter-bar select:focus { border-color: var(--cy); box-shadow: 0 0 0 3px rgba(47, 217, 255, .14); }
 
 .filter-bar .quick { display: flex; gap: 6px; }
 .filter-bar .qbtn,

@@ -1,7 +1,8 @@
 'use client';
 
 /* Bộ lọc thời gian kiểu Trung tâm PVH:
-   TỪ NGÀY / ĐẾN NGÀY + nút nhanh 7N · 30N · Tháng này · Cả kỳ + Làm mới */
+   TỪ NGÀY / ĐẾN NGÀY + chọn trọn THÁNG + nút nhanh 7N · 30N · Tháng này ·
+   Cả năm · Cả kỳ + Làm mới */
 
 const toISO = (d) =>
   d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : '';
@@ -13,6 +14,19 @@ const fromISO = (s) => {
 };
 
 export default function FilterBar({ range, onChange }) {
+  const today = new Date();
+  /* Danh sách tháng chọn nhanh: từ tháng hiện tại lùi về Tháng 1 năm nay */
+  const monthOpts = Array.from({ length: today.getMonth() + 1 }, (_, i) => {
+    const m = today.getMonth() - i + 1;
+    return { val: `${today.getFullYear()}-${String(m).padStart(2, '0')}`, label: `Tháng ${m}` };
+  });
+  /* Chọn tháng = lấy trọn từ mùng 1 đến ngày cuối tháng đó */
+  const setMonth = (val) => {
+    if (!val) return;
+    const [y, m] = val.split('-').map(Number);
+    onChange({ from: new Date(y, m - 1, 1), to: new Date(y, m, 0), preset: `m${val}` });
+  };
+
   const setPreset = (key) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -41,6 +55,18 @@ export default function FilterBar({ range, onChange }) {
           value={toISO(range.to)}
           onChange={(e) => onChange({ ...range, to: fromISO(e.target.value), preset: null })}
         />
+      </div>
+      <div className="fdate">
+        <label>Tháng</label>
+        <select
+          value={typeof range.preset === 'string' && range.preset.startsWith('m') ? range.preset.slice(1) : ''}
+          onChange={(e) => setMonth(e.target.value)}
+        >
+          <option value="">— Chọn —</option>
+          {monthOpts.map((o) => (
+            <option key={o.val} value={o.val}>{o.label}</option>
+          ))}
+        </select>
       </div>
       <div className="fdate">
         <label>Nhanh</label>
