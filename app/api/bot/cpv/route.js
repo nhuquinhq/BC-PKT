@@ -1,7 +1,8 @@
 /* ============================================================
-   BOT bắn CPV theo BE qua Telegram — lịch gọi đặt ở GitHub Actions
-   (.github/workflows/bot-cpv.yml, 10h · 15h · 18h · 21h · 23h giờ VN;
-   không dùng Vercel Cron vì gói Hobby chỉ cho chạy 1 lần/ngày).
+   BOT bắn CPV theo BE qua Telegram — GitHub Actions gọi ?auto=1 mỗi
+   15 phút (.github/workflows/bot-cpv.yml), server tự bắn đúng khung
+   10h · 15h · 18h · 21h · 23h giờ VN, mỗi khung 1 lần (khóa KV);
+   không dùng Vercel Cron vì gói Hobby chỉ cho chạy 1 lần/ngày.
    Mỗi lần bắn 2 tin, mỗi tin kèm 1 ảnh biểu đồ:
    1) CPV tổng: số hôm nay + lũy kế tháng; ảnh GMV theo ngày (cột)
       và đường lũy kế trong tháng.
@@ -52,6 +53,36 @@ export async function GET(request) {
     }
   }
 
+  /* auto=1 — chế độ lịch: GitHub Actions gọi mỗi 15 phút (cron của GitHub
+     hay bị trễ/bỏ chuyến nên gọi dày rồi server tự chọn thời điểm).
+     Chỉ bắn đúng khung 10·15·18·21·23h VN, mỗi khung 1 lần — khóa chống
+     gửi trùng đặt ở Upstash KV (cùng store với phân quyền). */
+  const nowVN = vnNow();
+  if (searchParams.get('auto') === '1') {
+    const gioVN = Number(nowVN.gio.slice(0, 2));
+    const SLOTS = [10, 15, 18, 21, 23];
+    if (!SLOTS.includes(gioVN)) {
+      return Response.json({ sent: false, skip: `ngoài khung giờ bắn (hiện ${nowVN.gio} VN)` });
+    }
+    const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || '';
+    const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '';
+    if (kvUrl && kvToken) {
+      try {
+        const r = await fetch(kvUrl, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${kvToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(['SET', `pkt:bot:${nowVN.ngay}:${gioVN}h`, '1', 'NX', 'EX', 86400]),
+          cache: 'no-store',
+        });
+        const j = await r.json();
+        if (j.result === null) return Response.json({ sent: false, skip: `khung ${gioVN}h hôm nay đã gửi rồi` });
+      } catch { /* KV lỗi thì vẫn gửi — thà trùng còn hơn sót */ }
+    } else if (Number(nowVN.gio.slice(3, 5)) > 20) {
+      /* chưa nối KV: chỉ cho lần gọi đầu giờ đi qua để không gửi trùng */
+      return Response.json({ sent: false, skip: 'chưa nối KV — chỉ gửi lần gọi đầu giờ' });
+    }
+  }
+
   /* Lấy số liệu từ chính /api/cpv của deployment này, cấu hình theo PKT8 */
   const cfg = getReport('pkt8')?.sheet;
   if (!cfg) return Response.json({ error: 'Thiếu cấu hình PKT8' }, { status: 500 });
@@ -79,7 +110,7 @@ export async function GET(request) {
     return Response.json({ error: `Không đọc được số liệu: ${e.message}` }, { status: 502 });
   }
 
-  const now = vnNow();
+  const now = nowVN;
   const ngay = searchParams.get('date') || now.ngay; // ?date=dd/mm/yyyy để thử
   const thang = ngay.slice(3);
 
