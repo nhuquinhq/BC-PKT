@@ -627,6 +627,17 @@ table.tbl .sort-arrow { font-size: 9px; }
   margin-bottom: 12px;
 }
 .pm-pending .pm-dot { width: 9px; height: 9px; border-radius: 50%; background: #f59e0b; flex: none; }
+/* Khối "Cấp quyền cho email mới" — nền xanh nhạt phân biệt với hàng chờ duyệt */
+.pm-pending.pm-add { background: #eef6ff; border-color: #bfd9f5; }
+.pm-pending.pm-add .pm-dot { background: #2563eb; }
+.pm-mail {
+  flex: 1; min-width: 210px;
+  border: 1px solid #cbd5e1; border-radius: 8px;
+  padding: 8px 11px;
+  font-family: var(--f-mono); font-size: 13px;
+  color: #0f172a; background: #fff; outline: none;
+}
+.pm-mail:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
 .pm-pending .pm-acc { flex: 1; min-width: 200px; }
 
 table.pm-table { width: 100%; border-collapse: collapse; }

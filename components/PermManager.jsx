@@ -97,8 +97,14 @@ function PermPanel({ data, err, call, load, meta }) {
       ) : null}
 
       <div className="pm-title sub">
+        <span className="bullet blue" /> Cấp quyền cho email mới
+        <span className="right">nhập email → tick {leaderMode ? 'sàn' : 'báo cáo'} → bấm Cấp quyền (không cần chờ họ đăng nhập trước)</span>
+      </div>
+      <AddRow call={call} onDone={load} leaderMode={leaderMode} options={options} />
+
+      <div className="pm-title sub">
         <span className="bullet green" /> Tài khoản đã cấp quyền
-        <span className="right">{users.length + 1} tài khoản</span>
+        <span className="right">{leaderMode ? users.length : users.length + 1} tài khoản</span>
       </div>
 
       <table className="pm-table">
@@ -212,6 +218,41 @@ function PagesDropdown({ value, onChange, options = PAGES, simple = false }) {
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/* Chủ động cấp quyền theo email — không cần chờ người đó đăng nhập lần đầu */
+function AddRow({ call, onDone, leaderMode = false, options = PAGES }) {
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('nhanvien');
+  const [pages, setPages] = useState(leaderMode ? [] : null);
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    const t = email.trim().toLowerCase();
+    if (!t.includes('@')) { alert('Nhập email hợp lệ trước đã.'); return; }
+    setBusy(true);
+    const j = await call({ action: 'assign', email: t, role, pages });
+    setBusy(false);
+    if (j?.error === 'pages_required') { alert('Chọn ít nhất 1 sàn cho nhân viên trước khi cấp quyền.'); return; }
+    if (j?.error) { alert(`Lỗi: ${j.error}`); return; }
+    setEmail('');
+    setPages(leaderMode ? [] : null);
+    onDone();
+  };
+  return (
+    <div className="pm-pending pm-add">
+      <span className="pm-dot" />
+      <input
+        className="pm-mail"
+        placeholder="email@hqplay.vn"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') save(); }}
+      />
+      {leaderMode ? <span className="pm-badge">Nhân viên</span> : <RoleSelect value={role} onChange={setRole} />}
+      <PagesDropdown value={pages} onChange={setPages} options={options} simple={leaderMode} />
+      <button className="pm-save" disabled={busy} onClick={save}>+ Cấp quyền</button>
     </div>
   );
 }
