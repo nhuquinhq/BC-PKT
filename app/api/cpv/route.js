@@ -11,7 +11,7 @@
    ============================================================ */
 
 import Papa from 'papaparse';
-import { spdvOf, SAN_BU_MAP } from '@/lib/cpvDims';
+import { spdvOf, teamOf, SAN_BU_MAP } from '@/lib/cpvDims';
 /* "Datalake" tháng đã chốt sổ: dữ liệu đã gộp sẵn (Ngày × Sàn × SPDV) đóng gói
    tĩnh theo app — không phải đọc lại Google Sheet các tháng cũ ở mỗi lượt xem.
    Sinh file bằng chính API này (xem README trong lib/data nếu cần làm lại). */
@@ -423,6 +423,34 @@ export async function GET(request) {
     ...r,
     nc: r.nguon === 'dh' && r.sc === 'ok' && r.thanh_tien > 0 && !r.gia_von ? 1 : 0,
   }));
+
+  /* raw=1: trả DỮ LIỆU THÔ TỪNG ĐƠN cho nút Xuất Excel trang team/sàn
+     (chỉ gồm các tháng đang đọc live — datalake tháng chốt không lưu từng đơn).
+     Lọc server theo team/san để payload gọn. */
+  if (searchParams.get('raw') === '1') {
+    const teamF = searchParams.get('team') || '';
+    const sanF = searchParams.get('san') || '';
+    let raws = all;
+    if (sanF) raws = raws.filter((r) => r.san === sanF);
+    if (teamF) raws = raws.filter((r) => teamOf(r.bu) === teamF);
+    return Response.json({
+      raw: raws.slice(0, 60000).map((r) => ({
+        ngay: r.ngay,
+        sortKey: r.sortKey,
+        id: r.id,
+        san: r.san,
+        bu: r.bu,
+        spdv: r.spdv,
+        nguon: r.nguon,
+        sc: r.sc,
+        doanh_thu_usd: r.doanh_thu_usd,
+        thanh_tien: r.thanh_tien,
+        gia_von: r.gia_von,
+        loi_nhuan: r.loi_nhuan,
+      })),
+      meta: { tong: raws.length, gioi_han: 60000 },
+    });
+  }
   let noCostList = null;
   if (nocost) {
     noCostList = all

@@ -21,6 +21,9 @@ export default function ReportView({ report }) {
   /* Trang team có 2 kiểu xem: CPV theo BE (mặc định) / CPV theo lịch sử ví */
   const [srcView, setSrcView] = useState('be');
   const activeSheet = report.sheetVi && srcView === 'vi' ? report.sheetVi : report.sheet;
+  const [exporting, setExporting] = useState(false);
+  /* Trang team / trang lead sàn có nút xuất dữ liệu thô từng đơn */
+  const canExportRaw = Boolean(report.sheet?.teamFilter || report.sheet?.sanFilter);
 
   useEffect(() => {
     let alive = true;
@@ -97,6 +100,68 @@ export default function ReportView({ report }) {
     URL.revokeObjectURL(a.href);
   }
 
+  /* Xuất Excel (CSV mở thẳng bằng Excel) dữ liệu THÔ TỪNG ĐƠN của team/sàn —
+     luôn lấy từ nguồn BE (module đơn hàng), tôn trọng bộ lọc thời gian đang chọn.
+     Lưu ý: chỉ gồm các tháng đang đọc live; tháng đã chốt datalake không lưu từng đơn. */
+  async function exportRaw() {
+    const cfgBe = report.sheet;
+    setExporting(true);
+    try {
+      const qs = new URLSearchParams();
+      qs.append('url', cfgBe.url);
+      qs.append('gid', cfgBe.gid || '0');
+      for (const m of cfgBe.mains || []) {
+        qs.append('url', m.url);
+        qs.append('gid', m.gid || '0');
+      }
+      for (const a of Array.isArray(cfgBe.api) ? cfgBe.api : cfgBe.api?.url ? [cfgBe.api] : []) {
+        qs.append('url2', a.url);
+        qs.append('gid2', a.gid || '0');
+      }
+      qs.set('raw', '1');
+      if (cfgBe.teamFilter) qs.set('team', cfgBe.teamFilter);
+      if (cfgBe.sanFilter) qs.set('san', cfgBe.sanFilter);
+      const res = await fetch(`/api/cpv?${qs}`, { cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Không đọc được dữ liệu');
+      const rows = filterRowsByRange(json.raw || [], range.from, range.to);
+      if (!rows.length) {
+        alert('Không có đơn nào trong phạm vi đang lọc. Lưu ý: xuất thô chỉ gồm các tháng đang đọc trực tiếp từ file; tháng đã chốt (datalake) không lưu chi tiết từng đơn.');
+        return;
+      }
+      const SC = { ok: 'Hoàn tất', fail: 'Thất bại', huy: 'Hoàn hủy' };
+      const cols = [
+        ['ngay', 'Ngày'], ['id', 'Mã đơn'], ['san', 'Sàn'], ['bu', 'BU'], ['spdv', 'SPDV'],
+        ['nguon', 'Nguồn'], ['sc', 'Trạng thái'], ['doanh_thu_usd', 'Doanh thu (USD)'],
+        ['thanh_tien', 'GMV (VND)'], ['gia_von', 'Giá vốn (VND)'], ['loi_nhuan', 'Lợi nhuận (VND)'],
+      ];
+      const head = cols.map(([, l]) => l).join(',');
+      const body = rows
+        .map((r) =>
+          cols
+            .map(([k]) => {
+              let v = r[k];
+              if (k === 'nguon') v = v === 'api' ? 'API sàn' : 'Quản lý đơn hàng';
+              else if (k === 'sc') v = SC[v] || v;
+              else if (typeof v === 'number') v = String(Math.round(v * 100) / 100);
+              return `"${String(v ?? '').replace(/"/g, '""')}"`;
+            })
+            .join(',')
+        )
+        .join('\n');
+      const blob = new Blob(['\uFEFF' + head + '\n' + body], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `don-hang-${(cfgBe.teamFilter || cfgBe.sanFilter || report.code).toLowerCase()}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      alert(`Xuất Excel lỗi: ${e.message}`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const liveTables = new Set(Object.keys(live.tables));
 
   /* Người dùng không được cấp quyền xem báo cáo này */
@@ -134,6 +199,11 @@ export default function ReportView({ report }) {
                     : 'Cả kỳ — toàn bộ dữ liệu'}
                 </span>
               )}
+              {canExportRaw ? (
+                <button className="btn ghost" onClick={exportRaw} disabled={exporting} style={{ marginLeft: 8 }}>
+                  {exporting ? '⏳ Đang xuất…' : '⬇ Xuất Excel đơn hàng'}
+                </button>
+              ) : null}
             </div>
           </div>
           <FilterBar range={range} onChange={setRange} />
