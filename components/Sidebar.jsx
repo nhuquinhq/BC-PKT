@@ -68,13 +68,14 @@ export default function Sidebar() {
           );
         })}
 
-        {!enabled || user?.role === 'admin' ? (
+        {/* Leader cũng vào được — nhưng chỉ thấy khối cấp quyền sàn cho nhân viên */}
+        {!enabled || user?.role === 'admin' || user?.role === 'leader' ? (
           <>
             <div className="rail-label">Hệ thống</div>
             <Link href="/nguon-du-lieu" className={`nav-item${path === '/nguon-du-lieu' ? ' active' : ''}`}>
               <span className="code">·</span>
               <span className="dot sys" />
-              <span className="nm">Nguồn &amp; Cấu hình</span>
+              <span className="nm">{user?.role === 'leader' ? 'Cấp quyền nhân viên' : 'Nguồn & Cấu hình'}</span>
             </Link>
           </>
         ) : null}

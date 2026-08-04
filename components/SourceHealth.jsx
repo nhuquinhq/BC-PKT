@@ -47,8 +47,9 @@ export default function SourceHealth() {
   const okCount = live.filter((r) => diag[r.slug]?.status === 'ok').length;
   const timeTxt = at ? at.toLocaleTimeString('vi-VN') : '…';
 
-  /* Trang cấu hình chỉ dành cho Admin khi đã bật phân quyền */
-  if (enabled && user?.role !== 'admin') {
+  /* Trang cấu hình: Admin thấy đủ; LEADER chỉ thấy khối cấp quyền sàn
+     cho nhân viên; vai trò khác không vào được. */
+  if (enabled && user?.role !== 'admin' && user?.role !== 'leader') {
     return (
       <div className="content" style={{ paddingTop: 40 }}>
         <section className="panel">
@@ -58,6 +59,23 @@ export default function SourceHealth() {
           </div>
         </section>
       </div>
+    );
+  }
+  if (enabled && user?.role === 'leader') {
+    return (
+      <>
+        <div className="topbar">
+          <div className="topbar-row">
+            <div>
+              <div className="eyebrow">LEAD · Phân quyền 2 cấp</div>
+              <h1>Cấp quyền xem SÀN cho nhân viên</h1>
+            </div>
+          </div>
+        </div>
+        <div className="content">
+          <PermManager />
+        </div>
+      </>
     );
   }
 

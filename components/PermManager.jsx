@@ -46,7 +46,7 @@ export default function PermManager({ preview = null }) {
   }, [call, preview]);
 
   useEffect(() => {
-    if (!preview && enabled && user?.role === 'admin') load();
+    if (!preview && enabled && (user?.role === 'admin' || user?.role === 'leader')) load();
   }, [enabled, user, load, preview]);
 
   if (preview) return <PermPanel data={preview} err="" call={call} load={() => {}} meta={{ superAdmin: preview.superAdmin }} />;
@@ -64,7 +64,7 @@ export default function PermManager({ preview = null }) {
       </section>
     );
   }
-  if (!enabled || user?.role !== 'admin') return null;
+  if (!enabled || (user?.role !== 'admin' && user?.role !== 'leader')) return null;
 
   return <PermPanel data={data} err={err} call={call} load={load} meta={meta} />;
 }
@@ -73,12 +73,15 @@ function PermPanel({ data, err, call, load, meta }) {
   const superAdmin = data?.superAdmin || meta?.superAdmin;
   const pending = data?.pending || [];
   const users = Object.entries(data?.users || {});
+  /* Chế độ LEADER: chỉ cấp lại các trang SÀN mình được xem cho nhân viên */
+  const leaderMode = Boolean(data?.leaderMode);
+  const options = leaderMode ? PAGES.filter((p) => (data?.grantable || []).includes(p.code)) : PAGES;
 
   return (
     <section className="pm-light">
       <div className="pm-title">
-        <span className="bullet blue" /> Quản lý đăng nhập &amp; phân quyền
-        <span className="right">Admin cứng: <b>{superAdmin}</b></span>
+        <span className="bullet blue" /> {leaderMode ? 'Cấp quyền xem SÀN cho nhân viên' : 'Quản lý đăng nhập & phân quyền'}
+        <span className="right">{leaderMode ? <>Sàn được cấp lại: <b>{options.length ? options.map((p) => p.code.replace('SÀN ', '')).join(', ') : '— admin chưa cấp sàn nào cho bạn —'}</b></> : <>Admin cứng: <b>{superAdmin}</b></>}</span>
       </div>
 
       {err ? <div className="pm-err">Lỗi: {err}</div> : null}
@@ -89,7 +92,7 @@ function PermPanel({ data, err, call, load, meta }) {
             <span className="bullet orange" /> Chờ cấp quyền
             <span className="right">{pending.length} email đăng nhập lần đầu</span>
           </div>
-          {pending.map((email) => <PendingRow key={email} email={email} call={call} onDone={load} />)}
+          {pending.map((email) => <PendingRow key={email} email={email} call={call} onDone={load} leaderMode={leaderMode} options={options} />)}
         </>
       ) : null}
 
@@ -108,28 +111,41 @@ function PermPanel({ data, err, call, load, meta }) {
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td>
-              <div className="pm-acc">
-                <span className="pm-avatar" style={{ background: avatarColor(superAdmin) }}>{initials(superAdmin)}</span>
-                <span><b>{superAdmin}</b><small>admin cứng — không thể thu hồi</small></span>
-              </div>
-            </td>
-            <td><span className="pm-badge">Admin</span></td>
-            <td><span className="pm-muted">Tất cả báo cáo + Cấu hình</span></td>
-            <td />
-          </tr>
+          {!leaderMode ? (
+            <tr>
+              <td>
+                <div className="pm-acc">
+                  <span className="pm-avatar" style={{ background: avatarColor(superAdmin) }}>{initials(superAdmin)}</span>
+                  <span><b>{superAdmin}</b><small>admin cứng — không thể thu hồi</small></span>
+                </div>
+              </td>
+              <td><span className="pm-badge">Admin</span></td>
+              <td><span className="pm-muted">Tất cả báo cáo + Cấu hình</span></td>
+              <td />
+            </tr>
+          ) : null}
           {users.map(([email, u]) => (
-            <UserRow key={email} email={email} initial={u} call={call} onDone={load} />
+            <UserRow key={email} email={email} initial={u} call={call} onDone={load} leaderMode={leaderMode} options={options} />
           ))}
         </tbody>
       </table>
 
-      <div className="pm-usage">
-        <b>Cách dùng:</b> chọn vai trò, mở ô “Báo cáo được xem” để <b>tick</b> đúng báo cáo cho người đó
-        (hoặc <b>ALL</b> = xem hết · để nguyên “Mặc định theo vai trò”), rồi bấm <b>Lưu / Cấp quyền</b>.
-        Mặc định vai trò: <b>Admin</b> tất cả + Cấu hình · <b>Leader</b> TQ, PKT1 → PKT8 · <b>Nhân viên</b> {(ROLE_DEFAULT_PAGES.nhanvien || []).join(', ')}.
-      </div>
+      {leaderMode ? (
+        <div className="pm-usage">
+          <b>Cách dùng:</b> nhân viên đăng nhập Google lần đầu sẽ hiện ở mục <b>Chờ cấp quyền</b> — mở ô danh sách sàn,
+          <b> tick</b> đúng các sàn bạn giao cho người đó rồi bấm <b>Cấp quyền</b>. Bạn chỉ cấp được các trang SÀN
+          mà admin đã cấp cho bạn; muốn thêm sàn khác, liên hệ Admin ({superAdmin}).
+        </div>
+      ) : (
+        <div className="pm-usage">
+          <b>Cách dùng:</b> chọn vai trò, mở ô “Báo cáo được xem” để <b>tick</b> đúng báo cáo cho người đó
+          (hoặc <b>ALL</b> = xem hết · để nguyên “Mặc định theo vai trò”), rồi bấm <b>Lưu / Cấp quyền</b>.
+          Mặc định vai trò: <b>Admin</b> tất cả + Cấu hình · <b>Leader</b> TQ, PKT1 → PKT8 · <b>Nhân viên</b> {(ROLE_DEFAULT_PAGES.nhanvien || []).join(', ')}.
+          <br />
+          <b>Phân quyền 2 cấp theo BU/SÀN:</b> cấp cho leader vai trò <b>Leader</b> và tick trang team của BU + các trang
+          <b> SÀN</b> thuộc BU đó — leader sẽ tự cấp lại từng sàn cho nhân viên của mình trong trang này.
+        </div>
+      )}
     </section>
   );
 }
@@ -142,8 +158,10 @@ function RoleSelect({ value, onChange }) {
   );
 }
 
-/* Dropdown tick báo cáo — giống ô multiselect của PVH */
-function PagesDropdown({ value, onChange }) {
+/* Dropdown tick báo cáo — giống ô multiselect của PVH.
+   simple=true (chế độ leader): chỉ tick từng trang trong `options`,
+   không có ALL / mặc định vai trò. */
+function PagesDropdown({ value, onChange, options = PAGES, simple = false }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
 
@@ -156,27 +174,33 @@ function PagesDropdown({ value, onChange }) {
 
   const arr = Array.isArray(value) ? value : [];
   const toggle = (code) => {
-    const base = Array.isArray(value) ? [...value] : value === 'all' ? PAGES.map((p) => p.code) : [];
+    const base = Array.isArray(value) ? [...value] : value === 'all' ? options.map((p) => p.code) : [];
     onChange(base.includes(code) ? base.filter((c) => c !== code) : [...base, code]);
   };
+
+  const label = simple && (value == null || (Array.isArray(value) && !value.length))
+    ? '— chọn sàn cho nhân viên —'
+    : pagesText(value);
 
   return (
     <div className="pm-pages" ref={wrapRef}>
       <button type="button" className="pm-pages-btn" onClick={() => setOpen(!open)}>
-        <span>{pagesText(value)}</span><i>▾</i>
+        <span>{label}</span><i>▾</i>
       </button>
       {open ? (
         <div className="pm-pop">
           <div className="pm-pop-actions">
-            <button type="button" onClick={() => onChange('all')}>Chọn tất cả</button>
+            {!simple ? <button type="button" onClick={() => onChange('all')}>Chọn tất cả</button> : null}
             <button type="button" onClick={() => onChange([])}>Bỏ chọn</button>
-            <button type="button" onClick={() => onChange(null)}>Mặc định vai trò</button>
+            {!simple ? <button type="button" onClick={() => onChange(null)}>Mặc định vai trò</button> : null}
           </div>
-          <label className="pm-check">
-            <input type="checkbox" checked={value === 'all'} onChange={() => onChange(value === 'all' ? [] : 'all')} />
-            <b>ALL</b><span>Tất cả báo cáo</span>
-          </label>
-          {PAGES.map((p) => (
+          {!simple ? (
+            <label className="pm-check">
+              <input type="checkbox" checked={value === 'all'} onChange={() => onChange(value === 'all' ? [] : 'all')} />
+              <b>ALL</b><span>Tất cả báo cáo</span>
+            </label>
+          ) : null}
+          {options.map((p) => (
             <label key={p.code} className="pm-check">
               <input
                 type="checkbox"
@@ -192,14 +216,15 @@ function PagesDropdown({ value, onChange }) {
   );
 }
 
-function PendingRow({ email, call, onDone }) {
+function PendingRow({ email, call, onDone, leaderMode = false, options = PAGES }) {
   const [role, setRole] = useState('nhanvien');
-  const [pages, setPages] = useState(null);
+  const [pages, setPages] = useState(leaderMode ? [] : null);
   const [busy, setBusy] = useState(false);
   const act = async (action, extra = {}) => {
     setBusy(true);
-    await call({ action, email, ...extra });
+    const j = await call({ action, email, ...extra });
     setBusy(false);
+    if (j?.error === 'pages_required') alert('Chọn ít nhất 1 sàn cho nhân viên trước khi cấp quyền.');
     onDone();
   };
   return (
@@ -209,22 +234,23 @@ function PendingRow({ email, call, onDone }) {
         <span className="pm-avatar" style={{ background: avatarColor(email) }}>{initials(email)}</span>
         <span><b>{email}</b><small>đang chờ duyệt</small></span>
       </div>
-      <RoleSelect value={role} onChange={setRole} />
-      <PagesDropdown value={pages} onChange={setPages} />
+      {leaderMode ? <span className="pm-badge">Nhân viên</span> : <RoleSelect value={role} onChange={setRole} />}
+      <PagesDropdown value={pages} onChange={setPages} options={options} simple={leaderMode} />
       <button className="pm-save" disabled={busy} onClick={() => act('assign', { role, pages })}>✓ Cấp quyền</button>
       <button className="pm-ghost" disabled={busy} onClick={() => act('dismiss')}>Bỏ qua</button>
     </div>
   );
 }
 
-function UserRow({ email, initial, call, onDone }) {
+function UserRow({ email, initial, call, onDone, leaderMode = false, options = PAGES }) {
   const [role, setRole] = useState(initial.role || 'nhanvien');
-  const [pages, setPages] = useState(initial.pages ?? null);
+  const [pages, setPages] = useState(initial.pages ?? (leaderMode ? [] : null));
   const [busy, setBusy] = useState(false);
   const act = async (action, extra = {}) => {
     setBusy(true);
-    await call({ action, email, ...extra });
+    const j = await call({ action, email, ...extra });
     setBusy(false);
+    if (j?.error === 'pages_required') alert('Chọn ít nhất 1 sàn cho nhân viên trước khi lưu.');
     onDone();
   };
   return (
@@ -235,8 +261,8 @@ function UserRow({ email, initial, call, onDone }) {
           <span><b>{email}</b><small>{ROLE_LABEL[role]}</small></span>
         </div>
       </td>
-      <td><RoleSelect value={role} onChange={setRole} /></td>
-      <td><PagesDropdown value={pages} onChange={setPages} /></td>
+      <td>{leaderMode ? <span className="pm-badge">Nhân viên</span> : <RoleSelect value={role} onChange={setRole} />}</td>
+      <td><PagesDropdown value={pages} onChange={setPages} options={options} simple={leaderMode} /></td>
       <td className="pm-actions">
         <button className="pm-save" disabled={busy} onClick={() => act('assign', { role, pages })}>Lưu</button>
         <button className="pm-ghost" disabled={busy} onClick={() => act('remove')}>Thu hồi</button>

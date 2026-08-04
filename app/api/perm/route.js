@@ -8,7 +8,7 @@
        list / assign / remove / dismiss : chỉ admin
    ============================================================ */
 
-import { GOOGLE_CLIENT_ID, SUPER_ADMIN, ROLE_DEFAULT_PAGES, resolvePages } from '@/lib/authConfig';
+import { GOOGLE_CLIENT_ID, SUPER_ADMIN, ROLE_DEFAULT_PAGES, resolvePages, grantablePages } from '@/lib/authConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,26 +91,49 @@ async function handle(req) {
     return json({ email, status: 'pending', admin: SUPER_ADMIN });
   }
 
-  /* Các action quản trị — chỉ admin */
-  if (!me || me.role !== 'admin') return json({ error: 'forbidden' });
+  /* Các action quản trị — admin toàn quyền; LEADER chỉ cấp lại các trang
+     SÀN trong quyền xem của mình cho nhân viên (phân quyền 2 cấp). */
+  if (!me || (me.role !== 'admin' && me.role !== 'leader')) return json({ error: 'forbidden' });
+  const isAdmin = me.role === 'admin';
+  const grantable = grantablePages(me.role, resolvePages(me.role, me.pages));
+  /* Leader chỉ đụng được nhân viên do mình cấp, hoặc nhân viên mà toàn bộ
+     trang được cấp đều nằm trong phạm vi sàn của leader. */
+  const canManage = (u) =>
+    isAdmin ||
+    (u &&
+      u.role === 'nhanvien' &&
+      (u.by === email || (Array.isArray(u.pages) && u.pages.length > 0 && u.pages.every((p) => grantable.includes(p)))));
 
   if (action === 'list') {
-    return json({ users: acl.users, pending: acl.pending, superAdmin: SUPER_ADMIN, roleDefaults: ROLE_DEFAULT_PAGES });
+    if (isAdmin) {
+      return json({ users: acl.users, pending: acl.pending, superAdmin: SUPER_ADMIN, roleDefaults: ROLE_DEFAULT_PAGES });
+    }
+    const users = Object.fromEntries(Object.entries(acl.users).filter(([, u]) => canManage(u)));
+    return json({ users, pending: acl.pending, superAdmin: SUPER_ADMIN, roleDefaults: ROLE_DEFAULT_PAGES, grantable, leaderMode: true });
   }
   if (action === 'assign') {
     const t = String(body.email || '').toLowerCase();
     if (!t || !t.includes('@')) return json({ error: 'bad_email' });
     if (t === SUPER_ADMIN) return json({ error: 'is_super_admin' });
-    const role = ['admin', 'leader', 'nhanvien'].includes(body.role) ? body.role : 'nhanvien';
-    let pages = body.pages; // 'all' | mảng mã trang | null = mặc định theo vai trò
-    if (pages !== 'all' && !Array.isArray(pages)) pages = null;
-    acl.users[t] = { role, pages };
+    if (isAdmin) {
+      const role = ['admin', 'leader', 'nhanvien'].includes(body.role) ? body.role : 'nhanvien';
+      let pages = body.pages; // 'all' | mảng mã trang | null = mặc định theo vai trò
+      if (pages !== 'all' && !Array.isArray(pages)) pages = null;
+      acl.users[t] = { role, pages, by: acl.users[t]?.by };
+    } else {
+      const existing = acl.users[t];
+      if (existing && !canManage(existing)) return json({ error: 'forbidden_target' });
+      const pages = Array.isArray(body.pages) ? body.pages.filter((p) => grantable.includes(p)) : [];
+      if (!pages.length) return json({ error: 'pages_required' });
+      acl.users[t] = { role: 'nhanvien', pages, by: email };
+    }
     acl.pending = acl.pending.filter((x) => x !== t);
     await setAcl(acl);
     return json({ ok: true });
   }
   if (action === 'remove') {
     const t = String(body.email || '').toLowerCase();
+    if (!isAdmin && !canManage(acl.users[t])) return json({ error: 'forbidden_target' });
     delete acl.users[t];
     acl.pending = acl.pending.filter((x) => x !== t);
     await setAcl(acl);
