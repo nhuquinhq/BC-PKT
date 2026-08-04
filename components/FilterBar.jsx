@@ -1,8 +1,8 @@
 'use client';
 
 /* Bộ lọc thời gian kiểu Trung tâm PVH:
-   TỪ NGÀY / ĐẾN NGÀY + chọn trọn THÁNG + nút nhanh 7N · 30N · Tháng này ·
-   Cả năm · Cả kỳ + Làm mới */
+   TỪ NGÀY / ĐẾN NGÀY + dropdown THÁNG (từng tháng / Cả năm) +
+   nút nhanh 7N · Tháng này + Làm mới */
 
 const toISO = (d) =>
   d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : '';
@@ -20,9 +20,13 @@ export default function FilterBar({ range, onChange }) {
     const m = today.getMonth() - i + 1;
     return { val: `${today.getFullYear()}-${String(m).padStart(2, '0')}`, label: `Tháng ${m}` };
   });
-  /* Chọn tháng = lấy trọn từ mùng 1 đến ngày cuối tháng đó */
+  /* Chọn tháng = lấy trọn từ mùng 1 đến ngày cuối tháng; Cả năm = trọn năm nay */
   const setMonth = (val) => {
     if (!val) return;
+    if (val === 'year') {
+      onChange({ from: new Date(today.getFullYear(), 0, 1), to: new Date(today.getFullYear(), 11, 31), preset: 'year' });
+      return;
+    }
     const [y, m] = val.split('-').map(Number);
     onChange({ from: new Date(y, m - 1, 1), to: new Date(y, m, 0), preset: `m${val}` });
   };
@@ -59,10 +63,11 @@ export default function FilterBar({ range, onChange }) {
       <div className="fdate">
         <label>Tháng</label>
         <select
-          value={typeof range.preset === 'string' && range.preset.startsWith('m') ? range.preset.slice(1) : ''}
+          value={range.preset === 'year' ? 'year' : typeof range.preset === 'string' && range.preset.startsWith('m') ? range.preset.slice(1) : ''}
           onChange={(e) => setMonth(e.target.value)}
         >
           <option value="">— Chọn —</option>
+          <option value="year">Cả năm</option>
           {monthOpts.map((o) => (
             <option key={o.val} value={o.val}>{o.label}</option>
           ))}
@@ -71,7 +76,7 @@ export default function FilterBar({ range, onChange }) {
       <div className="fdate">
         <label>Nhanh</label>
         <div className="quick">
-          {[['7d', '7N'], ['30d', '30N'], ['month', 'Tháng này'], ['year', 'Cả năm'], ['all', 'Cả kỳ']].map(([key, label]) => (
+          {[['7d', '7N'], ['month', 'Tháng này']].map(([key, label]) => (
             <button key={key} className={`qbtn${range.preset === key ? ' on' : ''}`} onClick={() => setPreset(key)}>
               {label}
             </button>
