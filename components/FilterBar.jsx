@@ -2,7 +2,7 @@
 
 /* Bộ lọc thời gian kiểu Trung tâm PVH:
    TỪ NGÀY / ĐẾN NGÀY + dropdown THÁNG (từng tháng / Cả năm) +
-   nút nhanh 7N · Tháng này + Làm mới */
+   dropdown TUẦN trong năm (thứ 2 → chủ nhật) + Làm mới */
 
 const toISO = (d) =>
   d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : '';
@@ -31,15 +31,28 @@ export default function FilterBar({ range, onChange }) {
     onChange({ from: new Date(y, m - 1, 1), to: new Date(y, m, 0), preset: `m${val}` });
   };
 
-  const setPreset = (key) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const day = (n) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + n);
-    if (key === '7d') onChange({ from: day(-6), to: today, preset: key });
-    else if (key === '30d') onChange({ from: day(-29), to: today, preset: key });
-    else if (key === 'month') onChange({ from: new Date(today.getFullYear(), today.getMonth(), 1), to: today, preset: key });
-    else if (key === 'year') onChange({ from: new Date(today.getFullYear(), 0, 1), to: new Date(today.getFullYear(), 11, 31), preset: key });
-    else onChange({ from: null, to: null, preset: 'all' });
+  /* Tuần trong năm: tuần 1 là tuần chứa ngày 01/01, tính từ thứ 2 → chủ nhật;
+     liệt kê đến tuần hiện tại, tuần mới nhất trên đầu. */
+  const weekOpts = (() => {
+    const jan1 = new Date(today.getFullYear(), 0, 1);
+    const start = new Date(jan1);
+    start.setDate(jan1.getDate() - ((jan1.getDay() + 6) % 7));
+    const dd = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const out = [];
+    for (let i = 0; ; i++) {
+      const a = new Date(start);
+      a.setDate(start.getDate() + i * 7);
+      if (a > today) break;
+      const b = new Date(a);
+      b.setDate(a.getDate() + 6);
+      out.push({ val: String(i + 1), label: `Tuần ${i + 1} (${dd(a)} – ${dd(b)})`, a, b });
+    }
+    return out.reverse();
+  })();
+  const setWeek = (val) => {
+    const w = weekOpts.find((o) => o.val === val);
+    if (!w) return;
+    onChange({ from: w.a, to: w.b, preset: `w${val}` });
   };
 
   return (
@@ -74,14 +87,16 @@ export default function FilterBar({ range, onChange }) {
         </select>
       </div>
       <div className="fdate">
-        <label>Nhanh</label>
-        <div className="quick">
-          {[['7d', '7N'], ['month', 'Tháng này']].map(([key, label]) => (
-            <button key={key} className={`qbtn${range.preset === key ? ' on' : ''}`} onClick={() => setPreset(key)}>
-              {label}
-            </button>
+        <label>Tuần</label>
+        <select
+          value={typeof range.preset === 'string' && range.preset.startsWith('w') ? range.preset.slice(1) : ''}
+          onChange={(e) => setWeek(e.target.value)}
+        >
+          <option value="">— Chọn —</option>
+          {weekOpts.map((o) => (
+            <option key={o.val} value={o.val}>{o.label}</option>
           ))}
-        </div>
+        </select>
       </div>
       <button className="btn" onClick={() => window.location.reload()}>↻ Làm mới</button>
     </div>
