@@ -58,6 +58,7 @@ export async function GET(request) {
      Chỉ bắn đúng khung 10·15·18·21·23h VN, mỗi khung 1 lần — khóa chống
      gửi trùng đặt ở Upstash KV (cùng store với phân quyền). */
   const nowVN = vnNow();
+  let autoKv = null; /* khóa khung giờ đã giành — chốt cả ngày sau khi gửi xong */
   if (searchParams.get('auto') === '1') {
     const phutVN = Number(nowVN.gio.slice(0, 2)) * 60 + Number(nowVN.gio.slice(3, 5));
     /* Khung bắn 12h · 18h · 23h30 — cửa sổ chờ đến hết giờ đó
@@ -75,14 +76,18 @@ export async function GET(request) {
     const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '';
     if (kvUrl && kvToken) {
       try {
+        /* Giành lượt bằng khóa TẠM 3 phút — chốt khóa cả ngày chỉ sau khi
+           GỬI THÀNH CÔNG (cuối hàm); server chết giữa chừng thì khóa tạm
+           hết hạn và chuyến ping sau tự bắn lại, không mất khung. */
         const r = await fetch(kvUrl, {
           method: 'POST',
           headers: { Authorization: `Bearer ${kvToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(['SET', `pkt:bot:${nowVN.ngay}:${slot.key}`, '1', 'NX', 'EX', 86400]),
+          body: JSON.stringify(['SET', `pkt:bot:${nowVN.ngay}:${slot.key}`, '1', 'NX', 'EX', 180]),
           cache: 'no-store',
         });
         const j = await r.json();
-        if (j.result === null) return Response.json({ sent: false, skip: `khung ${slot.key} hôm nay đã gửi rồi` });
+        if (j.result === null) return Response.json({ sent: false, skip: `khung ${slot.key} hôm nay đã gửi rồi (hoặc đang gửi)` });
+        autoKv = { url: kvUrl, token: kvToken, key: `pkt:bot:${nowVN.ngay}:${slot.key}` };
       } catch { /* KV lỗi thì vẫn gửi — thà trùng còn hơn sót */ }
     } else if (phutVN - slot.a > 20) {
       /* chưa nối KV: chỉ cho lần gọi đầu cửa sổ đi qua để không gửi trùng */
@@ -310,6 +315,15 @@ export async function GET(request) {
     const tin1 = await guiTin(text1, chart1Url, `📊 GMV theo ngày & lũy kế — tháng ${thang}`);
     const tin2 = await guiTin(text2, chart2Url, `📊 GMV USD theo sàn — tháng ${thang}`);
     if (!tin1.ok || !tin2.ok) throw new Error(tin1.loi || tin2.loi || 'Telegram từ chối');
+    /* Gửi xong mới chốt khóa khung giờ cả ngày (đè khóa tạm 3 phút) */
+    if (autoKv) {
+      await fetch(autoKv.url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${autoKv.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(['SET', autoKv.key, '1', 'EX', 86400]),
+        cache: 'no-store',
+      }).catch(() => {});
+    }
     return Response.json({ sent: true, tin1, tin2 });
   } catch (e) {
     return Response.json({ error: `Gửi Telegram lỗi: ${e.message}`, message: text1 }, { status: 502 });
