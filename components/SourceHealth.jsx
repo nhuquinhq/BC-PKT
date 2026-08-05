@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from './AuthGate';
 import PermManager from './PermManager';
+import SourceMap from './SourceMap';
 import { REPORTS } from '@/lib/reports';
 import { fetchSheetGrid } from '@/lib/data';
 
@@ -124,6 +125,8 @@ export default function SourceHealth() {
             <span className="mono">sheet</span> của báo cáo trong <span className="mono">lib/reports.js</span> — web sẽ tự đọc như PKT1.
           </div>
         ) : null}
+
+        <SourceMap />
 
         <PermManager />
 
