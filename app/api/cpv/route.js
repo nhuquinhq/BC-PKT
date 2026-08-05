@@ -138,7 +138,9 @@ function parseOrders(grid, { defaultSan = '' } = {}) {
     dich_vu: findCol(headers, ['loai dich vu', 'dich vu', '~loai dich vu', '~dich vu']),
     game: findCol(headers, ['game']),
     san_pham: findCol(headers, ['~san pham']),
-    ty_gia_co: findCol(headers, ['~ty gia tuan']),
+    /* File CPV BE 08/2026 có 2 cột "Tỷ giá tuần" (CO Rate · REV Rate) —
+       lấy cột CUỐI (REV Rate) vì dùng để quy đổi DOANH THU USD → VND */
+    ty_gia_co: headers.reduce((acc, h, i) => (h.includes('ty gia tuan') ? i : acc), -1),
   };
   if (col.san < 0 && !defaultSan) throw new Error('Không tìm thấy cột Sàn.');
   if (col.ngay_hoan_tat < 0 && col.ngay_tao < 0) throw new Error('Không tìm thấy cột ngày.');
