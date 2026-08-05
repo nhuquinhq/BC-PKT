@@ -12,7 +12,12 @@ name: Bot CPV Telegram
 on:
   schedule:
     - cron: '3,18,33,48 * * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      ban_ngay:
+        description: 'Bắn ngay lập tức, bỏ qua khung giờ (true/false)'
+        required: false
+        default: 'true'
 
 jobs:
   ban-cpv:
@@ -21,8 +26,13 @@ jobs:
     steps:
       - name: Goi endpoint bot
         run: |
+          # Chay tay voi ban_ngay=true thi bo ?auto=1 -> gui ngay khong xet khung gio
+          URL="https://bc-pkt.vercel.app/api/bot/cpv?auto=1"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.ban_ngay }}" = "true" ]; then
+            URL="https://bc-pkt.vercel.app/api/bot/cpv"
+          fi
           for i in 1 2 3; do
-            code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -m 120 "https://bc-pkt.vercel.app/api/bot/cpv?auto=1") && [ "$code" = "200" ] && break
+            code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -m 120 "$URL") && [ "$code" = "200" ] && break
             echo "Lan $i loi (HTTP $code), thu lai sau 30s..."; cat /tmp/resp.json || true; sleep 30
           done
           cat /tmp/resp.json
