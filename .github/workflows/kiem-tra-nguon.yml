@@ -1,4 +1,5 @@
-# Chẩn đoán đường đọc dữ liệu — chạy tay khi trang báo không đọc được file.
+# Nhận diện tab của file công bố: tải vài dòng đầu CSV của từng gid rồi
+# in ra để biết gid nào ứng với tab nào.
 name: Kiem tra nguon du lieu
 
 on:
@@ -9,16 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Soi cau truc menu tab cua file cong bo
+      - name: Nhan dien gid
         run: |
           K='2PACX-1vTLTvWG0zTceE2zZ1-f-8EDouwxfQUWj-LBDj0K4qXsbvOO1mdp2pbt7pqvraPj6gfTnq0oQORAIRWb'
-          curl -sS -L -o /tmp/pub.html -w 'pubhtml: HTTP %{http_code} · %{time_total}s · %{size_download} bytes\n' -m 120 \
-            "https://docs.google.com/spreadsheets/d/e/$K/pubhtml"
-          echo "=== cac chuoi chua gid ==="
-          grep -o 'gid=[0-9]*' /tmp/pub.html | sort -u | head -30
-          echo "=== sheet-button ==="
-          grep -o 'sheet-button-[0-9]*' /tmp/pub.html | sort -u | head -30
-          echo "=== doan quanh sheet-menu ==="
-          grep -o 'sheet-menu.\{0,1500\}' /tmp/pub.html | head -c 2000; echo
-          echo "=== 400 ky tu dau ==="
-          head -c 400 /tmp/pub.html; echo
+          for G in 116298870 959678702 513088085 1068979883 731668787 2029983632; do
+            echo "===== gid=$G"
+            curl -sS -L -m 90 -r 0-1200 \
+              "https://docs.google.com/spreadsheets/d/e/$K/pub?gid=$G&single=true&output=csv" \
+              -o /tmp/t.csv -w '   HTTP %{http_code} · %{time_total}s\n' || echo '   LOI'
+            head -c 400 /tmp/t.csv | tr '\n' '|'; echo; echo
+          done
