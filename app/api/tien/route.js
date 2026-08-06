@@ -50,12 +50,27 @@ async function tai(url, timeout = 25000) {
   return res.text();
 }
 
-/* Trang pubhtml cả sổ có menu tab kèm gid — bóc thành map tên → gid */
+/* Trang pubhtml cả sổ có menu tab kèm gid — bóc thành map tên → gid.
+   Google đổi khuôn trang này vài lần nên thử lần lượt nhiều mẫu. */
 async function mapGid(key) {
   const html = await tai(`https://docs.google.com/spreadsheets/d/e/${key}/pubhtml`);
   const map = new Map();
-  for (const m of html.matchAll(/#gid=(\d+)['"][^>]*>([^<]+)</g)) map.set(norm(m[2]), m[1]);
-  for (const m of html.matchAll(/\{"name":\s*"([^"]+)",\s*"gid":\s*"?(\d+)/g)) map.set(norm(m[1]), m[2]);
+  const dat = (ten, gid) => {
+    const n = norm(ten);
+    if (n && gid && !map.has(n)) map.set(n, gid);
+  };
+  /* <li id="sheet-button-123"><a href="#gid=123">TÊN</a> */
+  for (const m of html.matchAll(/sheet-button-(\d+)[^>]*>\s*<a[^>]*>([^<]+)</g)) dat(m[2], m[1]);
+  /* href="#gid=123">TÊN< */
+  for (const m of html.matchAll(/#gid=(\d+)["'][^>]*>([^<]+)</g)) dat(m[2], m[1]);
+  /* {"name":"TÊN","gid":"123"} trong khối JS */
+  for (const m of html.matchAll(/\{"name":\s*"([^"]+)",\s*"gid":\s*"?(\d+)/g)) dat(m[1], m[2]);
+  /* Bảng dữ liệu từng tab nằm trong <div id="123" ...> — ghép theo thứ tự menu */
+  if (!map.size) {
+    const ids = [...html.matchAll(/<div[^>]+id="(\d+)"[^>]*class="[^"]*ritz/g)].map((m) => m[1]);
+    const tens = [...html.matchAll(/<li[^>]*class="[^"]*switcher[^"]*"[^>]*>\s*<a[^>]*>([^<]+)</g)].map((m) => m[1]);
+    for (let i = 0; i < Math.min(ids.length, tens.length); i++) dat(tens[i], ids[i]);
+  }
   return map;
 }
 
@@ -139,7 +154,9 @@ export async function GET(request) {
   if (!key) return Response.json({ error: 'URL không phải dạng công bố /d/e/…' }, { status: 400 });
 
   try {
-    const gids = await mapGid(key);
+    /* Ưu tiên gid khai báo sẵn trong cấu hình báo cáo (qs), không có thì
+       dò từ menu tab của trang công bố. */
+    const gids = searchParams.get('gid_bclctt') ? new Map() : await mapGid(key).catch(() => new Map());
     const tim = (ten) => {
       const n = norm(ten);
       for (const [k, v] of gids) if (k === n || k.startsWith(n)) return v;
@@ -148,8 +165,8 @@ export async function GET(request) {
     /* ver4 tách 3 bản: VNĐ · ngoại tệ quy đổi · tổng hợp (bản chính thức).
        ver3 chỉ có một bản tên 7_BCLCTT — vẫn đọc được để không gãy. */
     const gBc = searchParams.get('gid_bclctt') || tim('9_bclctt_tong_hop') || tim('7_bclctt');
-    const gVnd = tim('7_bclctt_vnd');
-    const gUsd = tim('8_bclctt_usd');
+    const gVnd = searchParams.get('gid_vnd') || tim('7_bclctt_vnd');
+    const gUsd = searchParams.get('gid_usd') || tim('8_bclctt_usd');
     const gDb = searchParams.get('gid_dashboard') || tim('0_dashboard');
     if (!gBc) throw new Error(`Không tìm thấy tab BCLCTT trong file (các tab đọc được: ${[...gids.keys()].join(', ') || 'không đọc được menu tab'})`);
 
