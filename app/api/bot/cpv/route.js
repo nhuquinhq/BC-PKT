@@ -1,8 +1,12 @@
 /* ============================================================
-   BOT bắn CPV theo BE qua Telegram — GitHub Actions gọi ?auto=1 nhiều
-   lần quanh giờ hẹn (.github/workflows/bot-cpv.yml), server tự bắn
-   đúng khung 12h · 18h · 23h30 giờ VN, mỗi khung 1 lần (khóa KV);
-   không dùng Vercel Cron vì gói Hobby chỉ cho chạy 1 lần/ngày.
+   BOT bắn CPV theo BE qua Telegram. Ba khung 12h · 18h · 23h30 giờ VN,
+   mỗi khung 1 lần (khóa KV chống trùng). Đồng hồ gọi ?auto=1 gồm:
+   - Vercel Cron (vercel.json): 2 chuyến/ngày — khung 12h và 23h30.
+     Gói Hobby chỉ cho mỗi cron chạy 1 lần/ngày nên tối đa 2 khung.
+   - GitHub Actions (.github/workflows/bot-cpv.yml): ping dự phòng —
+     lịch của GitHub hay bị bỏ chuyến nên chỉ coi là lớp đỡ.
+   - Google Apps Script bên tài khoản PKT (nếu đã cài): gọi mỗi 10
+     phút, đây mới là đồng hồ phủ đủ cả 3 khung.
    Mỗi lần bắn 2 tin, mỗi tin kèm 1 ảnh biểu đồ:
    1) CPV tổng: số hôm nay + lũy kế tháng; ảnh GMV theo ngày (cột)
       và đường lũy kế trong tháng.
