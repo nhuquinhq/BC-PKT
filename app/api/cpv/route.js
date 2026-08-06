@@ -89,13 +89,24 @@ const statusClass = (raw) => {
   return 'other';
 };
 
-async function loadGrid(url, gid) {
+/* Google hay trả 400/500 hoặc treo khi xuất CSV file lớn (đã gặp với file
+   CPV BE 08/2026) — thử lại tối đa 3 lượt, mỗi lượt chờ 25s rồi lùi 2s/4s. */
+async function loadGrid(url, gid, luot = 3) {
   const csvUrl = toCsvUrl(url, gid) || url;
-  const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store' });
-  if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
-  const text = await res.text();
-  if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.');
-  return Papa.parse(text, { header: false, skipEmptyLines: false }).data;
+  let loiCuoi = null;
+  for (let i = 0; i < luot; i++) {
+    if (i) await new Promise((ok) => setTimeout(ok, i * 2000));
+    try {
+      const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(25000) });
+      if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
+      const text = await res.text();
+      if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.');
+      return Papa.parse(text, { header: false, skipEmptyLines: false }).data;
+    } catch (e) {
+      loiCuoi = e.name === 'TimeoutError' ? new Error('Google không trả dữ liệu trong 25s') : e;
+    }
+  }
+  throw loiCuoi;
 }
 
 /* Đọc một lưới CSV đơn hàng → danh sách đơn đã chuẩn hoá.
