@@ -65,6 +65,31 @@ export async function GET(request) {
      gửi trùng đặt ở Upstash KV (cùng store với phân quyền). */
   const nowVN = vnNow();
   let autoKv = null; /* khóa khung giờ đã giành — chốt cả ngày sau khi gửi xong */
+
+  /* ?trangthai=1 — tra xem hôm nay khung nào đã bắn (đọc khoá trên KV),
+     không gửi gì cả. Dùng để kiểm tra lịch mà không tạo tin trùng. */
+  if (searchParams.get('trangthai') === '1') {
+    const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || '';
+    const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '';
+    const ngayTra = searchParams.get('date') || nowVN.ngay;
+    if (!kvUrl || !kvToken) return Response.json({ error: 'Chưa nối KV nên không tra được' }, { status: 500 });
+    const khung = ['12h', '18h', '23h30'];
+    const da = {};
+    for (const k of khung) {
+      try {
+        const r = await fetch(kvUrl, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${kvToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(['GET', `pkt:bot:${ngayTra}:${k}`]),
+          cache: 'no-store',
+        });
+        da[k] = (await r.json()).result ? 'đã bắn' : 'chưa bắn';
+      } catch (e) {
+        da[k] = `lỗi đọc KV: ${e.message}`;
+      }
+    }
+    return Response.json({ ngay: ngayTra, gio_hien_tai: nowVN.gio, khung: da });
+  }
   if (searchParams.get('auto') === '1') {
     const phutVN = Number(nowVN.gio.slice(0, 2)) * 60 + Number(nowVN.gio.slice(3, 5));
     /* Khung bắn 12h · 18h · 23h30 — cửa sổ chờ đến hết giờ đó

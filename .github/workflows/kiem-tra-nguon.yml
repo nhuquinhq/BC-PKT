@@ -1,5 +1,5 @@
-# Nhận diện tab của file công bố: tải vài dòng đầu CSV của từng gid rồi
-# in ra để biết gid nào ứng với tab nào.
+# Kiểm tra nhanh 2 thứ: PKT3 đọc được file Báo cáo TIỀN chưa, và hôm nay
+# bot đã bắn những khung giờ nào (đọc khoá chống trùng, không gửi tin).
 name: Kiem tra nguon du lieu
 
 on:
@@ -10,13 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Nhan dien gid
+      - name: Kiem tra
         run: |
-          K='2PACX-1vTLTvWG0zTceE2zZ1-f-8EDouwxfQUWj-LBDj0K4qXsbvOO1mdp2pbt7pqvraPj6gfTnq0oQORAIRWb'
-          for G in 116298870 959678702 513088085 1068979883 731668787 2029983632; do
-            echo "===== gid=$G"
-            curl -sS -L -m 90 -r 0-1200 \
-              "https://docs.google.com/spreadsheets/d/e/$K/pub?gid=$G&single=true&output=csv" \
-              -o /tmp/t.csv -w '   HTTP %{http_code} · %{time_total}s\n' || echo '   LOI'
-            head -c 400 /tmp/t.csv | tr '\n' '|'; echo; echo
-          done
+          goi() {
+            echo "===== $1"
+            curl -sS -o /tmp/o.json -w '   HTTP %{http_code} · %{time_total}s\n' -m 280 "$2" || echo '   LOI/TIMEOUT'
+            head -c 700 /tmp/o.json | tr -d '\n'; echo; echo
+          }
+          goi "1. Bot da ban khung nao hom nay" \
+            "https://bc-pkt.vercel.app/api/bot/cpv?trangthai=1"
+          goi "2. Bot da ban khung nao ngay 06/08" \
+            "https://bc-pkt.vercel.app/api/bot/cpv?trangthai=1&date=06/08/2026"
+          goi "3. PKT3 doc file Bao cao TIEN ver4" \
+            "https://bc-pkt.vercel.app/api/tien?gids=116298870,959678702,513088085,1068979883,731668787,2029983632&url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vTLTvWG0zTceE2zZ1-f-8EDouwxfQUWj-LBDj0K4qXsbvOO1mdp2pbt7pqvraPj6gfTnq0oQORAIRWb%2Fpubhtml"
