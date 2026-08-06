@@ -106,16 +106,17 @@ function docBclctt(grid) {
   return { rows, ks };
 }
 
-/* Tab 0_DASHBOARD: bóc các khối trạng thái + việc tồn (cột A/B/C/D) */
+/* Tab 0_DASHBOARD: bóc các khối trạng thái + việc tồn (cột A/B/C/D).
+   ver4 đổi tên khối: A đối soát sao kê · C sổ chi phí · E việc tồn. */
 function docDashboard(grid) {
-  const lay = (dau) => {
+  const lay = (...dau) => {
     const out = [];
     let bat = false;
     for (const r of grid) {
       const a = String(r?.[0] ?? '').trim();
       if (!a && !bat) continue;
       const na = norm(a);
-      if (na.startsWith(dau)) { bat = true; continue; }
+      if (!bat && dau.some((d) => na.startsWith(d))) { bat = true; continue; }
       if (!bat) continue;
       if (/^[a-h]\.\s/i.test(a)) break; /* sang khối chữ cái kế tiếp */
       if (!a) continue;
@@ -123,7 +124,11 @@ function docDashboard(grid) {
     }
     return out;
   };
-  return { hach_toan: lay('a. tinh trang hach toan'), chi_phi: lay('c. so chi phi'), viec_ton: lay('g. viec ton') };
+  return {
+    hach_toan: lay('a. tinh trang doi soat', 'a. tinh trang hach toan'),
+    chi_phi: lay('c. so chi phi'),
+    viec_ton: lay('e. viec ton', 'g. viec ton'),
+  };
 }
 
 export async function GET(request) {
@@ -140,17 +145,46 @@ export async function GET(request) {
       for (const [k, v] of gids) if (k === n || k.startsWith(n)) return v;
       return null;
     };
-    const gBc = searchParams.get('gid_bclctt') || tim('7_bclctt');
+    /* ver4 tách 3 bản: VNĐ · ngoại tệ quy đổi · tổng hợp (bản chính thức).
+       ver3 chỉ có một bản tên 7_BCLCTT — vẫn đọc được để không gãy. */
+    const gBc = searchParams.get('gid_bclctt') || tim('9_bclctt_tong_hop') || tim('7_bclctt');
+    const gVnd = tim('7_bclctt_vnd');
+    const gUsd = tim('8_bclctt_usd');
     const gDb = searchParams.get('gid_dashboard') || tim('0_dashboard');
-    if (!gBc) throw new Error(`Không tìm thấy tab 7_BCLCTT trong file (các tab đọc được: ${[...gids.keys()].join(', ') || 'không đọc được menu tab'})`);
+    if (!gBc) throw new Error(`Không tìm thấy tab BCLCTT trong file (các tab đọc được: ${[...gids.keys()].join(', ') || 'không đọc được menu tab'})`);
 
-    const [gridBc, gridDb] = await Promise.all([
+    const [gridBc, gridDb, gridVnd, gridUsd] = await Promise.all([
       taiTab(key, gBc),
       gDb ? taiTab(key, gDb).catch(() => []) : Promise.resolve([]),
+      gVnd ? taiTab(key, gVnd).catch(() => []) : Promise.resolve([]),
+      gUsd ? taiTab(key, gUsd).catch(() => []) : Promise.resolve([]),
     ]);
 
     const { rows, ks } = docBclctt(gridBc);
     const db = gridDb.length ? docDashboard(gridDb) : { hach_toan: [], chi_phi: [], viec_ton: [] };
+
+    /* Bảng "dòng tiền theo loại tiền": ghép luỹ kế của bản VNĐ và bản ngoại tệ */
+    let theoTien = [];
+    if (gridVnd.length || gridUsd.length) {
+      const mapLuy = (grid) => {
+        try {
+          const m = new Map();
+          for (const r of docBclctt(grid).rows) if (r.ma) m.set(r.ma, r.luy_ke);
+          return m;
+        } catch { return new Map(); }
+      };
+      const mv = mapLuy(gridVnd);
+      const mu = mapLuy(gridUsd);
+      theoTien = rows
+        .filter((r) => r.ma)
+        .map((r) => ({
+          ma: r.ma,
+          chi_tieu: r.chi_tieu,
+          vnd: mv.get(r.ma) ?? 0,
+          ngoai_te_qd: mu.get(r.ma) ?? 0,
+          tong: r.luy_ke,
+        }));
+    }
 
     const lay = (ma) => rows.find((r) => r.ma === ma) || {};
     const ocf = lay('20').luy_ke || 0;
@@ -167,6 +201,7 @@ export async function GET(request) {
 
     return Response.json({
       bclctt: rows,
+      theo_tien: theoTien,
       kiem_soat: ks,
       dashboard: db,
       kpis: {

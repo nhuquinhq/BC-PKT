@@ -59,11 +59,12 @@ export default function TienBoard({ report, onLive, range }) {
 
     /* Bảng dòng tiền: 1 dòng / chỉ tiêu B03a, 12 cột tháng + luỹ kế */
     const cf_thang = d.bclctt.map((r) => ({ ...r }));
+    const cf_tien = (d.theo_tien || []).map((r) => ({ ...r }));
     const cf_kiem_soat = d.kiem_soat.map((r) => ({ ...r }));
     const viec_ton = (d.dashboard?.viec_ton || []).map((r) => ({
       viec: r.a, so_luong: r.b, ai: r.c, chan: r.d,
     }));
-    return { tables: { cf_thang, cf_kiem_soat, viec_ton }, kpis };
+    return { tables: { cf_thang, cf_tien, cf_kiem_soat, viec_ton }, kpis };
   }, [state.data, range]);
 
   useEffect(() => {
