@@ -23,7 +23,7 @@ import { getReport } from '@/lib/reports';
 import { GET as docSoLieu } from '@/app/api/cpv/route';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const fmtVnd = (v) => {
   const n = Math.abs(v);

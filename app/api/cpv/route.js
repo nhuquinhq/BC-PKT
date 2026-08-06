@@ -25,7 +25,7 @@ import histT6 from '@/lib/data/cpv-2026-06.json';
 const HIST = [histT1, histT2, histT3, histT4, histT5, histT6];
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const norm = (s) =>
   String(s ?? '')

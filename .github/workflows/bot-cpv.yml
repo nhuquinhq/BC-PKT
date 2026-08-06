@@ -22,7 +22,7 @@ on:
 jobs:
   ban-cpv:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
       - name: Goi endpoint bot
         run: |
@@ -31,8 +31,9 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.ban_ngay }}" = "true" ]; then
             URL="https://bc-pkt.vercel.app/api/bot/cpv"
           fi
+          # Cho tối đa 290s: doc file BE thang moi (~2,3 MB CSV) co the mat vai phut
           for i in 1 2 3; do
-            code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -m 120 "$URL") && [ "$code" = "200" ] && break
+            code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -m 290 "$URL") && [ "$code" = "200" ] && break
             echo "Lan $i loi (HTTP $code), thu lai sau 30s..."; cat /tmp/resp.json || true; sleep 30
           done
           cat /tmp/resp.json
