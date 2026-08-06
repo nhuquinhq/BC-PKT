@@ -20,8 +20,10 @@
    ============================================================ */
 
 import { getReport } from '@/lib/reports';
+import { GET as docSoLieu } from '@/app/api/cpv/route';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const fmtVnd = (v) => {
   const n = Math.abs(v);
@@ -95,26 +97,26 @@ export async function GET(request) {
     }
   }
 
-  /* Lấy số liệu từ chính /api/cpv của deployment này, cấu hình theo PKT8 */
+  /* Số liệu lấy theo cấu hình PKT8, nhưng CHỈ THÁNG ĐANG CHẠY:
+     bỏ file các tháng trước (cfg.mains) và datalake (hist) — bot chỉ cần
+     hôm nay + lũy kế tháng, đọc ít file thì kịp trong hạn 60s của Vercel. */
   const cfg = getReport('pkt8')?.sheet;
   if (!cfg) return Response.json({ error: 'Thiếu cấu hình PKT8' }, { status: 500 });
   const qs = new URLSearchParams();
   qs.append('url', cfg.url);
   qs.append('gid', cfg.gid || '0');
-  for (const m of cfg.mains || []) {
-    qs.append('url', m.url);
-    qs.append('gid', m.gid || '0');
+  const apis = Array.isArray(cfg.api) ? cfg.api : cfg.api?.url ? [cfg.api] : [];
+  if (apis[0]) {
+    qs.append('url2', apis[0].url);
+    qs.append('gid2', apis[0].gid || '0');
   }
-  for (const a of Array.isArray(cfg.api) ? cfg.api : cfg.api?.url ? [cfg.api] : []) {
-    qs.append('url2', a.url);
-    qs.append('gid2', a.gid || '0');
-  }
-  if (cfg.hist) qs.set('hist', '1');
 
+  /* Gọi thẳng hàm xử lý của /api/cpv (không đi qua HTTP) — tự gọi lại
+     chính deployment dễ nghẽn và tốn thêm một vòng mạng. */
   const origin = new URL(request.url).origin;
   let detail;
   try {
-    const res = await fetch(`${origin}/api/cpv?${qs}`, { cache: 'no-store' });
+    const res = await docSoLieu(new Request(`${origin}/api/cpv?${qs}`));
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
     detail = json.detail;
