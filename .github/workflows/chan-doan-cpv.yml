@@ -1,0 +1,29 @@
+# Chẩn đoán tốc độ đọc dữ liệu CPV — chạy tay khi bot bị timeout.
+# Đo riêng từng chặng: tải CSV thẳng từ Google, gọi /api/cpv với ít/nhiều
+# file, và /api/bot/cpv?preview=1 (dựng tin nhưng không gửi Telegram).
+name: Chan doan CPV
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  do-toc-do:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Do thoi gian tung chang
+        run: |
+          BE='https://docs.google.com/spreadsheets/d/e/2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0/pub?output=csv&gid=0'
+          echo "=== 1. Tai thang CSV file BE T8 tu Google ==="
+          curl -sS -L -o /tmp/be.csv -w 'HTTP %{http_code} · %{time_total}s · %{size_download} bytes\n' -m 280 "$BE" || echo "LOI/TIMEOUT"
+          wc -l /tmp/be.csv 2>/dev/null || true
+
+          echo "=== 2. /api/cpv chi file BE T8 ==="
+          curl -sS -o /tmp/r2.json -w 'HTTP %{http_code} · %{time_total}s · %{size_download} bytes\n' -m 280 \
+            --get 'https://bc-pkt.vercel.app/api/cpv' --data-urlencode "url=$BE" --data 'gid=0' || echo "LOI/TIMEOUT"
+          head -c 300 /tmp/r2.json 2>/dev/null; echo
+
+          echo "=== 3. /api/bot/cpv?preview=1 (dung tin, khong gui) ==="
+          curl -sS -o /tmp/r3.json -w 'HTTP %{http_code} · %{time_total}s · %{size_download} bytes\n' -m 280 \
+            'https://bc-pkt.vercel.app/api/bot/cpv?preview=1' || echo "LOI/TIMEOUT"
+          head -c 400 /tmp/r3.json 2>/dev/null; echo
