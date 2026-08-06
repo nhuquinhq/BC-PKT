@@ -7,6 +7,7 @@ import ChartBlock from './ChartBlock';
 import SourcePanel from './SourcePanel';
 import WeeklyRateBoard from './WeeklyRateBoard';
 import CpvBoard from './CpvBoard';
+import TienBoard from './TienBoard';
 import FilterBar from './FilterBar';
 import { useAuth } from './AuthGate';
 import { filterRowsByRange, fmtRangeDate } from '@/lib/timeFilter';
@@ -235,6 +236,14 @@ export default function ReportView({ report }) {
               <WeeklyRateBoard report={report} onLive={applyLive} range={range} />
               {source}
               {tables}
+            </>
+          ) : report.sheet?.mode === 'cash_flow' ? (
+            /* PKT3 / PKT4 — đọc file Báo cáo TIỀN, kèm cảnh báo đối soát */
+            <>
+              <TienBoard report={report} onLive={applyLive} range={range} />
+              {tables}
+              {charts}
+              {source}
             </>
           ) : report.sheet?.mode === 'order_cpv' ? (
             /* Trang CPV chạy LIVE hoàn toàn — không cần khối nạp tay */
