@@ -1,6 +1,6 @@
-# Chẩn đoán tốc độ đọc dữ liệu CPV — chạy tay khi bot bị timeout.
-# Đo riêng từng chặng: tải CSV thẳng từ Google, gọi /api/cpv với ít/nhiều
-# file, và /api/bot/cpv?preview=1 (dựng tin nhưng không gửi Telegram).
+# Chẩn đoán tốc độ / lỗi đọc dữ liệu CPV — chạy tay khi bot hoặc dashboard
+# báo không đọc được file. Thử nhiều kiểu link xuất của Google để tìm đường
+# nào còn dùng được (pub?output=csv hay bị 400/500 với file nặng).
 name: Chan doan CPV
 
 on:
@@ -11,19 +11,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Do thoi gian tung chang
+      - name: Thu cac kieu link xuat cua Google
         run: |
-          BE='https://docs.google.com/spreadsheets/d/e/2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0/pub?output=csv&gid=0'
-          echo "=== 1. Tai thang CSV file BE T8 tu Google ==="
-          curl -sS -L -o /tmp/be.csv -w 'HTTP %{http_code} · %{time_total}s · %{size_download} bytes\n' -m 280 "$BE" || echo "LOI/TIMEOUT"
-          wc -l /tmp/be.csv 2>/dev/null || true
+          K='2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0'
+          thu() {
+            echo "--- $1"
+            curl -sS -L -o /tmp/o.bin -w '    HTTP %{http_code} · %{time_total}s · %{size_download} bytes\n' -m 70 "$2" || echo "    LOI/TIMEOUT"
+            head -c 120 /tmp/o.bin | tr -d '\n'; echo
+          }
+          thu "A. pub?output=csv&gid=0"            "https://docs.google.com/spreadsheets/d/e/$K/pub?output=csv&gid=0"
+          thu "B. pub?gid=0&single=true&output=csv" "https://docs.google.com/spreadsheets/d/e/$K/pub?gid=0&single=true&output=csv"
+          thu "C. pubhtml?gid=0&single=true"       "https://docs.google.com/spreadsheets/d/e/$K/pubhtml?gid=0&single=true"
+          thu "D. pub?output=tsv&gid=0"            "https://docs.google.com/spreadsheets/d/e/$K/pub?output=tsv&gid=0"
 
-          echo "=== 2. /api/cpv chi file BE T8 ==="
-          curl -sS -o /tmp/r2.json -w 'HTTP %{http_code} · %{time_total}s · %{size_download} bytes\n' -m 280 \
-            --get 'https://bc-pkt.vercel.app/api/cpv' --data-urlencode "url=$BE" --data 'gid=0' || echo "LOI/TIMEOUT"
-          head -c 300 /tmp/r2.json 2>/dev/null; echo
-
-          echo "=== 3. /api/bot/cpv?preview=1 (dung tin, khong gui) ==="
-          curl -sS -o /tmp/r3.json -w 'HTTP %{http_code} · %{time_total}s · %{size_download} bytes\n' -m 280 \
-            'https://bc-pkt.vercel.app/api/bot/cpv?preview=1' || echo "LOI/TIMEOUT"
-          head -c 400 /tmp/r3.json 2>/dev/null; echo
+          echo "=== Endpoint tren Vercel ==="
+          curl -sS -o /tmp/r.json -w '    HTTP %{http_code} · %{time_total}s\n' -m 280 \
+            'https://bc-pkt.vercel.app/api/bot/cpv?preview=1' || echo "    LOI/TIMEOUT"
+          head -c 400 /tmp/r.json 2>/dev/null; echo
