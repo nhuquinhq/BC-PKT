@@ -80,6 +80,21 @@ async function taiTab(key, gid) {
   return Papa.parse(text, { header: false, skipEmptyLines: false }).data;
 }
 
+/* Nhận diện tab theo NỘI DUNG thay vì theo tên/thứ tự: đọc vài dòng đầu
+   của từng gid rồi đoán vai trò. Nhờ vậy chỉ cần dán danh sách gid vào
+   cấu hình, không lo dán nhầm thứ tự hay Google đổi khuôn trang công bố. */
+function vaiTro(grid) {
+  const dau = grid.slice(0, 8).flat().map(norm).join(' | ');
+  if (dau.includes('bao cao tien hq group')) return 'dashboard';
+  if (dau.includes('luu chuyen tien te')) {
+    if (dau.includes('ban chinh thuc') || dau.includes('tong hop')) return 'tong_hop';
+    if (dau.includes('ngoai te') || dau.includes('usd')) return 'usd';
+    if (dau.includes('vnd') || dau.includes('vnđ')) return 'vnd';
+    return 'tong_hop';
+  }
+  return '';
+}
+
 const THANG = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
 
 /* Tab 7_BCLCTT: dòng tiêu đề có "CHỈ TIÊU" + "Mã số" + 12 cột tháng */
@@ -146,6 +161,72 @@ function docDashboard(grid) {
   };
 }
 
+/* Dựng kết quả trả về từ 4 lưới đã tải — dùng chung cho cả 2 cách dò tab */
+function traKetQua({ gridBc, gridDb, gridVnd, gridUsd, tabs }) {
+  const { rows, ks } = docBclctt(gridBc);
+  const db = gridDb.length ? docDashboard(gridDb) : { hach_toan: [], chi_phi: [], viec_ton: [] };
+
+  /* Bảng "dòng tiền theo loại tiền": ghép luỹ kế của bản VNĐ và bản ngoại tệ */
+  let theoTien = [];
+  if (gridVnd.length || gridUsd.length) {
+    const mapLuy = (grid) => {
+    try {
+      const m = new Map();
+      for (const r of docBclctt(grid).rows) if (r.ma) m.set(r.ma, r.luy_ke);
+      return m;
+    } catch { return new Map(); }
+    };
+    const mv = mapLuy(gridVnd);
+    const mu = mapLuy(gridUsd);
+    theoTien = rows
+    .filter((r) => r.ma)
+    .map((r) => ({
+      ma: r.ma,
+      chi_tieu: r.chi_tieu,
+      vnd: mv.get(r.ma) ?? 0,
+      ngoai_te_qd: mu.get(r.ma) ?? 0,
+      tong: r.luy_ke,
+    }));
+  }
+
+  const lay = (ma) => rows.find((r) => r.ma === ma) || {};
+  const ocf = lay('20').luy_ke || 0;
+  const icf = lay('30').luy_ke || 0;
+  const fcf = lay('40').luy_ke || 0;
+  const thuan = lay('50').luy_ke || 0;
+  const dauKy = lay('60').t1 || 0;
+  const cuoiKy = lay('70').luy_ke || 0;
+  const thu = ['01', '06', '22', '24', '26', '27', '31', '33'].reduce((t, m) => t + (lay(m).luy_ke || 0), 0);
+  const chi = ['02', '03', '04', '05', '07', '21', '23', '25', '32', '34', '35', '36'].reduce((t, m) => t + (lay(m).luy_ke || 0), 0);
+  const lechKs = ks.find((r) => norm(r.chi_tieu).startsWith('c. chenh lech'))?.luy_ke || 0;
+  const chuaGan = ks.find((r) => norm(r.chi_tieu).startsWith('d. so gd chua gan'))?.luy_ke || 0;
+  const trangThai = ks.find((r) => norm(r.chi_tieu).startsWith('e. kiem tra'))?.trang_thai || '';
+
+  return Response.json({
+    bclctt: rows,
+    theo_tien: theoTien,
+    kiem_soat: ks,
+    dashboard: db,
+    kpis: {
+    tien_dau_ky: dauKy,
+    tong_thu: thu,
+    tong_chi: chi,
+    tien_cuoi_ky: cuoiKy,
+    ocf,
+    icf,
+    fcf,
+    luu_chuyen_thuan: thuan,
+    lech_doi_soat: lechKs,
+    gd_chua_gan_ma: chuaGan,
+    },
+    meta: {
+    trang_thai_doi_soat: trangThai || 'không đọc được',
+    so_dong_bclctt: rows.length,
+    tabs,
+    },
+  });
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get('url');
@@ -153,9 +234,36 @@ export async function GET(request) {
   const key = pubKey(url);
   if (!key) return Response.json({ error: 'URL không phải dạng công bố /d/e/…' }, { status: 400 });
 
+  /* Cách 1 — danh sách gid khai báo sẵn: tải từng tab rồi tự nhận vai trò
+     theo nội dung. Không cần đúng thứ tự, không phụ thuộc menu tab. */
+  const dsGid = (searchParams.get('gids') || '').split(',').map((x) => x.trim()).filter(Boolean);
+  if (dsGid.length) {
+    try {
+      const nap = await Promise.all(
+        dsGid.map((g) => taiTab(key, g).then((grid) => ({ g, grid })).catch(() => null))
+      );
+      const theoVai = {};
+      for (const x of nap) {
+        if (!x) continue;
+        const v = vaiTro(x.grid);
+        if (v && !theoVai[v]) theoVai[v] = x.grid;
+      }
+      const gridBc = theoVai.tong_hop || theoVai.vnd;
+      if (!gridBc) throw new Error(`Không nhận ra tab BCLCTT trong ${dsGid.length} gid đã khai báo`);
+      return traKetQua({
+        gridBc,
+        gridDb: theoVai.dashboard || [],
+        gridVnd: theoVai.vnd || [],
+        gridUsd: theoVai.usd || [],
+        tabs: Object.keys(theoVai),
+      });
+    } catch (e) {
+      return Response.json({ error: `Không đọc được Báo cáo TIỀN: ${e.message}` }, { status: 502 });
+    }
+  }
+
   try {
-    /* Ưu tiên gid khai báo sẵn trong cấu hình báo cáo (qs), không có thì
-       dò từ menu tab của trang công bố. */
+    /* Cách 2 — dò gid từ menu tab của trang công bố cả sổ */
     const gids = searchParams.get('gid_bclctt') ? new Map() : await mapGid(key).catch(() => new Map());
     const tim = (ten) => {
       const n = norm(ten);
@@ -177,68 +285,7 @@ export async function GET(request) {
       gUsd ? taiTab(key, gUsd).catch(() => []) : Promise.resolve([]),
     ]);
 
-    const { rows, ks } = docBclctt(gridBc);
-    const db = gridDb.length ? docDashboard(gridDb) : { hach_toan: [], chi_phi: [], viec_ton: [] };
-
-    /* Bảng "dòng tiền theo loại tiền": ghép luỹ kế của bản VNĐ và bản ngoại tệ */
-    let theoTien = [];
-    if (gridVnd.length || gridUsd.length) {
-      const mapLuy = (grid) => {
-        try {
-          const m = new Map();
-          for (const r of docBclctt(grid).rows) if (r.ma) m.set(r.ma, r.luy_ke);
-          return m;
-        } catch { return new Map(); }
-      };
-      const mv = mapLuy(gridVnd);
-      const mu = mapLuy(gridUsd);
-      theoTien = rows
-        .filter((r) => r.ma)
-        .map((r) => ({
-          ma: r.ma,
-          chi_tieu: r.chi_tieu,
-          vnd: mv.get(r.ma) ?? 0,
-          ngoai_te_qd: mu.get(r.ma) ?? 0,
-          tong: r.luy_ke,
-        }));
-    }
-
-    const lay = (ma) => rows.find((r) => r.ma === ma) || {};
-    const ocf = lay('20').luy_ke || 0;
-    const icf = lay('30').luy_ke || 0;
-    const fcf = lay('40').luy_ke || 0;
-    const thuan = lay('50').luy_ke || 0;
-    const dauKy = lay('60').t1 || 0;
-    const cuoiKy = lay('70').luy_ke || 0;
-    const thu = ['01', '06', '22', '24', '26', '27', '31', '33'].reduce((t, m) => t + (lay(m).luy_ke || 0), 0);
-    const chi = ['02', '03', '04', '05', '07', '21', '23', '25', '32', '34', '35', '36'].reduce((t, m) => t + (lay(m).luy_ke || 0), 0);
-    const lechKs = ks.find((r) => norm(r.chi_tieu).startsWith('c. chenh lech'))?.luy_ke || 0;
-    const chuaGan = ks.find((r) => norm(r.chi_tieu).startsWith('d. so gd chua gan'))?.luy_ke || 0;
-    const trangThai = ks.find((r) => norm(r.chi_tieu).startsWith('e. kiem tra'))?.trang_thai || '';
-
-    return Response.json({
-      bclctt: rows,
-      theo_tien: theoTien,
-      kiem_soat: ks,
-      dashboard: db,
-      kpis: {
-        tien_dau_ky: dauKy,
-        tong_thu: thu,
-        tong_chi: chi,
-        tien_cuoi_ky: cuoiKy,
-        ocf,
-        icf,
-        fcf,
-        luu_chuyen_thuan: thuan,
-        lech_doi_soat: lechKs,
-        gd_chua_gan_ma: chuaGan,
-      },
-      meta: {
-        trang_thai_doi_soat: trangThai || 'không đọc được',
-        so_dong_bclctt: rows.length,
-        tabs: [...gids.keys()].slice(0, 20),
-      },
-    });
+    return traKetQua({ gridBc, gridDb, gridVnd, gridUsd, tabs: [...gids.keys()].slice(0, 20) });
   } catch (e) {
     return Response.json({ error: `Không đọc được Báo cáo TIỀN: ${e.message}` }, { status: 502 });
   }
