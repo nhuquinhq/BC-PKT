@@ -1,6 +1,5 @@
-# Chẩn đoán tốc độ / lỗi đọc dữ liệu CPV — chạy tay khi bot hoặc dashboard
-# báo không đọc được file. Thử nhiều kiểu link xuất của Google để tìm đường
-# nào còn dùng được (pub?output=csv hay bị 400/500 với file nặng).
+# Chẩn đoán đường đọc dữ liệu — chạy tay khi trang báo không đọc được file.
+# Kiểm tra cả nguồn CPV (Google pub CSV) lẫn nguồn Báo cáo TIỀN (/api/tien).
 name: Chan doan CPV
 
 on:
@@ -11,20 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Thu cac kieu link xuat cua Google
+      - name: Kiem tra endpoint
         run: |
-          K='2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0'
-          thu() {
+          goi() {
             echo "--- $1"
-            curl -sS -L -o /tmp/o.bin -w '    HTTP %{http_code} · %{time_total}s · %{size_download} bytes\n' -m 70 "$2" || echo "    LOI/TIMEOUT"
-            head -c 120 /tmp/o.bin | tr -d '\n'; echo
+            curl -sS -o /tmp/o.json -w '    HTTP %{http_code} · %{time_total}s · %{size_download} bytes\n' -m 280 "$2" || echo "    LOI/TIMEOUT"
+            head -c 900 /tmp/o.json | tr -d '\n'; echo; echo
           }
-          thu "A. pub?output=csv&gid=0"            "https://docs.google.com/spreadsheets/d/e/$K/pub?output=csv&gid=0"
-          thu "B. pub?gid=0&single=true&output=csv" "https://docs.google.com/spreadsheets/d/e/$K/pub?gid=0&single=true&output=csv"
-          thu "C. pubhtml?gid=0&single=true"       "https://docs.google.com/spreadsheets/d/e/$K/pubhtml?gid=0&single=true"
-          thu "D. pub?output=tsv&gid=0"            "https://docs.google.com/spreadsheets/d/e/$K/pub?output=tsv&gid=0"
-
-          echo "=== Endpoint tren Vercel ==="
-          curl -sS -o /tmp/r.json -w '    HTTP %{http_code} · %{time_total}s\n' -m 280 \
-            'https://bc-pkt.vercel.app/api/bot/cpv?preview=1' || echo "    LOI/TIMEOUT"
-          head -c 400 /tmp/r.json 2>/dev/null; echo
+          goi "1. Bao cao TIEN (PKT3)" "https://bc-pkt.vercel.app/api/tien?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vTLTvWG0zTceE2zZ1-f-8EDouwxfQUWj-LBDj0K4qXsbvOO1mdp2pbt7pqvraPj6gfTnq0oQORAIRWb%2Fpubhtml"
+          goi "2. Bot CPV preview" "https://bc-pkt.vercel.app/api/bot/cpv?preview=1"
