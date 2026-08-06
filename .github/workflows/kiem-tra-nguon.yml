@@ -1,6 +1,6 @@
 # Chẩn đoán đường đọc dữ liệu — chạy tay khi trang báo không đọc được file.
 # Kiểm tra cả nguồn CPV (Google pub CSV) lẫn nguồn Báo cáo TIỀN (/api/tien).
-name: Chan doan CPV
+name: Kiem tra nguon du lieu
 
 on:
   workflow_dispatch: {}
