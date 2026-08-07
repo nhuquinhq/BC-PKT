@@ -1,13 +1,12 @@
 /* ============================================================
    API CPV Ritokey (team C300) — nguồn "Báo cáo kinh doanh Ritokey".
 
-   - T1 → T7: lấy từ datalake tĩnh lib/data/ritokey-2026.json (bóc từ
-     sheet Monthly.Report của file, đã đối chiếu khớp dòng Total).
-     File chỉ có chi tiết giao dịch từ T4 nên các tháng đầu năm chỉ có
-     số tổng — đó là lý do dùng bản chốt tháng thay vì cộng lại từ đơn.
-   - Tháng đang chạy: đọc trực tiếp tab giao dịch đã công bố (gid),
-     gộp theo NGÀY HOÀN TẤT. Tự nhận dạng tab Giftcard hay Tiện ích
-     theo tiêu đề cột nên khai báo gid nào cũng chạy.
+   Dữ liệu NGÀY lấy ở sheet Daily.Report (bảng ngang, mỗi cột 1 ngày,
+   đủ từ 01/01):
+   - Bản chốt nằm trong datalake lib/data/ritokey-2026.json.
+   - Ngày nào đọc trực tiếp được từ tab đã công bố thì ĐÈ LÊN bản chốt,
+     nên số luôn mới nhất mà không bao giờ mất ngày cũ.
+   Bảng THÁNG cộng lên từ chính bảng ngày để hai bảng luôn khớp nhau.
    ============================================================ */
 
 import Papa from 'papaparse';
