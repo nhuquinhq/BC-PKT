@@ -130,11 +130,14 @@ function docDaily(grid) {
   }
   if (hàng < 0) throw new Error('Không tìm thấy dòng ngày của tab Daily.Report');
 
-  /* Nhãn chỉ tiêu nằm ở các cột bên trái cột ngày đầu tiên */
+  /* Nhãn chỉ tiêu nằm ở các cột bên trái cột ngày đầu tiên (A–D), nhưng
+     khoảng đó còn cột "Total" chứa số cả năm — chỉ ghép các ô CÓ CHỮ để
+     con số tổng không dính vào nhãn. */
   const cotDau = Math.min(...Object.keys(cot).map(Number));
+  const coChu = (v) => /[A-Za-zÀ-ỹ]/.test(String(v ?? ''));
   const nhanDong = [];
   for (let i = hàng + 1; i < grid.length; i++) {
-    nhanDong[i] = norm((grid[i] || []).slice(0, cotDau).filter(Boolean).join(' '));
+    nhanDong[i] = norm((grid[i] || []).slice(0, cotDau).filter(coChu).join(' '));
   }
   /* Khớp đúng nguyên văn trước, còn thiếu mới khớp phần đuôi — tránh dòng
      "%CO" cướp mất dòng "CO". */
