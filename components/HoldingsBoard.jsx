@@ -1,7 +1,7 @@
 'use client';
 
 /* ============================================================
-   Khối LIVE của báo cáo CPV HQ HOLDINGS (PKT13).
+   Khối LIVE của báo cáo CPV HQ HOLDINGS (PKT20).
 
    Gộp số của cả tập đoàn về CÙNG một bộ chỉ tiêu GMV / RE / CO để so
    sánh được giữa các đơn vị dù nguồn số mỗi nơi một kiểu:

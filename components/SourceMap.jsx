@@ -42,7 +42,7 @@ function buildRows() {
       }
     }
     if (r.sheetVi?.url) add(r.sheetVi.url, r.sheetVi.gid, r.sheetVi.label || 'Lịch sử ví HQS', r.code);
-    /* PKT13 còn đọc thêm file Ritokey để gộp số toàn tập đoàn */
+    /* PKT20 còn đọc thêm file Ritokey để gộp số toàn tập đoàn */
     if (r.sheetRitokey?.url) add(r.sheetRitokey.url, r.sheetRitokey.qs?.gids, 'Báo cáo kinh doanh Ritokey · Daily.Report', r.code);
   }
   return [...map.values()];

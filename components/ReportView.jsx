@@ -240,7 +240,7 @@ export default function ReportView({ report }) {
               {tables}
             </>
           ) : report.sheet?.mode === 'holdings' ? (
-            /* PKT13 — CPV toàn tập đoàn, xem theo BE hoặc theo ví */
+            /* PKT20 — CPV toàn tập đoàn, xem theo BE hoặc theo ví */
             <>
               <HoldingsBoard key={srcView} report={report} sheet={activeSheet} onLive={applyLive} range={range} />
               {tables}
