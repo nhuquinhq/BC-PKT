@@ -1,7 +1,9 @@
 /* ============================================================
-   BOT bắn CPV theo BE qua Telegram. Ba khung 12h · 18h · 23h30 giờ VN,
-   mỗi khung 1 lần (khóa KV chống trùng). Đồng hồ gọi ?auto=1 gồm:
-   - Vercel Cron (vercel.json): 2 chuyến/ngày — khung 12h và 23h30.
+   BOT bắn CPV theo BE qua Telegram. Ba khung 12h · 18h · 23h giờ VN,
+   mỗi khung 1 lần (khóa KV chống trùng). Mỗi cửa sổ rộng NGUYÊN GIỜ
+   (12:00–12:59 · 18:00–18:59 · 23:00–23:59) vì Vercel Cron gói Hobby
+   không nổ đúng phút hẹn mà nổ đâu đó trong giờ đó. Đồng hồ gọi ?auto=1:
+   - Vercel Cron (vercel.json): 2 chuyến/ngày — khung 12h và 23h.
      Gói Hobby chỉ cho mỗi cron chạy 1 lần/ngày nên tối đa 2 khung.
    - GitHub Actions (.github/workflows/bot-cpv.yml): ping dự phòng —
      lịch của GitHub hay bị bỏ chuyến nên chỉ coi là lớp đỡ.
@@ -88,16 +90,50 @@ export async function GET(request) {
         da[k] = `lỗi đọc KV: ${e.message}`;
       }
     }
-    return Response.json({ ngay: ngayTra, gio_hien_tai: nowVN.gio, khung: da });
+    /* Giờ nào trong ngày có đồng hồ gọi tới (?auto=1) */
+    let ping = 'không đọc được';
+    try {
+      const keys = Array.from({ length: 24 }, (_, h) => `pkt:bot:${ngayTra}:ping:${String(h).padStart(2, '0')}`);
+      const r = await fetch(kvUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${kvToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(['MGET', ...keys]),
+        cache: 'no-store',
+      });
+      const kq = (await r.json()).result || [];
+      ping = kq.map((v, h) => (v ? `${String(h).padStart(2, '0')}h (${v})` : null)).filter(Boolean);
+      if (!ping.length) ping = 'CHƯA CÓ ĐỒNG HỒ NÀO GỌI hôm nay';
+    } catch (e) {
+      ping = `lỗi đọc KV: ${e.message}`;
+    }
+    return Response.json({ ngay: ngayTra, gio_hien_tai: nowVN.gio, khung: da, dong_ho_goi: ping });
   }
   if (searchParams.get('auto') === '1') {
     const phutVN = Number(nowVN.gio.slice(0, 2)) * 60 + Number(nowVN.gio.slice(3, 5));
+    /* Đánh dấu ĐỒNG HỒ CÓ GỌI trong giờ này — khi bot không bắn, đây là
+       cách phân biệt "không đồng hồ nào gọi" với "có gọi nhưng lỗi gửi". */
+    {
+      const u = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || '';
+      const t = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '';
+      if (u && t) {
+        fetch(u, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(['SET', `pkt:bot:${nowVN.ngay}:ping:${nowVN.gio.slice(0, 2)}`, nowVN.gio, 'EX', 172800]),
+          cache: 'no-store',
+        }).catch(() => {});
+      }
+    }
     /* Khung bắn 12h · 18h · 23h30 — cửa sổ chờ đến hết giờ đó
        (23h30 → 23h59), lần gọi đầu rơi vào cửa sổ sẽ bắn. */
+    /* Cửa sổ rộng NGUYÊN GIỜ. Lý do: Vercel Cron gói Hobby không nổ đúng
+       phút hẹn mà nổ đâu đó TRONG GIỜ đó — cron 30 16 * * * (UTC) có thể
+       rơi vào bất kỳ phút nào của 23h VN. Cửa sổ cũ 23:30–23:59 nên chuyến
+       nổ lúc 23:0x bị coi là "ngoài khung" và mất luôn khung cuối ngày. */
     const SLOTS = [
       { key: '12h', a: 12 * 60, b: 12 * 60 + 59 },
       { key: '18h', a: 18 * 60, b: 18 * 60 + 59 },
-      { key: '23h30', a: 23 * 60 + 30, b: 23 * 60 + 59 },
+      { key: '23h30', a: 23 * 60, b: 23 * 60 + 59 },
     ];
     const slot = SLOTS.find((s) => phutVN >= s.a && phutVN <= s.b);
     if (!slot) {
@@ -109,11 +145,13 @@ export async function GET(request) {
       try {
         /* Giành lượt bằng khóa TẠM 3 phút — chốt khóa cả ngày chỉ sau khi
            GỬI THÀNH CÔNG (cuối hàm); server chết giữa chừng thì khóa tạm
-           hết hạn và chuyến ping sau tự bắn lại, không mất khung. */
+           hết hạn và chuyến ping sau tự bắn lại, không mất khung. Để 10
+           phút vì đọc file + dựng biểu đồ + gửi 2 tin có thể lâu hơn 3
+           phút, khoá ngắn quá thì chuyến ping kế tiếp bắn trùng. */
         const r = await fetch(kvUrl, {
           method: 'POST',
           headers: { Authorization: `Bearer ${kvToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(['SET', `pkt:bot:${nowVN.ngay}:${slot.key}`, '1', 'NX', 'EX', 180]),
+          body: JSON.stringify(['SET', `pkt:bot:${nowVN.ngay}:${slot.key}`, '1', 'NX', 'EX', 600]),
           cache: 'no-store',
         });
         const j = await r.json();
