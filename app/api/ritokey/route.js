@@ -194,7 +194,7 @@ export async function GET(request) {
       ...r,
       pl1: r.pl1 || r.re - r.co,
       ty_le_co: r.re ? (r.co / r.re) * 100 : null,
-      bien_pl1: r.gmv ? ((r.pl1 || r.re - r.co) / r.gmv) * 100 : null,
+      bien_pl1: r.re ? ((r.pl1 || r.re - r.co) / r.re) * 100 : null,
     }));
 
   /* Gộp tháng từ chính dữ liệu ngày — luôn nhất quán với bảng ngày */
@@ -212,7 +212,7 @@ export async function GET(request) {
     .map((r) => ({
       ...r,
       ty_le_co: r.re ? (r.co / r.re) * 100 : null,
-      bien_pl1: r.gmv ? (r.pl1 / r.gmv) * 100 : null,
+      bien_pl1: r.re ? (r.pl1 / r.re) * 100 : null,
     }));
 
   const tong = (k) => cpv_ngay.reduce((t, r) => t + (r[k] || 0), 0);
@@ -228,7 +228,7 @@ export async function GET(request) {
       gmv, re, co, pl1,
       so_don: tong('so_don'),
       ty_le_co: re ? (co / re) * 100 : null,
-      bien_pl1: gmv ? (pl1 / gmv) * 100 : null,
+      bien_pl1: re ? (pl1 / re) * 100 : null,
       ar: tong('pt'),
     },
     meta: {

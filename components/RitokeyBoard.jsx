@@ -63,7 +63,7 @@ export default function RitokeyBoard({ report, onLive, range }) {
       .map((r) => ({
         ...r,
         ty_le_co: r.re ? (r.co / r.re) * 100 : null,
-        bien_pl1: r.gmv ? (r.pl1 / r.gmv) * 100 : null,
+        bien_pl1: r.re ? (r.pl1 / r.re) * 100 : null,
       }));
 
     const t = (k) => ngay.reduce((s, r) => s + (r[k] || 0), 0);
@@ -78,7 +78,7 @@ export default function RitokeyBoard({ report, onLive, range }) {
         so_don: t('so_don'),
         ar: t('pt'),
         ty_le_co: re ? (co / re) * 100 : null,
-        bien_pl1: gmv ? (pl1 / gmv) * 100 : null,
+        bien_pl1: re ? (pl1 / re) * 100 : null,
       },
     };
   }, [state.data, range]);
