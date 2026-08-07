@@ -72,95 +72,112 @@ async function taiTab(url, gid) {
   return [];
 }
 
-/* Hai khuôn tab giao dịch của file Ritokey — nhận dạng theo tiêu đề cột */
-function docGiaoDich(grid) {
-  let h = -1;
-  let head = [];
-  for (let i = 0; i < Math.min(grid.length, 15); i++) {
-    const r = (grid[i] || []).map(norm);
-    if (r.includes('trang thai') && (r.includes('gia ban') || r.includes('tri gia'))) { h = i; head = r; break; }
+/* Tab Daily.Report là bảng NGANG: dòng 5 là ngày (từ cột H), mỗi chỉ tiêu
+   một dòng cố định. Nhận diện dòng theo nhãn ở cột A–D để không phụ thuộc
+   số thứ tự dòng — chèn thêm dòng trong file vẫn đọc đúng. */
+const NHAN = [
+  ['pl1', ['pl1b']],
+  ['gmv', ['gmv']],
+  ['gmv_tien_ich', ['doanh so dich vu tien ich']],
+  ['gmv_giftcard', ['doanh so dich vu giftcard']],
+  ['gmv_steam', ['doanh so dich vu steam']],
+  ['re', ['doanh thu']],
+  ['re_tien_ich', ['doanh thu dich vu tien ich']],
+  ['re_giftcard', ['doanh thu dich vu giftcard']],
+  ['re_steam', ['doanh thu dich vu steam']],
+  ['pt', ['phai tra ctv tien ich']],
+  ['co', ['co']],
+  ['so_don', ['so luong don']],
+  ['don_tien_ich', ['so don tien ich']],
+  ['don_giftcard', ['so don giftcard']],
+  ['don_steam', ['so don steam']],
+];
+
+function docDaily(grid) {
+  /* Dòng ngày: dòng đầu tiên có từ 20 ô trở lên đọc được thành ngày */
+  let hàng = -1;
+  let cot = {};
+  for (let i = 0; i < Math.min(grid.length, 12); i++) {
+    const c = {};
+    for (let k = 4; k < (grid[i] || []).length; k++) {
+      const dt = parseDate(grid[i][k]);
+      if (dt) c[k] = dt;
+    }
+    if (Object.keys(c).length >= 20) { hàng = i; cot = c; break; }
   }
-  if (h < 0) throw new Error('Không tìm thấy dòng tiêu đề tab giao dịch');
-  const first = (ten) => {
-    const i = head.indexOf(ten);
-    return i;
-  };
-  const laGiftcard = head.includes('gia ban');
-  const col = {
-    gmv: laGiftcard ? first('gia ban') : first('tri gia'),
-    co: first('gia von'),
-    tt: first('trang thai'),
-    ngay: laGiftcard ? first('thoi gian hoan thanh') : first('ngay hoan tat'),
-    nhom: first('danh muc san pham') >= 0 ? first('danh muc san pham') : first('loai san pham'),
-  };
-  const OK = new Set(['thanh cong', 'hoan tat', 'hoan tat doi xac nhan']);
+  if (hàng < 0) throw new Error('Không tìm thấy dòng ngày của tab Daily.Report');
+
+  const dong = {};
+  for (let i = hàng + 1; i < grid.length; i++) {
+    const nhan = norm((grid[i] || []).slice(0, 5).filter(Boolean).join(' '));
+    if (!nhan) continue;
+    for (const [key, ten] of NHAN) {
+      if (dong[key] === undefined && ten.some((t) => nhan === t || nhan.endsWith(t))) dong[key] = i;
+    }
+  }
+  if (dong.gmv === undefined) throw new Error('Không tìm thấy dòng GMV của tab Daily.Report');
+
   const rows = [];
-  for (let i = h + 1; i < grid.length; i++) {
-    const r = grid[i] || [];
-    if (!String(r[0] ?? '').trim()) continue;
-    if (!OK.has(norm(r[col.tt]))) continue;
-    const dt = parseDate(r[col.ngay]);
-    if (!dt) continue;
-    rows.push({
-      ngay: `${dt.d}/${dt.m}/${dt.y}`,
-      sortKey: `${dt.y}${dt.m}${dt.d}`,
-      thang: `${dt.m}/${dt.y}`,
-      nhom: laGiftcard ? 'Giftcard' : String(r[col.nhom] ?? '').trim() || 'Tiện ích',
-      gmv: viNum(r[col.gmv]),
-      co: col.co >= 0 ? viNum(r[col.co]) : 0,
-    });
+  for (const [k, dt] of Object.entries(cot)) {
+    const rec = { ngay: `${dt.d}/${dt.m}/${dt.y}`, sortKey: `${dt.y}${dt.m}${dt.d}`, thang: `${dt.m}/${dt.y}` };
+    for (const [key] of NHAN) rec[key] = dong[key] === undefined ? 0 : viNum((grid[dong[key]] || [])[k]);
+    for (const key of ['so_don', 'don_tien_ich', 'don_giftcard', 'don_steam']) rec[key] = Math.round(rec[key]);
+    if (rec.gmv || rec.so_don) rows.push(rec);
   }
-  return rows;
+  return rows.sort((a, b) => (a.sortKey < b.sortKey ? -1 : 1));
 }
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get('url');
-  const gids = (searchParams.get('gids') || searchParams.get('gid') || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const gids = (searchParams.get('gids') || searchParams.get('gid') || '')
+    .split(',').map((x) => x.trim()).filter(Boolean);
 
-  let live = [];
+  /* Ngày đọc trực tiếp (nếu có) ĐÈ LÊN datalake theo từng ngày — số mới
+     nhất luôn thắng, các ngày file live chưa có thì vẫn giữ bản chốt. */
   let loi = null;
+  let songay = 0;
+  const theoNgay = new Map();
+  for (const r of HIST.ngay) theoNgay.set(r.ngay, { ...r, nguon: 'Bản chốt' });
   if (url && gids.length) {
-    try {
-      const nap = await Promise.all(gids.map((g) => taiTab(url, g).then(docGiaoDich).catch((e) => { loi = e.message; return []; })));
-      live = nap.flat();
-    } catch (e) {
-      loi = e.message;
+    for (const g of gids) {
+      try {
+        const live = docDaily(await taiTab(url, g));
+        for (const r of live) theoNgay.set(r.ngay, { ...r, nguon: 'Đọc trực tiếp' });
+        songay += live.length;
+      } catch (e) {
+        loi = e.message;
+      }
     }
   }
-
-  /* Gộp ngày cho tháng đang chạy */
-  const theoNgay = new Map();
-  for (const r of live) {
-    const a = theoNgay.get(r.ngay) || { ngay: r.ngay, sortKey: r.sortKey, thang: r.thang, gmv: 0, co: 0, so_don: 0 };
-    a.gmv += r.gmv;
-    a.co += r.co;
-    a.so_don += 1;
-    theoNgay.set(r.ngay, a);
-  }
   const cpv_ngay = [...theoNgay.values()]
-    .sort((x, y) => (x.sortKey < y.sortKey ? -1 : 1))
-    .map((r) => ({ ...r, pl1: r.gmv - r.co, ty_le_co: r.gmv ? (r.co / r.gmv) * 100 : null }));
+    .sort((a, b) => (a.sortKey < b.sortKey ? -1 : 1))
+    .map((r) => ({
+      ...r,
+      pl1: r.pl1 || r.re - r.co,
+      ty_le_co: r.re ? (r.co / r.re) * 100 : null,
+      bien_pl1: r.gmv ? ((r.pl1 || r.re - r.co) / r.gmv) * 100 : null,
+    }));
 
-  /* Tháng đang chạy đọc live thì lấy số live, các tháng trước lấy datalake */
-  const thangLive = new Set(cpv_ngay.map((r) => r.thang));
-  const cpv_thang = HIST.thang
-    .filter((r) => r.gmv || r.so_don)
-    .map((r) => {
-      if (!thangLive.has(r.thang)) return { ...r, nguon: 'Chốt tháng' };
-      const g = cpv_ngay.filter((x) => x.thang === r.thang);
-      const gmv = g.reduce((t, x) => t + x.gmv, 0);
-      const co = g.reduce((t, x) => t + x.co, 0);
-      const so_don = g.reduce((t, x) => t + x.so_don, 0);
-      return {
-        ...r, gmv, co, so_don, re: gmv, pl1: gmv - co,
-        ty_le_co: gmv ? (co / gmv) * 100 : null,
-        bien_pl1: gmv ? ((gmv - co) / gmv) * 100 : null,
-        nguon: 'Đọc trực tiếp',
-      };
-    });
+  /* Gộp tháng từ chính dữ liệu ngày — luôn nhất quán với bảng ngày */
+  const CONG = ['gmv', 'gmv_tien_ich', 'gmv_giftcard', 'gmv_steam', 're', 're_tien_ich',
+    're_giftcard', 're_steam', 'pt', 'co', 'pl1', 'so_don', 'don_tien_ich', 'don_giftcard', 'don_steam'];
+  const mT = new Map();
+  for (const r of cpv_ngay) {
+    const a = mT.get(r.thang) || { thang: r.thang, sortKey: r.thang.slice(3) + r.thang.slice(0, 2), nguon: r.nguon };
+    for (const k of CONG) a[k] = (a[k] || 0) + (r[k] || 0);
+    if (r.nguon === 'Đọc trực tiếp') a.nguon = 'Đọc trực tiếp';
+    mT.set(r.thang, a);
+  }
+  const cpv_thang = [...mT.values()]
+    .sort((a, b) => (a.sortKey < b.sortKey ? -1 : 1))
+    .map((r) => ({
+      ...r,
+      ty_le_co: r.re ? (r.co / r.re) * 100 : null,
+      bien_pl1: r.gmv ? (r.pl1 / r.gmv) * 100 : null,
+    }));
 
-  const tong = (k) => cpv_thang.reduce((t, r) => t + (r[k] || 0), 0);
+  const tong = (k) => cpv_ngay.reduce((t, r) => t + (r[k] || 0), 0);
   const gmv = tong('gmv');
   const re = tong('re');
   const co = tong('co');
@@ -174,13 +191,13 @@ export async function GET(request) {
       so_don: tong('so_don'),
       ty_le_co: re ? (co / re) * 100 : null,
       bien_pl1: gmv ? (pl1 / gmv) * 100 : null,
-      ar: tong('ar'),
+      ar: tong('pt'),
     },
     meta: {
       nguon: HIST.nguon,
       team: HIST.team,
-      thang_live: [...thangLive].join(', ') || 'chưa đọc được tháng nào',
-      so_don_live: live.length,
+      so_ngay: cpv_ngay.length,
+      so_ngay_doc_truc_tiep: songay,
       loi_doc_live: loi,
     },
   });
