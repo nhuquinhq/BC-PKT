@@ -8,6 +8,7 @@ import SourcePanel from './SourcePanel';
 import WeeklyRateBoard from './WeeklyRateBoard';
 import CpvBoard from './CpvBoard';
 import TienBoard from './TienBoard';
+import RitokeyBoard from './RitokeyBoard';
 import FilterBar from './FilterBar';
 import { useAuth } from './AuthGate';
 import { filterRowsByRange, fmtRangeDate } from '@/lib/timeFilter';
@@ -235,6 +236,13 @@ export default function ReportView({ report }) {
               {charts}
               <WeeklyRateBoard report={report} onLive={applyLive} range={range} />
               {source}
+              {tables}
+            </>
+          ) : report.sheet?.mode === 'ritokey' ? (
+            /* PKT12 — CPV Ritokey (C300) */
+            <>
+              <RitokeyBoard report={report} onLive={applyLive} range={range} />
+              {charts}
               {tables}
             </>
           ) : report.sheet?.mode === 'cash_flow' ? (
