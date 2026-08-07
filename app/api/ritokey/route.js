@@ -36,14 +36,26 @@ function viNum(raw) {
   return isNaN(n) ? 0 : am ? -n : n;
 }
 
-const DATE_ISO = /(\d{4})-(\d{1,2})-(\d{1,2})/;
-const DATE_VN = /(\d{1,2})\/(\d{1,2})\/(\d{4})/;
-function parseDate(cell) {
-  const s = String(cell ?? '');
+const DATE_ISO = /^(\d{4})-(\d{1,2})-(\d{1,2})/;
+const DATE_VN = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/;
+/* Daily.Report hiển thị ngày kiểu 01/04 (không có năm) nên bản xuất CSV
+   cũng ra như vậy — nhận thêm dạng dd/mm và lấy năm từ tham số của tab. */
+const DATE_NGAN = /^(\d{1,2})[/-](\d{1,2})$/;
+function parseDate(cell, nam) {
+  const s = String(cell ?? '').trim();
+  if (!s) return null;
   let m = s.match(DATE_ISO);
   if (m) return { y: m[1], m: m[2].padStart(2, '0'), d: m[3].padStart(2, '0') };
   m = s.match(DATE_VN);
   if (m) return { y: m[3], m: m[2].padStart(2, '0'), d: m[1].padStart(2, '0') };
+  m = s.match(DATE_NGAN);
+  if (m && nam) {
+    const d = +m[1];
+    const mm = +m[2];
+    if (d >= 1 && d <= 31 && mm >= 1 && mm <= 12) {
+      return { y: String(nam), m: String(mm).padStart(2, '0'), d: String(d).padStart(2, '0') };
+    }
+  }
   return null;
 }
 
@@ -93,25 +105,49 @@ const NHAN = [
 ];
 
 function docDaily(grid) {
-  /* Dòng ngày: dòng đầu tiên có từ 20 ô trở lên đọc được thành ngày */
+  /* Năm của bảng nằm ở khối tiêu đề bên trái (ô ghi 2026) — cần để hiểu
+     các ô ngày rút gọn kiểu 01/04. Không thấy thì lấy năm hiện tại. */
+  let nam = 0;
+  for (let i = 0; i < Math.min(grid.length, 15) && !nam; i++) {
+    for (let k = 0; k < Math.min((grid[i] || []).length, 12); k++) {
+      const m = String(grid[i][k] ?? '').match(/(?:^|\D)(20\d{2})(?:\D|$)/);
+      if (m) { nam = parseInt(m[1], 10); break; }
+    }
+  }
+  if (!nam) nam = new Date().getUTCFullYear();
+
+  /* Dòng ngày (dòng 5 của file): dòng đầu tiên có từ 20 ô trở lên đọc được
+     thành ngày. Dò theo nội dung nên chèn thêm dòng vẫn không sai. */
   let hàng = -1;
   let cot = {};
-  for (let i = 0; i < Math.min(grid.length, 12); i++) {
+  for (let i = 0; i < Math.min(grid.length, 15); i++) {
     const c = {};
-    for (let k = 4; k < (grid[i] || []).length; k++) {
-      const dt = parseDate(grid[i][k]);
+    for (let k = 2; k < (grid[i] || []).length; k++) {
+      const dt = parseDate(grid[i][k], nam);
       if (dt) c[k] = dt;
     }
     if (Object.keys(c).length >= 20) { hàng = i; cot = c; break; }
   }
   if (hàng < 0) throw new Error('Không tìm thấy dòng ngày của tab Daily.Report');
 
-  const dong = {};
+  /* Nhãn chỉ tiêu nằm ở các cột bên trái cột ngày đầu tiên */
+  const cotDau = Math.min(...Object.keys(cot).map(Number));
+  const nhanDong = [];
   for (let i = hàng + 1; i < grid.length; i++) {
-    const nhan = norm((grid[i] || []).slice(0, 5).filter(Boolean).join(' '));
-    if (!nhan) continue;
-    for (const [key, ten] of NHAN) {
-      if (dong[key] === undefined && ten.some((t) => nhan === t || nhan.endsWith(t))) dong[key] = i;
+    nhanDong[i] = norm((grid[i] || []).slice(0, cotDau).filter(Boolean).join(' '));
+  }
+  /* Khớp đúng nguyên văn trước, còn thiếu mới khớp phần đuôi — tránh dòng
+     "%CO" cướp mất dòng "CO". */
+  const dong = {};
+  for (const [key, ten] of NHAN) {
+    for (let i = hàng + 1; i < grid.length; i++) {
+      if (nhanDong[i] && ten.includes(nhanDong[i])) { dong[key] = i; break; }
+    }
+  }
+  for (const [key, ten] of NHAN) {
+    if (dong[key] !== undefined) continue;
+    for (let i = hàng + 1; i < grid.length; i++) {
+      if (nhanDong[i] && ten.some((t) => nhanDong[i].endsWith(t))) { dong[key] = i; break; }
     }
   }
   if (dong.gmv === undefined) throw new Error('Không tìm thấy dòng GMV của tab Daily.Report');
