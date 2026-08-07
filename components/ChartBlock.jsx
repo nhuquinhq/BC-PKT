@@ -92,10 +92,15 @@ export default function ChartBlock({ chart, rows = [] }) {
   const isRate = chart.table === 'daily_rate';
   const fmtY = (v) => (isRate ? fmtRate(v) : fmtCompact(v));
 
+  /* Biểu đồ autoTitle đổi độ mịn theo bộ lọc — ghi rõ đang vẽ theo ngày hay tháng */
+  const tieuDe = chart.autoTitle && data.length
+    ? `${chart.title} — theo ${data[0].ngay ? 'NGÀY' : 'THÁNG'}`
+    : chart.title;
+
   return (
     <section className="panel">
       <div className="panel-head">
-        <h2>{chart.title}</h2>
+        <h2>{tieuDe}</h2>
         <span className="tag">{chart.table}</span>
       </div>
       <div className="panel-body">

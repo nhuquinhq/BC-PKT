@@ -66,13 +66,20 @@ export default function RitokeyBoard({ report, onLive, range }) {
         bien_pl1: r.re ? (r.pl1 / r.re) * 100 : null,
       }));
 
+    /* Độ mịn của BIỂU ĐỒ chạy theo bộ lọc: xem một tháng (hay một tuần) thì
+       vẽ từng ngày, xem cả năm thì vẽ từng tháng. Bảng số vẫn giữ nguyên
+       cả bảng tháng lẫn bảng ngày. */
+    const soThang = new Set(ngay.map((r) => r.thang)).size;
+    const cpv_auto = (ngay.length <= 45 || soThang <= 1 ? ngay : thang)
+      .map((r) => ({ ...r, nhan: r.ngay ? r.ngay.slice(0, 5) : r.thang }));
+
     const t = (k) => ngay.reduce((s, r) => s + (r[k] || 0), 0);
     const gmv = t('gmv');
     const re = t('re');
     const co = t('co');
     const pl1 = t('pl1');
     return {
-      tables: { cpv_thang: thang, cpv_nhom: thang, cpv_ngay: ngay },
+      tables: { cpv_thang: thang, cpv_nhom: thang, cpv_ngay: ngay, cpv_auto },
       kpis: {
         gmv, re, co, pl1,
         so_don: t('so_don'),
