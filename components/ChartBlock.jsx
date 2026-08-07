@@ -44,10 +44,36 @@ const SERIES_COLORS = {
 };
 
 const colorOf = (key, i) => SERIES_COLORS[key] || COLORS[i % COLORS.length];
+/* series.color cho phép ép màu khi hai chỉ tiêu trùng màu mặc định */
+const mauSeri = (s, i) => s.color || colorOf(s.key, i);
 
 const axisStyle = { fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', fill: '#6c7ba3' };
 const GRID = 'rgba(255,255,255,.07)';
 const TIP = { background: '#0b1020', border: '1px solid rgba(255,255,255,.14)', borderRadius: 10, fontSize: 12, color: '#eaf0ff' };
+
+/* Hộp chú giải tự vẽ — ngoài các series đang vẽ còn hiện thêm những chỉ tiêu
+   khai báo ở chart.tip (ví dụ cột chồng CO+PL1 nhưng vẫn muốn thấy GMV). */
+function tipRieng(chart, fmtVal) {
+  return function TipRieng({ active, payload, label }) {
+    if (!active || !payload?.length) return null;
+    const row = payload[0]?.payload || {};
+    return (
+      <div style={{ ...TIP, padding: '8px 10px', lineHeight: 1.6 }}>
+        <div style={{ color: '#a6b3d4', marginBottom: 2 }}>{label}</div>
+        {(chart.tip || []).map((t) => (
+          <div key={t.key} style={{ fontWeight: 600 }}>
+            {t.label}: {fmtCell(row[t.key], t.type || 'money')}
+          </div>
+        ))}
+        {payload.map((p) => (
+          <div key={p.dataKey} style={{ color: p.color }}>
+            {p.name}: {fmtVal(p.value, p.name, p)}
+          </div>
+        ))}
+      </div>
+    );
+  };
+}
 
 export default function ChartBlock({ chart, rows = [] }) {
   const data = rows
@@ -94,7 +120,9 @@ export default function ChartBlock({ chart, rows = [] }) {
               (() => {
                 const bars = chart.series.filter((s) => s.kind !== 'line');
                 const lines = chart.series.filter((s) => s.kind === 'line');
-                const pctKeys = new Set(lines.map((s) => s.key));
+                /* Đường mặc định là %; series num:true (ví dụ số đơn) dùng thang số */
+                const pctKeys = new Set(lines.filter((s) => !s.num).map((s) => s.key));
+                const phaiLaSo = lines.length > 0 && lines.every((s) => s.num);
                 const fmtVal = (v, _n, item) => (chart.pct || pctKeys.has(item?.dataKey) ? fmtCell(v, 'pct') : fmtY(v));
                 const fmtLeft = chart.pct ? (v) => `${v}%` : fmtY;
                 return (
@@ -112,9 +140,20 @@ export default function ChartBlock({ chart, rows = [] }) {
                       allowDataOverflow={chart.pct ? true : undefined}
                     />
                     {lines.length ? (
-                      <YAxis yAxisId="r" orientation="right" tick={axisStyle} tickLine={false} tickFormatter={(v) => `${v}%`} width={46} />
+                      <YAxis
+                        yAxisId="r"
+                        orientation="right"
+                        tick={axisStyle}
+                        tickLine={false}
+                        tickFormatter={phaiLaSo ? fmtCompact : (v) => `${v}%`}
+                        width={phaiLaSo ? 60 : 46}
+                      />
                     ) : null}
-                    <Tooltip contentStyle={TIP} itemStyle={{ color: "#eaf0ff" }} labelStyle={{ color: "#a6b3d4" }} formatter={fmtVal} />
+                    {chart.tip ? (
+                      <Tooltip content={tipRieng(chart, fmtVal)} />
+                    ) : (
+                      <Tooltip contentStyle={TIP} itemStyle={{ color: "#eaf0ff" }} labelStyle={{ color: "#a6b3d4" }} formatter={fmtVal} />
+                    )}
                     <Legend wrapperStyle={{ fontSize: 11, color: '#a6b3d4' }} />
                     {bars.map((s, i) => (
                       <Bar
@@ -122,13 +161,13 @@ export default function ChartBlock({ chart, rows = [] }) {
                         yAxisId="l"
                         dataKey={s.key}
                         name={s.label}
-                        fill={colorOf(s.key, i)}
+                        fill={mauSeri(s, i)}
                         stackId={s.stack ? 'st' : undefined}
                         radius={s.stack && i < bars.length - 1 ? [0, 0, 0, 0] : [2, 2, 0, 0]}
                       />
                     ))}
                     {lines.map((s, i) => (
-                      <Line key={s.key} yAxisId="r" type="monotone" dataKey={s.key} name={s.label} stroke={colorOf(s.key, bars.length + i)} strokeWidth={2} dot={data.length > 14 ? false : { r: 3 }} />
+                      <Line key={s.key} yAxisId="r" type="monotone" dataKey={s.key} name={s.label} stroke={mauSeri(s, bars.length + i)} strokeWidth={2} dot={data.length > 14 ? false : { r: 3 }} />
                     ))}
                   </ComposedChart>
                 );

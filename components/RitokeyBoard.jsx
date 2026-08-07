@@ -34,7 +34,9 @@ export default function RitokeyBoard({ report, onLive, range }) {
   const agg = useMemo(() => {
     const d = state.data;
     if (!d) return null;
-    /* Bộ lọc thời gian chỉ áp cho bảng ngày; bảng tháng luôn hiện đủ 12 tháng */
+    /* Lọc trên dữ liệu NGÀY rồi cộng ngược lên tháng và KPI, để chọn tháng /
+       tuần / khoảng ngày nào thì mọi con số trên trang đều đổi theo — kể cả
+       khoảng cắt ngang tháng. */
     let ngay = d.cpv_ngay;
     if (range && (range.from || range.to)) {
       const trong = (r) => {
@@ -46,7 +48,39 @@ export default function RitokeyBoard({ report, onLive, range }) {
       };
       ngay = ngay.filter(trong);
     }
-    return { tables: { cpv_thang: d.cpv_thang, cpv_ngay: ngay }, kpis: d.kpis };
+
+    const CONG = ['gmv', 'gmv_tien_ich', 'gmv_giftcard', 'gmv_steam', 're', 're_tien_ich',
+      're_giftcard', 're_steam', 'pt', 'co', 'pl1', 'so_don', 'don_tien_ich', 'don_giftcard', 'don_steam'];
+    const mT = new Map();
+    for (const r of ngay) {
+      const a = mT.get(r.thang) || { thang: r.thang, sortKey: r.thang.slice(3) + r.thang.slice(0, 2), nguon: r.nguon };
+      for (const k of CONG) a[k] = (a[k] || 0) + (r[k] || 0);
+      if (r.nguon === 'Đọc trực tiếp') a.nguon = 'Đọc trực tiếp';
+      mT.set(r.thang, a);
+    }
+    const thang = [...mT.values()]
+      .sort((a, b) => (a.sortKey < b.sortKey ? -1 : 1))
+      .map((r) => ({
+        ...r,
+        ty_le_co: r.re ? (r.co / r.re) * 100 : null,
+        bien_pl1: r.gmv ? (r.pl1 / r.gmv) * 100 : null,
+      }));
+
+    const t = (k) => ngay.reduce((s, r) => s + (r[k] || 0), 0);
+    const gmv = t('gmv');
+    const re = t('re');
+    const co = t('co');
+    const pl1 = t('pl1');
+    return {
+      tables: { cpv_thang: thang, cpv_nhom: thang, cpv_ngay: ngay },
+      kpis: {
+        gmv, re, co, pl1,
+        so_don: t('so_don'),
+        ar: t('pt'),
+        ty_le_co: re ? (co / re) * 100 : null,
+        bien_pl1: gmv ? (pl1 / gmv) * 100 : null,
+      },
+    };
   }, [state.data, range]);
 
   useEffect(() => {
