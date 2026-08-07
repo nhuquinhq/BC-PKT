@@ -9,6 +9,7 @@ import WeeklyRateBoard from './WeeklyRateBoard';
 import CpvBoard from './CpvBoard';
 import TienBoard from './TienBoard';
 import RitokeyBoard from './RitokeyBoard';
+import HoldingsBoard from './HoldingsBoard';
 import FilterBar from './FilterBar';
 import { useAuth } from './AuthGate';
 import { filterRowsByRange, fmtRangeDate } from '@/lib/timeFilter';
@@ -191,8 +192,8 @@ export default function ReportView({ report }) {
             <div className="range-line">
               {report.sheetVi ? (
                 <span className="src-toggle">
-                  <button className={`qbtn${srcView === 'be' ? ' on' : ''}`} onClick={() => setSrcView('be')}>CPV theo BE</button>
-                  <button className={`qbtn${srcView === 'vi' ? ' on' : ''}`} onClick={() => setSrcView('vi')}>CPV theo LS Ví</button>
+                  <button className={`qbtn${srcView === 'be' ? ' on' : ''}`} onClick={() => setSrcView('be')}>{report.srcLabel?.be || 'CPV theo BE'}</button>
+                  <button className={`qbtn${srcView === 'vi' ? ' on' : ''}`} onClick={() => setSrcView('vi')}>{report.srcLabel?.vi || 'CPV theo LS Ví'}</button>
                 </span>
               ) : (
                 <span className="range-pill">
@@ -238,6 +239,13 @@ export default function ReportView({ report }) {
               {source}
               {tables}
             </>
+          ) : report.sheet?.mode === 'holdings' ? (
+            /* PKT13 — CPV toàn tập đoàn, xem theo BE hoặc theo ví */
+            <>
+              <HoldingsBoard key={srcView} report={report} sheet={activeSheet} onLive={applyLive} range={range} />
+              {tables}
+              {charts}
+            </>
           ) : report.sheet?.mode === 'ritokey' ? (
             /* PKT12 — CPV Ritokey (C300) */
             <>
@@ -269,7 +277,7 @@ export default function ReportView({ report }) {
           );
         })()}
 
-        {report.sheet?.mode !== 'order_cpv' ? (
+        {report.sheet?.mode !== 'order_cpv' && report.sheet?.mode !== 'holdings' ? (
           <div className="muted" style={{ marginTop: 8 }}>
             {loaded ? `Cập nhật: ${data.meta.cap_nhat || '—'} · Người lập: ${data.meta.nguoi_lap || '—'}` : 'Đang tải dữ liệu…'}
           </div>
