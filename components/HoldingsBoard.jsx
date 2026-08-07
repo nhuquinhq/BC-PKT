@@ -80,27 +80,32 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
   const cfgHqs = sheet || report.sheet;
   const cheDo = cfgHqs.kind === 'vi' ? 'vi' : 'be';
   const cfgRito = report.sheetRitokey;
-  const [st, setSt] = useState({ status: 'loading' });
+  const [st, setSt] = useState({ hqs: null, rito: null, dangDoc: { hqs: true, rito: true }, loi: {} });
 
-  const load = useCallback(async () => {
-    setSt((s) => ({ ...s, status: s.hqs ? 'refreshing' : 'loading' }));
+  /* Hai nguồn tải ĐỘC LẬP nhau: file đơn hàng HQS to nên đọc lâu, nguồn nào
+     về trước hiện trước, không bắt cả trang chờ nguồn chậm nhất. */
+  const load = useCallback(() => {
+    setSt((s) => ({ ...s, dangDoc: { hqs: true, rito: true } }));
     const doc = async (url) => {
       const res = await fetch(url, { cache: 'no-store' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Không đọc được dữ liệu');
       return json;
     };
-    const [hqs, rito] = await Promise.allSettled([
-      doc(`${cfgHqs.endpoint || '/api/cpv'}?${qsCua(cfgHqs)}`),
-      doc(`/api/ritokey?${qsCua(cfgRito)}`),
-    ]);
-    setSt({
-      status: 'ok',
-      hqs: hqs.status === 'fulfilled' ? hqs.value : null,
-      loiHqs: hqs.status === 'rejected' ? hqs.reason.message : null,
-      rito: rito.status === 'fulfilled' ? rito.value : null,
-      loiRito: rito.status === 'rejected' ? rito.reason.message : null,
-    });
+    const nhan = (ten, url) => {
+      let p;
+      try {
+        p = doc(url);
+      } catch (e) {
+        p = Promise.reject(e);
+      }
+      p.then(
+        (v) => setSt((s) => ({ ...s, [ten]: v, loi: { ...s.loi, [ten]: null }, dangDoc: { ...s.dangDoc, [ten]: false } })),
+        (e) => setSt((s) => ({ ...s, loi: { ...s.loi, [ten]: e.message }, dangDoc: { ...s.dangDoc, [ten]: false } }))
+      );
+    };
+    nhan('hqs', `${cfgHqs.endpoint || '/api/cpv'}?${qsCua(cfgHqs)}`);
+    nhan('rito', `/api/ritokey?${qsCua(cfgRito)}`);
   }, [cfgHqs, cfgRito]);
 
   useEffect(() => {
@@ -110,8 +115,6 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
   }, [load]);
 
   const agg = useMemo(() => {
-    if (st.status === 'loading') return null;
-
     /* ---- HQS: quy các dòng chi tiết về GMV / RE / CO ---- */
     const hqsRows = trongKy(st.hqs?.detail || [], range).map((r) => ({
       ngay: r.ngay,
@@ -133,8 +136,14 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
       co: r.co || 0,
     }));
 
-    const nguonHqs = cheDo === 'vi' ? 'Lịch sử ví (đã sau phí sàn)' : 'BE · đơn hàng';
-    const nguonRito = cheDo === 'vi' ? 'BE · Daily.Report (chưa có ví)' : 'BE · Daily.Report';
+    /* Cột Nguồn nói luôn tình trạng đọc để không nhầm "đang tải" với "bằng 0" */
+    const trangThai = (dang, loi) => (dang ? ' — đang đọc…' : loi ? ' — lỗi đọc' : '');
+    const nguonHqs =
+      (cheDo === 'vi' ? 'Lịch sử ví (đã sau phí sàn)' : 'BE · đơn hàng') +
+      trangThai(st.dangDoc?.hqs, st.loi?.hqs);
+    const nguonRito =
+      (cheDo === 'vi' ? 'BE · Daily.Report (chưa có ví)' : 'BE · Daily.Report') +
+      trangThai(st.dangDoc?.rito, st.loi?.rito);
 
     const gop = (rows, ten, nguon) => ({
       don_vi: ten,
@@ -210,11 +219,24 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
     if (agg) onLive?.(agg);
   }, [agg, onLive]);
 
+  const dangDoc = [st.dangDoc?.hqs ? 'HQS' : null, st.dangDoc?.rito ? 'Ritokey' : null].filter(Boolean);
   const canhBao = [];
-  if (st.loiHqs) canhBao.push(`chưa đọc được số HQS — ${st.loiHqs}`);
-  if (st.loiRito) canhBao.push(`chưa đọc được số Ritokey — ${st.loiRito}`);
+  if (st.loi?.hqs) canhBao.push(`chưa đọc được số HQS — ${st.loi.hqs}`);
+  if (st.loi?.rito) canhBao.push(`chưa đọc được số Ritokey — ${st.loi.rito}`);
 
-  if (st.status === 'ok' && !st.hqs && !st.rito) {
+  /* File đơn hàng HQS khá lớn nên phải nói rõ đang đọc, tránh nhìn bảng 0
+     lại tưởng là không có dữ liệu */
+  if (dangDoc.length) {
+    return (
+      <div className="notice-amber" style={{ marginBottom: 18 }}>
+        <b>Đang đọc số {dangDoc.join(' và ')}…</b> File đơn hàng HQS khá lớn, lần mở đầu tiên có thể mất vài chục giây.
+        Các con số bên dưới sẽ tự điền khi đọc xong.
+        {canhBao.length ? <> {' · '} {canhBao.join(' · ')}</> : null}
+      </div>
+    );
+  }
+
+  if (!st.hqs && !st.rito) {
     return (
       <section className="panel">
         <div className="panel-body">
@@ -234,7 +256,14 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
       {cheDo === 'vi'
         ? ' Bản theo VÍ không có khái niệm GMV (tiền về ví đã sau phí sàn) nên cột GMV để trống; Ritokey chưa có sổ ví nên vẫn lấy số BE.'
         : ' Với HQS, RE = GMV − phí sàn; với Ritokey, RE là dòng Doanh thu của file (GMV của Ritokey gồm cả đơn hoàn hủy).'}
-      {canhBao.length ? <> {' · '} {canhBao.join(' · ')}</> : null}
+      {canhBao.length ? (
+        <>
+          {' · '}
+          {canhBao.join(' · ')}
+          {' · '}
+          <button className="btn" onClick={load} style={{ marginLeft: 4 }}>Đọc lại</button>
+        </>
+      ) : null}
     </div>
   );
 }
