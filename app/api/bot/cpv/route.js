@@ -68,6 +68,24 @@ export async function GET(request) {
   const nowVN = vnNow();
   let autoKv = null; /* khóa khung giờ đã giành — chốt cả ngày sau khi gửi xong */
 
+  /* Ghi VẾT kết quả của chuyến gọi này theo giờ, để ?trangthai=1 nói được
+     bot đã làm gì: không đồng hồ nào gọi · gọi nhưng ngoài khung · đọc số
+     lỗi · Telegram từ chối · đã gửi. Phải await, nếu không Vercel cắt
+     request là mất luôn dấu vết. */
+  const kvU = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || '';
+  const kvT = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '';
+  const ghiVet = async (txt) => {
+    if (!kvU || !kvT) return;
+    try {
+      await fetch(kvU, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${kvT}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(['SET', `pkt:bot:${nowVN.ngay}:vet:${nowVN.gio.slice(0, 2)}`, `${nowVN.gio} · ${txt}`, 'EX', 172800]),
+        cache: 'no-store',
+      });
+    } catch { /* mất dấu vết thì thôi, không được chặn việc gửi */ }
+  };
+
   /* ?trangthai=1 — tra xem hôm nay khung nào đã bắn (đọc khoá trên KV),
      không gửi gì cả. Dùng để kiểm tra lịch mà không tạo tin trùng. */
   if (searchParams.get('trangthai') === '1') {
@@ -106,23 +124,32 @@ export async function GET(request) {
     } catch (e) {
       ping = `lỗi đọc KV: ${e.message}`;
     }
-    return Response.json({ ngay: ngayTra, gio_hien_tai: nowVN.gio, khung: da, dong_ho_goi: ping });
+    let vet = 'không đọc được';
+    try {
+      const keys = Array.from({ length: 24 }, (_, h) => `pkt:bot:${ngayTra}:vet:${String(h).padStart(2, '0')}`);
+      const r = await fetch(kvUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${kvToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(['MGET', ...keys]),
+        cache: 'no-store',
+      });
+      vet = ((await r.json()).result || []).filter(Boolean);
+      if (!vet.length) vet = 'chưa có chuyến gọi nào được ghi nhận';
+    } catch (e) {
+      vet = `lỗi đọc KV: ${e.message}`;
+    }
+    return Response.json({ ngay: ngayTra, gio_hien_tai: nowVN.gio, khung: da, dong_ho_goi: ping, dien_bien: vet });
   }
   if (searchParams.get('auto') === '1') {
     const phutVN = Number(nowVN.gio.slice(0, 2)) * 60 + Number(nowVN.gio.slice(3, 5));
-    /* Đánh dấu ĐỒNG HỒ CÓ GỌI trong giờ này — khi bot không bắn, đây là
-       cách phân biệt "không đồng hồ nào gọi" với "có gọi nhưng lỗi gửi". */
-    {
-      const u = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || '';
-      const t = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '';
-      if (u && t) {
-        fetch(u, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(['SET', `pkt:bot:${nowVN.ngay}:ping:${nowVN.gio.slice(0, 2)}`, nowVN.gio, 'EX', 172800]),
-          cache: 'no-store',
-        }).catch(() => {});
-      }
+    /* Đánh dấu ĐỒNG HỒ CÓ GỌI trong giờ này */
+    if (kvU && kvT) {
+      await fetch(kvU, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${kvT}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(['SET', `pkt:bot:${nowVN.ngay}:ping:${nowVN.gio.slice(0, 2)}`, nowVN.gio, 'EX', 172800]),
+        cache: 'no-store',
+      }).catch(() => {});
     }
     /* Khung bắn 12h · 18h · 23h30 — cửa sổ chờ đến hết giờ đó
        (23h30 → 23h59), lần gọi đầu rơi vào cửa sổ sẽ bắn. */
@@ -137,6 +164,7 @@ export async function GET(request) {
     ];
     const slot = SLOTS.find((s) => phutVN >= s.a && phutVN <= s.b);
     if (!slot) {
+      await ghiVet('có gọi nhưng ngoài khung giờ bắn');
       return Response.json({ sent: false, skip: `ngoài khung giờ bắn (hiện ${nowVN.gio} VN)` });
     }
     const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || '';
@@ -155,7 +183,10 @@ export async function GET(request) {
           cache: 'no-store',
         });
         const j = await r.json();
-        if (j.result === null) return Response.json({ sent: false, skip: `khung ${slot.key} hôm nay đã gửi rồi (hoặc đang gửi)` });
+        if (j.result === null) {
+          await ghiVet(`khung ${slot.key} đã có chuyến khác giữ lượt`);
+          return Response.json({ sent: false, skip: `khung ${slot.key} hôm nay đã gửi rồi (hoặc đang gửi)` });
+        }
         autoKv = { url: kvUrl, token: kvToken, key: `pkt:bot:${nowVN.ngay}:${slot.key}` };
       } catch { /* KV lỗi thì vẫn gửi — thà trùng còn hơn sót */ }
     } else if (phutVN - slot.a > 20) {
@@ -188,6 +219,7 @@ export async function GET(request) {
     if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
     detail = json.detail;
   } catch (e) {
+    await ghiVet(`ĐỌC SỐ LỖI: ${e.message}`);
     return Response.json({ error: `Không đọc được số liệu: ${e.message}` }, { status: 502 });
   }
 
@@ -393,8 +425,10 @@ export async function GET(request) {
         cache: 'no-store',
       }).catch(() => {});
     }
+    await ghiVet('ĐÃ GỬI 2 tin');
     return Response.json({ sent: true, tin1, tin2 });
   } catch (e) {
+    await ghiVet(`GỬI TELEGRAM LỖI: ${e.message}`);
     return Response.json({ error: `Gửi Telegram lỗi: ${e.message}`, message: text1 }, { status: 502 });
   }
 }

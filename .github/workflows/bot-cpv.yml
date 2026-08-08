@@ -27,9 +27,14 @@ jobs:
       - name: Goi endpoint bot
         run: |
           # Chay tay voi ban_ngay=true thi bo ?auto=1 -> gui ngay khong xet khung gio
-          URL="https://bc-pkt.vercel.app/api/bot/cpv?auto=1"
+          # Neu tren Vercel co dat CRON_SECRET thi Apps Script / GitHub phai
+          # gui kem ?key=..., neu khong endpoint tra 401 va khong ban gi ca.
+          # Dat secret cung ten trong GitHub -> Settings -> Secrets.
+          KEY=""
+          if [ -n "${{ secrets.CRON_SECRET }}" ]; then KEY="&key=${{ secrets.CRON_SECRET }}"; fi
+          URL="https://bc-pkt.vercel.app/api/bot/cpv?auto=1$KEY"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.ban_ngay }}" = "true" ]; then
-            URL="https://bc-pkt.vercel.app/api/bot/cpv"
+            URL="https://bc-pkt.vercel.app/api/bot/cpv?tay=1$KEY"
           fi
           # Cho tối đa 290s: doc file BE thang moi (~2,3 MB CSV) co the mat vai phut
           for i in 1 2 3; do
