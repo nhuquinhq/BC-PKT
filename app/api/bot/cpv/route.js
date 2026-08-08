@@ -220,6 +220,16 @@ export async function GET(request) {
     detail = json.detail;
   } catch (e) {
     await ghiVet(`ĐỌC SỐ LỖI: ${e.message}`);
+    /* Đọc hụt thì TRẢ LẠI LƯỢT ngay, đừng ôm khoá 10 phút — chuyến ping kế
+       tiếp trong cùng khung giờ còn cơ hội thử lại khi Google đỡ ì. */
+    if (autoKv) {
+      await fetch(autoKv.url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${autoKv.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(['DEL', autoKv.key]),
+        cache: 'no-store',
+      }).catch(() => {});
+    }
     return Response.json({ error: `Không đọc được số liệu: ${e.message}` }, { status: 502 });
   }
 

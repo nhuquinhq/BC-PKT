@@ -5,6 +5,11 @@ name: Chan doan bot CPV
 
 on:
   workflow_dispatch:
+    inputs:
+      ngay:
+        description: 'Tra nhat ky ngay nao (dd/mm/yyyy), de trong = hom nay'
+        required: false
+        default: ''
 
 jobs:
   do:
@@ -16,6 +21,11 @@ jobs:
           echo "== trangthai hom nay =="
           curl -sS -m 60 -w '\nHTTP %{http_code} · %{time_total}s\n' \
             "https://bc-pkt.vercel.app/api/bot/cpv?trangthai=1" || true
+          if [ -n "${{ inputs.ngay }}" ]; then
+            echo "== trangthai ngay ${{ inputs.ngay }} =="
+            curl -sS -m 60 -G --data-urlencode "date=${{ inputs.ngay }}" \
+              "https://bc-pkt.vercel.app/api/bot/cpv?trangthai=1" || true; echo
+          fi
 
       - name: 2 - Do thoi gian doc so (preview, khong gui tin)
         run: |

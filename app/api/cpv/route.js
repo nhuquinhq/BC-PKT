@@ -90,20 +90,27 @@ const statusClass = (raw) => {
 };
 
 /* Google hay trả 400/500 hoặc treo khi xuất CSV file lớn (đã gặp với file
-   CPV BE 08/2026) — thử lại tối đa 3 lượt, mỗi lượt chờ 25s rồi lùi 2s/4s. */
+   CPV BE 08/2026) — thử lại tối đa 3 lượt, lùi 2s/4s giữa các lượt.
+
+   Hạn chờ TĂNG DẦN 30s · 60s · 90s thay vì 25s đều: file BE tháng đang
+   chạy phình dần theo ngày, đến 08/08 thì Google không kịp xuất trong 25s
+   nên cả 3 lượt cùng hụt và bot tắt tiếng. Tổng xấu nhất ~186s, vẫn nằm
+   trong hạn 300s của hàm. */
+const HAN_CHO = [30000, 60000, 90000];
 async function loadGrid(url, gid, luot = 3) {
   const csvUrl = toCsvUrl(url, gid) || url;
   let loiCuoi = null;
   for (let i = 0; i < luot; i++) {
     if (i) await new Promise((ok) => setTimeout(ok, i * 2000));
+    const han = HAN_CHO[Math.min(i, HAN_CHO.length - 1)];
     try {
-      const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(25000) });
+      const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(han) });
       if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
       const text = await res.text();
       if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.');
       return Papa.parse(text, { header: false, skipEmptyLines: false }).data;
     } catch (e) {
-      loiCuoi = e.name === 'TimeoutError' ? new Error('Google không trả dữ liệu trong 25s') : e;
+      loiCuoi = e.name === 'TimeoutError' ? new Error(`Google không trả dữ liệu trong ${han / 1000}s`) : e;
     }
   }
   throw loiCuoi;
