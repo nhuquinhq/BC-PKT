@@ -1,0 +1,37 @@
+# Chan doan bot CPV — chi chay tay, KHONG gui tin nao.
+# Do 3 thu: endpoint con song khong, doc so mat bao lau (preview=1 khong
+# gui Telegram), va nhat ky dien bien tren KV.
+name: Chan doan bot CPV
+
+on:
+  workflow_dispatch:
+
+jobs:
+  do:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 1 - Nhat ky tren KV
+        run: |
+          echo "== trangthai hom nay =="
+          curl -sS -m 60 -w '\nHTTP %{http_code} · %{time_total}s\n' \
+            "https://bc-pkt.vercel.app/api/bot/cpv?trangthai=1" || true
+
+      - name: 2 - Do thoi gian doc so (preview, khong gui tin)
+        run: |
+          echo "== preview=1: dung tin nhung KHONG gui =="
+          curl -sS -m 300 -o /tmp/pv.json \
+            -w 'HTTP %{http_code} · tong %{time_total}s · byte %{size_download}\n' \
+            "https://bc-pkt.vercel.app/api/bot/cpv?preview=1" || true
+          echo "--- 600 ky tu dau cua ket qua ---"
+          head -c 600 /tmp/pv.json || true; echo
+
+      - name: 3 - Goi nhu dong ho that (ngoai khung thi chi ghi vet)
+        run: |
+          echo "== auto=1 =="
+          curl -sS -m 300 -w '\nHTTP %{http_code} · %{time_total}s\n' \
+            "https://bc-pkt.vercel.app/api/bot/cpv?auto=1" || true
+
+      - name: 4 - Nhat ky sau khi goi
+        run: |
+          curl -sS -m 60 "https://bc-pkt.vercel.app/api/bot/cpv?trangthai=1" || true
