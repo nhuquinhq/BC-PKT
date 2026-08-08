@@ -1277,3 +1277,23 @@ table.matrix td.breach { font-weight: 700; text-shadow: 0 0 12px rgba(251, 113, 
   color: var(--ink-2);
 }
 .help-empty p { margin: 7px 0 11px; line-height: 1.6; }
+
+/* ---- PKT15: ô dán mã đơn (nhiều dòng, kiểu bảng tính) ---- */
+.ma-nhap {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: #0b1020;
+  color: #eaf0ff;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+.ma-nhap:focus { outline: none; border-color: #189BD8; }
+.ma-hang { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }

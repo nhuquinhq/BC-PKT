@@ -10,6 +10,7 @@ import CpvBoard from './CpvBoard';
 import TienBoard from './TienBoard';
 import RitokeyBoard from './RitokeyBoard';
 import HoldingsBoard from './HoldingsBoard';
+import TimDonBoard from './TimDonBoard';
 import FilterBar from './FilterBar';
 import { useAuth } from './AuthGate';
 import { filterRowsByRange, fmtRangeDate } from '@/lib/timeFilter';
@@ -239,6 +240,12 @@ export default function ReportView({ report }) {
               {source}
               {tables}
             </>
+          ) : report.sheet?.mode === 'tim_don' ? (
+            /* PKT15 — tra cứu mã đơn, chỉ chạy khi kế toán dán mã vào */
+            <>
+              <TimDonBoard report={report} onLive={applyLive} />
+              {tables}
+            </>
           ) : report.sheet?.mode === 'holdings' ? (
             /* PKT20 — CPV toàn tập đoàn, xem theo BE hoặc theo ví */
             <>
@@ -277,7 +284,7 @@ export default function ReportView({ report }) {
           );
         })()}
 
-        {report.sheet?.mode !== 'order_cpv' && report.sheet?.mode !== 'holdings' ? (
+        {!['order_cpv', 'holdings', 'tim_don'].includes(report.sheet?.mode) ? (
           <div className="muted" style={{ marginTop: 8 }}>
             {loaded ? `Cập nhật: ${data.meta.cap_nhat || '—'} · Người lập: ${data.meta.nguoi_lap || '—'}` : 'Đang tải dữ liệu…'}
           </div>

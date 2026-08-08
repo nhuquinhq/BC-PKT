@@ -145,12 +145,17 @@ export async function GET(request) {
   /* Phân loại: CHƯA CF = Chờ xử lý; còn lại là ĐANG XỬ LÝ. CO=0 đánh dấu nc. */
   const agg = new Map();
   const list = [];
+  /* Trang PKT11 chỉ cần danh sách gọn; trang tra cứu PKT15 gọi kèm full=1
+     để không bị cắt mất đơn cần tìm. */
+  const gioiHan = searchParams.get('full') === '1' ? 100000 : 4000;
   for (const o of orders) {
     const nhom = norm(o.trang_thai).includes('cho xu ly') ? 'CHƯA CF (Chờ xử lý)' : 'ĐANG XỬ LÝ';
     const co0 = o.gia_von <= 0;
-    if (list.length < 4000) {
+    if (list.length < gioiHan) {
       list.push({
         order_id: o.order_id || o.id,
+        /* Mã nội bộ để trang tra cứu (PKT15) khớp được cả 2 kiểu mã */
+        id_don: o.id,
         san: o.san,
         bu: '',
         spdv: nhom,
