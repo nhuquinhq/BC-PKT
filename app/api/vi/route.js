@@ -52,9 +52,10 @@ function toCsvUrl(sheetUrl, gid) {
   }
 }
 
-/* Google hay treo hoặc trả 400/500 khi xuất CSV file lớn — thử 3 lượt với
-   hạn chờ tăng dần, giống /api/cpv. */
-const HAN_CHO = [30000, 60000, 90000];
+/* File ví tháng 8 là bản TỔNG HỢP thô (gần 10 MB) nên Google xuất CSV rất
+   lâu — đã đo: hụt cả ba lượt 30/60/90s. Đổi thành 2 lượt nhưng cho hẳn
+   60s rồi 120s, tổng xấu nhất ~182s, vẫn trong hạn 300s của hàm. */
+const HAN_CHO = [60000, 120000];
 async function loadGrid(url, gid) {
   const csvUrl = toCsvUrl(url, gid) || url;
   let loiCuoi = null;
