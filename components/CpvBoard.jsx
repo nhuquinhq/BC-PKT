@@ -232,7 +232,10 @@ export default function CpvBoard({ report, sheet, onLive, range }) {
   if (m?.main_error) {
     return (
       <div className="notice-amber" style={{ marginBottom: 18 }}>
-        Số liệu đang hiển thị <b>thiếu một phần file Quản lý đơn hàng</b> (file tháng mới có thể chưa có dữ liệu) — lỗi đọc: {m.main_error}
+        Số liệu đang hiển thị <b>THIẾU MỘT FILE ĐƠN HÀNG</b> — lỗi đọc: {m.main_error}.
+        {m.from || m.to ? <> Hiện chỉ có dữ liệu từ <b>{m.from}</b> đến <b>{m.to}</b>.</> : null}
+        {' '}Nếu Google báo HTTP 400/500, phần lớn là do bản công bố của file bị hỏng: mở file →
+        <b> Tệp → Chia sẻ → Xuất bản lên web</b> → dừng xuất bản rồi xuất bản lại đúng tab đó.
       </div>
     );
   }

@@ -223,6 +223,16 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
   const canhBao = [];
   if (st.loi?.hqs) canhBao.push(`chưa đọc được số HQS — ${st.loi.hqs}`);
   if (st.loi?.rito) canhBao.push(`chưa đọc được số Ritokey — ${st.loi.rito}`);
+  /* /api/cpv vẫn trả 200 khi đọc HỤT MỘT FILE (các file còn lại vẫn có số),
+     nên phải soi meta chứ không chỉ bắt lỗi mạng — nếu không, thiếu hẳn một
+     tháng mà trang vẫn im như không có chuyện gì. */
+  const mHqs = st.hqs?.meta;
+  if (mHqs?.main_error) {
+    canhBao.push(`THIẾU MỘT FILE ĐƠN HÀNG HQS (${mHqs.main_error}) — số HQS hiện chỉ có từ ${mHqs.from || '?'} đến ${mHqs.to || '?'}`);
+  }
+  if (mHqs?.api_error) canhBao.push(`chưa gồm file API sàn (${mHqs.api_error})`);
+  const mRito = st.rito?.meta;
+  if (mRito?.loi_doc_live) canhBao.push(`Ritokey chưa đọc được tháng đang chạy (${mRito.loi_doc_live})`);
 
   /* File đơn hàng HQS khá lớn nên phải nói rõ đang đọc, tránh nhìn bảng 0
      lại tưởng là không có dữ liệu */
