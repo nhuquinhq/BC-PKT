@@ -45,3 +45,17 @@ jobs:
             -d '{"ids":["TEST-KHONG-CO"]}' \
             "https://bc-pkt.vercel.app/api/timdon" || true
           head -c 300 /tmp/td.json; echo
+
+      - name: API vi (PKT6) - kiem tra da co thang 8 chua
+        run: |
+          curl -sS -m 290 -o /tmp/v.json -w 'HTTP %{http_code} · %{time_total}s\n' \
+            "https://bc-pkt.vercel.app/api/vi?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vTmigt_mS16GnHQ5qpx2jxv_0F9irT-jJt6c3KyfUrTn2AgbZVZ4d5Q0fBvoINSmnMJHm5GcDU58ai2%2Fpubhtml%3Fgid%3D1425184209%26single%3Dtrue&gid=1425184209&month=8&year=2026&url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vQumf3iUT9n-lh-sNiJ1TeV24RjqRm1Eo6RTMafFsN9g_Hr6qtKZfyjFzb4gBpo5QhTieMSqU4sJORx%2Fpubhtml%3Fgid%3D1106881524%26single%3Dtrue&gid=1106881524&month=7&year=2026&hist=1" || true
+          python3 -c "
+import json,collections
+d=json.load(open('/tmp/v.json'))
+print('error', d.get('error'))
+m=d.get('meta') or {}
+print('main_error', m.get('main_error'), '| from', m.get('from'), '| to', m.get('to'))
+c=collections.Counter(r['ngay'][3:] for r in d.get('detail',[]))
+print('so dong theo thang:', dict(sorted(c.items(), key=lambda x:(x[0][3:],x[0][:2]))))
+" || true
