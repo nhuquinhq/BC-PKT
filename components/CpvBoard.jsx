@@ -200,6 +200,17 @@ export default function CpvBoard({ report, sheet, onLive, range }) {
 
   /* Khối này chỉ lo tải + tổng hợp dữ liệu; bình thường không hiện gì
      (tiêu đề trang và tên từng biểu đồ đã đủ). Chỉ hiện panel khi có sự cố. */
+  /* Đang đọc thì phải NÓI RÕ. File đơn hàng tháng đang chạy khá to, có hôm
+     Google xuất chậm tới vài phút — không báo gì thì người dùng nhìn bảng
+     rỗng lại tưởng báo cáo mất dữ liệu. */
+  if (state.status === 'loading') {
+    return (
+      <div className="notice-amber" style={{ marginBottom: 18 }}>
+        <b>Đang đọc số liệu…</b> File đơn hàng của tháng đang chạy khá lớn, lần mở đầu tiên có thể mất
+        vài chục giây đến vài phút tuỳ lúc Google xuất nhanh hay chậm. Bảng và biểu đồ sẽ tự hiện khi đọc xong.
+      </div>
+    );
+  }
   if (state.status === 'err') {
     return (
       <section className="panel">

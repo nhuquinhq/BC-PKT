@@ -71,6 +71,14 @@ export default function TienBoard({ report, onLive, range }) {
     if (agg) onLive?.(agg);
   }, [agg, onLive]);
 
+  /* Đang đọc thì báo rõ thay vì để trang trắng */
+  if (state.status === 'loading') {
+    return (
+      <div className="notice-amber" style={{ marginBottom: 18 }}>
+        <b>Đang đọc file Báo cáo TIỀN…</b> Bảng sẽ tự hiện khi đọc xong.
+      </div>
+    );
+  }
   if (state.status === 'err') {
     return (
       <section className="panel">
