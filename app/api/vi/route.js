@@ -49,13 +49,25 @@ function toCsvUrl(sheetUrl, gid) {
   }
 }
 
+/* Google hay treo hoặc trả 400/500 khi xuất CSV file lớn — thử 3 lượt với
+   hạn chờ tăng dần, giống /api/cpv. */
+const HAN_CHO = [30000, 60000, 90000];
 async function loadGrid(url, gid) {
   const csvUrl = toCsvUrl(url, gid) || url;
-  const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store' });
-  if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
-  const text = await res.text();
-  if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.');
-  return Papa.parse(text, { header: false, skipEmptyLines: false }).data;
+  let loiCuoi = null;
+  for (let i = 0; i < HAN_CHO.length; i++) {
+    if (i) await new Promise((ok) => setTimeout(ok, i * 2000));
+    try {
+      const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(HAN_CHO[i]) });
+      if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
+      const text = await res.text();
+      if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.');
+      return Papa.parse(text, { header: false, skipEmptyLines: false }).data;
+    } catch (e) {
+      loiCuoi = e.name === 'TimeoutError' ? new Error(`Google không trả dữ liệu trong ${HAN_CHO[i] / 1000}s`) : e;
+    }
+  }
+  throw loiCuoi;
 }
 
 /* Tab THVí Tiền: header dòng 5 — Tên sàn | ID | Trạng thái | Số Tiền | Ngày |
@@ -124,25 +136,49 @@ function parseWallet(grid, { month, year }) {
   return { detail, ok };
 }
 
+export const maxDuration = 300;
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const url = searchParams.get('url');
-  const gid = searchParams.get('gid') || '0';
-  const month = parseInt(searchParams.get('month') || '0', 10);
-  const year = parseInt(searchParams.get('year') || '0', 10);
+  /* Mỗi tháng đang chạy là MỘT file ví riêng, nên nhận nhiều bộ
+     (url, gid, month, year) ghép theo thứ tự. */
+  const urls = searchParams.getAll('url');
+  const gids = searchParams.getAll('gid');
+  const months = searchParams.getAll('month');
+  const years = searchParams.getAll('year');
   const useHist = searchParams.get('hist') === '1';
-  if (!url) return Response.json({ error: 'Thiếu url' }, { status: 400 });
-  if (!month || !year) return Response.json({ error: 'Thiếu month/year cho tab ví' }, { status: 400 });
+  if (!urls.length) return Response.json({ error: 'Thiếu url' }, { status: 400 });
+  if (!months.length) return Response.json({ error: 'Thiếu month/year cho tab ví' }, { status: 400 });
 
-  let live = { detail: [], ok: 0 };
-  try {
-    const grid = await loadGrid(url, gid);
-    live = parseWallet(grid, { month, year });
-  } catch (e) {
-    return Response.json({ error: `Tab THVí Tiền: ${e.message}` }, { status: 502 });
+  const live = { detail: [], ok: 0 };
+  const loi = [];
+  const daDoc = await Promise.all(
+    urls.map((u, i) =>
+      loadGrid(u, gids[i] || '0')
+        .then((grid) => ({ grid, i }))
+        .catch((e) => ({ err: e, i }))
+    )
+  );
+  for (const kq of daDoc) {
+    const thang = parseInt(months[kq.i] || months[0] || '0', 10);
+    const nam = parseInt(years[kq.i] || years[0] || '0', 10);
+    if (kq.err) { loi.push(`file ${kq.i + 1} (tháng ${thang || '?'}): ${kq.err.message}`); continue; }
+    if (!thang || !nam) { loi.push(`file ${kq.i + 1}: thiếu tháng/năm`); continue; }
+    try {
+      const r = parseWallet(kq.grid, { month: thang, year: nam });
+      live.detail = live.detail.concat(r.detail);
+      live.ok += r.ok;
+    } catch (e) {
+      loi.push(`file ${kq.i + 1} (tháng ${thang}): ${e.message}`);
+    }
+  }
+  /* Hụt hết thì mới báo lỗi hẳn; hụt một file thì vẫn trả số, kèm main_error
+     để trang hiện cảnh báo thay vì âm thầm thiếu một tháng. */
+  if (!live.detail.length && loi.length) {
+    return Response.json({ error: `Tab THVí Tiền: ${loi.join(' · ')}` }, { status: 502 });
   }
 
-  let detail = live.detail;
+  let detail = live.detail.sort((x, y) => (x.sortKey < y.sortKey ? -1 : x.sortKey > y.sortKey ? 1 : x.san.localeCompare(y.san)));
   let histOk = 0;
   if (useHist) {
     const histRows = HIST.flatMap((h) => h.detail);
@@ -164,8 +200,8 @@ export async function GET(request) {
       api_used: 0,
       api_no_cost: 0,
       api_error: null,
-      main_files: 1,
-      main_error: null,
+      main_files: urls.length,
+      main_error: loi.length ? loi.join(' · ') : null,
       dedup_removed: 0,
       api_out_of_range: 0,
       from: dates[0] || '',

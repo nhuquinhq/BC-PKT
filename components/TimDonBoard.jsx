@@ -10,6 +10,7 @@
    ============================================================ */
 
 import { useCallback, useMemo, useState } from 'react';
+import { sheetQuery } from '@/lib/sheetQuery';
 
 function tachMa(raw) {
   return [...new Set(
@@ -18,23 +19,6 @@ function tachMa(raw) {
       .map((x) => x.trim().replace(/^["']|["']$/g, '').toUpperCase())
       .filter(Boolean)
   )];
-}
-
-function qsCua(cfg) {
-  const qs = new URLSearchParams();
-  qs.append('url', cfg.url);
-  qs.append('gid', cfg.gid || '0');
-  for (const m of cfg.mains || []) {
-    qs.append('url', m.url);
-    qs.append('gid', m.gid || '0');
-  }
-  if (cfg.hist) qs.set('hist', '1');
-  for (const [k, v] of Object.entries(cfg.qs || {})) qs.set(k, v);
-  for (const a of Array.isArray(cfg.api) ? cfg.api : cfg.api?.url ? [cfg.api] : []) {
-    qs.append('url2', a.url);
-    qs.append('gid2', a.gid || '0');
-  }
-  return qs.toString();
 }
 
 export default function TimDonBoard({ report, onLive }) {
@@ -53,8 +37,8 @@ export default function TimDonBoard({ report, onLive }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ids: ma,
-          qsBe: qsCua(report.sheet),
-          qsTaoMoi: qsCua(report.sheetTaoMoi),
+          qsBe: sheetQuery(report.sheet),
+          qsTaoMoi: sheetQuery(report.sheetTaoMoi),
         }),
       });
       const json = await res.json();

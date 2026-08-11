@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { parseVNDate } from '@/lib/timeFilter';
 import { teamOf } from '@/lib/cpvDims';
+import { sheetQuery } from '@/lib/sheetQuery';
 
 const REFRESH_MS = 300000;
 
@@ -41,23 +42,6 @@ function trongKy(rows, range, key = 'ngay') {
     if (range.to && d > range.to) return false;
     return true;
   });
-}
-
-function qsCua(cfg) {
-  const qs = new URLSearchParams();
-  qs.append('url', cfg.url);
-  qs.append('gid', cfg.gid || '0');
-  for (const m of cfg.mains || []) {
-    qs.append('url', m.url);
-    qs.append('gid', m.gid || '0');
-  }
-  if (cfg.hist) qs.set('hist', '1');
-  for (const [k, v] of Object.entries(cfg.qs || {})) qs.set(k, v);
-  for (const a of Array.isArray(cfg.api) ? cfg.api : cfg.api?.url ? [cfg.api] : []) {
-    qs.append('url2', a.url);
-    qs.append('gid2', a.gid || '0');
-  }
-  return qs;
 }
 
 /* Một dòng chỉ tiêu chuẩn hoá; gmv để null khi nguồn không có khái niệm GMV */
@@ -104,8 +88,8 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
         (e) => setSt((s) => ({ ...s, loi: { ...s.loi, [ten]: e.message }, dangDoc: { ...s.dangDoc, [ten]: false } }))
       );
     };
-    nhan('hqs', `${cfgHqs.endpoint || '/api/cpv'}?${qsCua(cfgHqs)}`);
-    nhan('rito', `/api/ritokey?${qsCua(cfgRito)}`);
+    nhan('hqs', `${cfgHqs.endpoint || '/api/cpv'}?${sheetQuery(cfgHqs)}`);
+    nhan('rito', `/api/ritokey?${sheetQuery(cfgRito)}`);
   }, [cfgHqs, cfgRito]);
 
   useEffect(() => {

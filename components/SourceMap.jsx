@@ -41,7 +41,13 @@ function buildRows() {
         add(a.url, a.gid, 'File API sàn (Doanh thu Auto API G2G)', r.code);
       }
     }
-    if (r.sheetVi?.url) add(r.sheetVi.url, r.sheetVi.gid, r.sheetVi.label || 'Lịch sử ví HQS', r.code);
+    if (r.sheetVi?.url) {
+      add(r.sheetVi.url, r.sheetVi.gid, r.sheetVi.label || 'Lịch sử ví HQS', r.code);
+      /* Mỗi tháng ví là một file riêng — liệt kê đủ, đừng chỉ hiện file đầu */
+      for (const m of r.sheetVi.mains || []) {
+        add(m.url, m.gid, `Lịch sử ví HQS — tháng ${m.qs?.month || '?'}/${m.qs?.year || ''}`, r.code);
+      }
+    }
     /* PKT20 còn đọc thêm file Ritokey để gộp số toàn tập đoàn */
     if (r.sheetRitokey?.url) add(r.sheetRitokey.url, r.sheetRitokey.qs?.gids, 'Báo cáo kinh doanh Ritokey · Daily.Report', r.code);
   }

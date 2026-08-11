@@ -14,6 +14,7 @@ import TimDonBoard from './TimDonBoard';
 import FilterBar from './FilterBar';
 import { useAuth } from './AuthGate';
 import { filterRowsByRange, fmtRangeDate } from '@/lib/timeFilter';
+import { sheetQuery } from '@/lib/sheetQuery';
 import { fetchJson, loadOverride, saveOverride, clearOverride, emptyData } from '@/lib/data';
 
 export default function ReportView({ report }) {
@@ -111,17 +112,7 @@ export default function ReportView({ report }) {
     const cfgBe = report.sheet;
     setExporting(true);
     try {
-      const qs = new URLSearchParams();
-      qs.append('url', cfgBe.url);
-      qs.append('gid', cfgBe.gid || '0');
-      for (const m of cfgBe.mains || []) {
-        qs.append('url', m.url);
-        qs.append('gid', m.gid || '0');
-      }
-      for (const a of Array.isArray(cfgBe.api) ? cfgBe.api : cfgBe.api?.url ? [cfgBe.api] : []) {
-        qs.append('url2', a.url);
-        qs.append('gid2', a.gid || '0');
-      }
+      const qs = sheetQuery(cfgBe);
       qs.set('raw', '1');
       if (cfgBe.teamFilter) qs.set('team', cfgBe.teamFilter);
       if (cfgBe.sanFilter) qs.set('san', cfgBe.sanFilter);

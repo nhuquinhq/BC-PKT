@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { parseVNDate } from '@/lib/timeFilter';
 import { teamOf } from '@/lib/cpvDims';
+import { sheetQuery } from '@/lib/sheetQuery';
 
 const REFRESH_MS = 60 * 1000;
 
@@ -64,22 +65,7 @@ export default function CpvBoard({ report, sheet, onLive, range }) {
   const load = useCallback(async () => {
     setState((s) => ({ ...s, status: s.detail ? 'refreshing' : 'loading' }));
     try {
-      const qs = new URLSearchParams();
-      qs.append('url', cfg.url);
-      qs.append('gid', cfg.gid || '0');
-      /* Các file tháng trước cùng form (module Quản lý đơn hàng) */
-      for (const m of cfg.mains || []) {
-        qs.append('url', m.url);
-        qs.append('gid', m.gid || '0');
-      }
-      if (cfg.hist) qs.set('hist', '1'); /* tháng đã chốt lấy từ datalake tĩnh */
-      for (const [k, v] of Object.entries(cfg.qs || {})) qs.set(k, v); /* tham số riêng (vd month/year tab ví) */
-      /* File API sàn — có thể nhiều file theo tháng */
-      for (const a of Array.isArray(cfg.api) ? cfg.api : cfg.api?.url ? [cfg.api] : []) {
-        qs.append('url2', a.url);
-        qs.append('gid2', a.gid || '0');
-        if (a.san) qs.set('san2', a.san);
-      }
+      const qs = sheetQuery(cfg);
       const res = await fetch(`${cfg.endpoint || '/api/cpv'}?${qs}`, { cache: 'no-store' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Không đọc được dữ liệu');
