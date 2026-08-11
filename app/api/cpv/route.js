@@ -61,7 +61,10 @@ function toCsvUrl(sheetUrl, gid) {
     const u = new URL(sheetUrl);
     if (!u.hostname.includes('docs.google.com')) return null;
     const pub = u.pathname.match(/\/spreadsheets\/d\/e\/([^/]+)/);
-    if (pub) return `https://docs.google.com/spreadsheets/d/e/${pub[1]}/pub?output=csv&gid=${gid || u.searchParams.get('gid') || '0'}`;
+    /* single=true là BẮT BUỘC: thiếu nó Google hiểu là xuất CẢ WORKBOOK chứ
+       không phải một tab, nên với file nhiều tab lớn thì trả HTTP 500 hoặc
+       treo quá 90s. Đã đo được đúng lỗi này ở file BE T8 và file ví T8. */
+    if (pub) return `https://docs.google.com/spreadsheets/d/e/${pub[1]}/pub?gid=${gid || u.searchParams.get('gid') || '0'}&single=true&output=csv`;
     const m = u.pathname.match(/\/spreadsheets\/d\/([^/]+)/);
     if (m) return `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${gid || '0'}`;
     return null;
