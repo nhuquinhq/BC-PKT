@@ -27,7 +27,6 @@ const REFRESH_MS = 300000;
 
 /* Đơn vị đã có trong cơ cấu nhưng chưa nối được nguồn số liệu */
 const CHUA_NOI = [
-  { don_vi: 'QLTT (C100 + C200)', nguon: 'Chưa nối nguồn' },
   { don_vi: 'HQ Thailand', nguon: 'Chưa nối nguồn' },
 ];
 
@@ -64,12 +63,16 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
   const cfgHqs = sheet || report.sheet;
   const cheDo = cfgHqs.kind === 'vi' ? 'vi' : 'be';
   const cfgRito = report.sheetRitokey;
-  const [st, setSt] = useState({ hqs: null, rito: null, dangDoc: { hqs: true, rito: true }, loi: {} });
+  const cfgQltt = report.sheetQltt;
+  const [st, setSt] = useState({
+    hqs: null, rito: null, qltt: null,
+    dangDoc: { hqs: true, rito: true, qltt: true }, loi: {},
+  });
 
   /* Hai nguồn tải ĐỘC LẬP nhau: file đơn hàng HQS to nên đọc lâu, nguồn nào
      về trước hiện trước, không bắt cả trang chờ nguồn chậm nhất. */
   const load = useCallback(() => {
-    setSt((s) => ({ ...s, dangDoc: { hqs: true, rito: true } }));
+    setSt((s) => ({ ...s, dangDoc: { hqs: true, rito: true, qltt: true } }));
     const doc = async (url) => {
       const res = await fetch(url, { cache: 'no-store' });
       const json = await res.json();
@@ -90,7 +93,8 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
     };
     nhan('hqs', `${cfgHqs.endpoint || '/api/cpv'}?${sheetQuery(cfgHqs)}`);
     nhan('rito', `/api/ritokey?${sheetQuery(cfgRito)}`);
-  }, [cfgHqs, cfgRito]);
+    nhan('qltt', `/api/qltt?${sheetQuery(cfgQltt)}`);
+  }, [cfgHqs, cfgRito, cfgQltt]);
 
   useEffect(() => {
     load();
@@ -120,6 +124,17 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
       co: r.co || 0,
     }));
 
+    /* ---- QLTT: file đã cho sẵn GMV và COGS theo ngày × team ---- */
+    const qlttRows = trongKy(st.qltt?.qltt_ngay || [], range).map((r) => ({
+      ngay: r.ngay,
+      team: `${r.team} · QLTT`,
+      so_don: r.so_don || 0,
+      gmv: cheDo === 'vi' ? null : r.gmv || 0,
+      /* File QLTT ghi RE = GMV (chưa tách khoản giảm trừ) */
+      re: r.gmv || 0,
+      co: r.cogs || 0,
+    }));
+
     /* Cột Nguồn nói luôn tình trạng đọc để không nhầm "đang tải" với "bằng 0" */
     const trangThai = (dang, loi) => (dang ? ' — đang đọc…' : loi ? ' — lỗi đọc' : '');
     const nguonHqs =
@@ -128,6 +143,9 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
     const nguonRito =
       (cheDo === 'vi' ? 'BE · Daily.Report (chưa có ví)' : 'BE · Daily.Report') +
       trangThai(st.dangDoc?.rito, st.loi?.rito);
+    const nguonQltt =
+      (cheDo === 'vi' ? 'Báo cáo QLTT (chưa có ví)' : 'Báo cáo kinh doanh QLTT') +
+      trangThai(st.dangDoc?.qltt, st.loi?.qltt);
 
     const gop = (rows, ten, nguon) => ({
       don_vi: ten,
@@ -142,13 +160,15 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
     const hq_don_vi = [
       chuanHoa(gop(hqsRows, 'HQS10000', nguonHqs)),
       chuanHoa(gop(ritoRows, 'Ritokey (C300)', nguonRito)),
+      chuanHoa(gop(qlttRows, 'QLTT (C100 + C200)', nguonQltt)),
       ...CHUA_NOI.map((x) => chuanHoa({ ...x, so_don: 0, gmv: cheDo === 'vi' ? null : 0, re: 0, co: 0 })),
     ];
 
     /* ---- So sánh theo TEAM ---- */
     const mTeam = new Map();
-    for (const r of [...hqsRows, ...ritoRows]) {
-      const dv = r.team === 'C300 · Ritokey' ? 'Ritokey (C300)' : 'HQS10000';
+    for (const r of [...hqsRows, ...ritoRows, ...qlttRows]) {
+      const dv = r.team === 'C300 · Ritokey' ? 'Ritokey (C300)'
+        : r.team.endsWith('· QLTT') ? 'QLTT (C100 + C200)' : 'HQS10000';
       const a = mTeam.get(r.team) || { team: r.team, don_vi: dv, so_don: 0, gmv: 0, re: 0, co: 0 };
       a.so_don += r.so_don;
       a.gmv += r.gmv || 0;
@@ -162,7 +182,7 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
 
     /* ---- Toàn tập đoàn theo THÁNG ---- */
     const mThang = new Map();
-    for (const r of [...hqsRows, ...ritoRows]) {
+    for (const r of [...hqsRows, ...ritoRows, ...qlttRows]) {
       const t = String(r.ngay || '').slice(3);
       if (!t) continue;
       const a = mThang.get(t) || { thang: t, so_don: 0, gmv: 0, re: 0, co: 0 };
@@ -203,10 +223,12 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
     if (agg) onLive?.(agg);
   }, [agg, onLive]);
 
-  const dangDoc = [st.dangDoc?.hqs ? 'HQS' : null, st.dangDoc?.rito ? 'Ritokey' : null].filter(Boolean);
+  const dangDoc = [st.dangDoc?.hqs ? 'HQS' : null, st.dangDoc?.rito ? 'Ritokey' : null,
+    st.dangDoc?.qltt ? 'QLTT' : null].filter(Boolean);
   const canhBao = [];
   if (st.loi?.hqs) canhBao.push(`chưa đọc được số HQS — ${st.loi.hqs}`);
   if (st.loi?.rito) canhBao.push(`chưa đọc được số Ritokey — ${st.loi.rito}`);
+  if (st.loi?.qltt) canhBao.push(`chưa đọc được số QLTT — ${st.loi.qltt}`);
   /* /api/cpv vẫn trả 200 khi đọc HỤT MỘT FILE (các file còn lại vẫn có số),
      nên phải soi meta chứ không chỉ bắt lỗi mạng — nếu không, thiếu hẳn một
      tháng mà trang vẫn im như không có chuyện gì. */
@@ -217,6 +239,8 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
   if (mHqs?.api_error) canhBao.push(`chưa gồm file API sàn (${mHqs.api_error})`);
   const mRito = st.rito?.meta;
   if (mRito?.loi_doc_live) canhBao.push(`Ritokey chưa đọc được tháng đang chạy (${mRito.loi_doc_live})`);
+  const mQltt = st.qltt?.meta;
+  if (mQltt?.loi_doc_live) canhBao.push(`QLTT chưa đọc được tháng đang chạy (${mQltt.loi_doc_live})`);
 
   /* File đơn hàng HQS khá lớn nên phải nói rõ đang đọc, tránh nhìn bảng 0
      lại tưởng là không có dữ liệu */
@@ -230,7 +254,7 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
     );
   }
 
-  if (!st.hqs && !st.rito) {
+  if (!st.hqs && !st.rito && !st.qltt) {
     return (
       <section className="panel">
         <div className="panel-body">
@@ -246,10 +270,10 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
 
   return (
     <div className="notice-amber" style={{ marginBottom: 18 }}>
-      <b>Tổng hợp chưa đủ tập đoàn:</b> QLTT (C100 + C200) và HQ Thailand chưa nối nguồn số liệu nên đang tính bằng 0.
+      <b>Tổng hợp chưa đủ tập đoàn:</b> HQ Thailand chưa nối nguồn số liệu nên đang tính bằng 0.
       {cheDo === 'vi'
         ? ' Bản theo VÍ không có khái niệm GMV (tiền về ví đã sau phí sàn) nên cột GMV để trống; Ritokey chưa có sổ ví nên vẫn lấy số BE.'
-        : ' Với HQS, RE = GMV − phí sàn; với Ritokey, RE là dòng Doanh thu của file (GMV của Ritokey gồm cả đơn hoàn hủy).'}
+        : ' Với HQS, RE = GMV − phí sàn; với Ritokey, RE là dòng Doanh thu của file (GMV của Ritokey gồm cả đơn hoàn hủy); với QLTT, file ghi RE = GMV và CO đã gồm cả khoản phải trả CTV ngoài.'}
       {canhBao.length ? (
         <>
           {' · '}

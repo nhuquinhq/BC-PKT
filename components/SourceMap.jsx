@@ -48,6 +48,8 @@ function buildRows() {
         add(m.url, m.gid, `Lịch sử ví HQS — tháng ${m.qs?.month || '?'}/${m.qs?.year || ''}`, r.code);
       }
     }
+    /* PKT20 còn đọc thêm file Ritokey và file QLTT để gộp số toàn tập đoàn */
+    if (r.sheetQltt?.url) add(r.sheetQltt.url, '', 'Báo cáo kinh doanh QLTT (C100 + C200)', r.code);
     /* PKT20 còn đọc thêm file Ritokey để gộp số toàn tập đoàn */
     if (r.sheetRitokey?.url) add(r.sheetRitokey.url, r.sheetRitokey.qs?.gids, 'Báo cáo kinh doanh Ritokey · Daily.Report', r.code);
   }

@@ -11,6 +11,7 @@ import TienBoard from './TienBoard';
 import RitokeyBoard from './RitokeyBoard';
 import HoldingsBoard from './HoldingsBoard';
 import TimDonBoard from './TimDonBoard';
+import QlttBoard from './QlttBoard';
 import FilterBar from './FilterBar';
 import { useAuth } from './AuthGate';
 import { filterRowsByRange, fmtRangeDate } from '@/lib/timeFilter';
@@ -231,6 +232,13 @@ export default function ReportView({ report }) {
               {source}
               {tables}
             </>
+          ) : report.sheet?.mode === 'qltt' ? (
+            /* PKT21 — CPV QLTT (C100 + C200) */
+            <>
+              <QlttBoard report={report} onLive={applyLive} range={range} />
+              {tables}
+              {charts}
+            </>
           ) : report.sheet?.mode === 'tim_don' ? (
             /* PKT15 — tra cứu mã đơn, chỉ chạy khi kế toán dán mã vào */
             <>
@@ -275,7 +283,7 @@ export default function ReportView({ report }) {
           );
         })()}
 
-        {!['order_cpv', 'holdings', 'tim_don'].includes(report.sheet?.mode) ? (
+        {!['order_cpv', 'holdings', 'tim_don', 'qltt'].includes(report.sheet?.mode) ? (
           <div className="muted" style={{ marginTop: 8 }}>
             {loaded ? `Cập nhật: ${data.meta.cap_nhat || '—'} · Người lập: ${data.meta.nguoi_lap || '—'}` : 'Đang tải dữ liệu…'}
           </div>
