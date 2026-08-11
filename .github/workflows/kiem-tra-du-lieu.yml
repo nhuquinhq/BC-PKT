@@ -1,0 +1,47 @@
+# Kiem tra site va cac API dang phuc vu du lieu. Chi doc, khong gui gi.
+name: Kiem tra du lieu site
+
+on:
+  workflow_dispatch:
+
+jobs:
+  do:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Cac trang
+        run: |
+          for p in / /bao-cao/pkt8 /bao-cao/pkt20 /bao-cao/pkt15 /bao-cao/pkt12 /bao-cao/pkt6 /nguon-du-lieu; do
+            printf '%-24s ' "$p"
+            curl -sS -o /dev/null -m 60 -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' \
+              "https://bc-pkt.vercel.app$p" || echo "LOI"
+          done
+
+      - name: API cpv (nguon cua PKT8 va PKT20)
+        run: |
+          curl -sS -m 290 -o /tmp/cpv.json \
+            -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' \
+            "https://bc-pkt.vercel.app/api/cpv?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0&url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vS8v730AMvL4_1VC131-HLHBECPrYMtLmv02TkTtpFuXlQEGtVSPpR1URMQ5sOhB6_LbnATeDwZUk__%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0&hist=1&url2=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vQvTKIa8hAWjghuGri8nsnk2zFhlHNIKKgGunBFDolf3IyG4lYZ8G9zt6tYrIIxESHQty7cskmUcbIG%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid2=0&url2=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vTwoaNaItJfQPZDNom-HB06ea0jxglfgeiWZ8Sj-8dWwneE26NCU8NhEQpaXzIAnZc0XI0bbLOzG04i%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid2=0" || true
+          echo "--- 400 ky tu dau ---"; head -c 400 /tmp/cpv.json; echo
+          echo "--- so dong detail ---"
+          python3 -c "import json;d=json.load(open('/tmp/cpv.json'));print('detail',len(d.get('detail',[])),'| error',d.get('error'),'| meta',{k:v for k,v in (d.get('meta') or {}).items() if 'error' in k or k in ('rows_used','main_used','from','to')})" || true
+
+      - name: API ritokey (PKT12)
+        run: |
+          curl -sS -m 290 -o /tmp/r.json -w 'HTTP %{http_code} · %{time_total}s\n' \
+            "https://bc-pkt.vercel.app/api/ritokey?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vSkiE47m3g4BL1e6qSEfuyg3uKXqWneiLm_zDBfOsr_hWU4slODT0xE9K1bNJpI9afseGjEQ9PZUtRQ%2Fpubhtml&gid=0&gids=851205159" || true
+          python3 -c "import json;d=json.load(open('/tmp/r.json'));print('cpv_ngay',len(d.get('cpv_ngay',[])),'| loi_doc_live',(d.get('meta') or {}).get('loi_doc_live'),'| error',d.get('error'))" || true
+
+      - name: API taomoi (PKT11 va PKT15)
+        run: |
+          curl -sS -m 290 -o /tmp/t.json -w 'HTTP %{http_code} · %{time_total}s\n' \
+            "https://bc-pkt.vercel.app/api/taomoi?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vSUiGboCHbRCVwRjkmSAHw5i262tY1oJ9ihAvo9Z4y-p2dfQhbE8QJar0E4udWCnQkGQq8mfWpQUo7u%2Fpubhtml%3Fgid%3D209599086%26single%3Dtrue&gid=209599086&url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vT6q4Xjo6q-t7OphvaD9bet4Wl4BRC6hOqoXBrtf5O-F8LhIp-whTlw0qHMFuu5hQNJuowmxcJhK-oJ%2Fpubhtml%3Fgid%3D1925426186%26single%3Dtrue&gid=1925426186" || true
+          python3 -c "import json;d=json.load(open('/tmp/t.json'));print('detail',len(d.get('detail',[])),'| no_cost_list',len(d.get('no_cost_list',[])),'| error',d.get('error'))" || true
+
+      - name: API timdon (PKT15) - tra thu 1 ma bat ky
+        run: |
+          curl -sS -m 290 -X POST -H 'Content-Type: application/json' \
+            -o /tmp/td.json -w 'HTTP %{http_code} · %{time_total}s\n' \
+            -d '{"ids":["TEST-KHONG-CO"]}' \
+            "https://bc-pkt.vercel.app/api/timdon" || true
+          head -c 300 /tmp/td.json; echo
