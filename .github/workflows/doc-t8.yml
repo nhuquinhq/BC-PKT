@@ -1,0 +1,146 @@
+# Doc va tom tat file CPV BE T8 (tab Data, gid=0).
+# File ~4,6 MB nen khong in het — chi in cau truc va cac so tong hop.
+name: Doc file T8
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  doc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Tai tab Data
+        run: |
+          curl -sSL -m 250 -o /tmp/t8.csv \
+            -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' \
+            "https://docs.google.com/spreadsheets/d/e/2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0/pub?gid=0&single=true&output=csv"
+
+      - name: Tom tat file
+        run: |
+          python3 - <<'PY'
+          import csv, re, sys, collections
+          csv.field_size_limit(10**9)
+          rows = list(csv.reader(open('/tmp/t8.csv', encoding='utf-8', errors='ignore')))
+          print('TONG DONG :', len(rows))
+          print('SO COT MAX:', max((len(r) for r in rows), default=0))
+
+          print('\n===== KHOI TIEU DE (8 dong dau, o co chu) =====')
+          for i in range(min(8, len(rows))):
+              cells = [(j, c.strip()) for j, c in enumerate(rows[i]) if c.strip()]
+              if cells:
+                  print(f'dong {i}: {cells[:14]}')
+
+          # Dong tieu de cot = dong co nhieu o chu ngan nhat trong 15 dong dau
+          def diem(r):
+              n = 0
+              for c in r:
+                  c = c.strip()
+                  if c and len(c) <= 40 and not re.fullmatch(r'[\d.,\-]+', c):
+                      n += 1
+              return n
+          hdr = max(range(min(15, len(rows))), key=lambda i: diem(rows[i]))
+          cols = [c.strip() for c in rows[hdr]]
+          print(f'\n===== DONG TIEU DE COT = dong {hdr} ({diem(rows[hdr])} cot co ten) =====')
+          for j, c in enumerate(cols):
+              if c:
+                  print(f'  cot {j:>2} = {c}')
+
+          data = rows[hdr + 1:]
+          print(f'\nSO DONG DU LIEU: {len(data)}')
+
+          def norm(s):
+              import unicodedata
+              s = unicodedata.normalize('NFD', str(s or '')).lower()
+              s = ''.join(ch for ch in s if not unicodedata.combining(ch))
+              return s.replace('d','d').strip()
+
+          def tim(*tu):
+              for j, c in enumerate(cols):
+                  n = norm(c)
+                  if all(t in n for t in tu):
+                      return j
+              return -1
+
+          idx = {
+              'ngay':      tim('ngay'),
+              'san':       tim('san'),
+              'ma_don':    tim('ma','don'),
+              'thanh_tien':tim('thanh','tien'),
+              'gia_von':   tim('gia','von'),
+              'trang_thai':tim('trang','thai'),
+              'loai_dv':   tim('loai','dich','vu'),
+              'bu':        tim('bu'),
+          }
+          print('\n===== COT DA NHAN DIEN =====')
+          for k, j in idx.items():
+              print(f'  {k:<11} -> cot {j}' + (f' ({cols[j]})' if j >= 0 else '  [KHONG THAY]'))
+
+          def viNum(s):
+              s = str(s or '').strip().replace(' ', '')
+              if not s or s == '-': return 0.0
+              am = s.startswith('-') or (s.startswith('(') and s.endswith(')'))
+              s = s.strip('()-')
+              if ',' in s and '.' in s: s = s.replace('.','').replace(',','.')
+              elif re.search(r',\d{1,2}$', s): s = s.replace('.','').replace(',','.')
+              else: s = re.sub(r'[.,](?=\d{3}\b)', '', s)
+              try: v = float(s)
+              except ValueError: return 0.0
+              return -v if am else v
+
+          def val(r, k):
+              j = idx[k]
+              return r[j] if 0 <= j < len(r) else ''
+
+          tt = collections.Counter()
+          san = collections.Counter()
+          sanTien = collections.Counter()
+          dv = collections.Counter()
+          ngayCo = collections.Counter()
+          tongTien = tongVon = 0.0
+          coVon0 = thieuSan = 0
+          dem = 0
+          for r in data:
+              if not any(c.strip() for c in r): continue
+              dem += 1
+              tt[val(r,'trang_thai').strip() or '(trong)'] += 1
+              s = val(r,'san').strip()
+              if s: san[s] += 1
+              else: thieuSan += 1
+              t = viNum(val(r,'thanh_tien')); v = viNum(val(r,'gia_von'))
+              tongTien += t; tongVon += v
+              if s: sanTien[s] += t
+              if t and not v: coVon0 += 1
+              d = val(r,'ngay').strip()[:10]
+              m = re.match(r'(\d{1,2})[/-](\d{1,2})', d)
+              if m: ngayCo[f'{int(m.group(1)):02d}/{int(m.group(2)):02d}'] += 1
+              lv = val(r,'loai_dv').strip()
+              if lv: dv[lv] += 1
+
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+          print(f'\n===== TONG HOP ({dem} dong co du lieu) =====')
+          print(f'  Thanh tien : {n(tongTien)}')
+          print(f'  Gia von    : {n(tongVon)}')
+          print(f'  Lai gop    : {n(tongTien - tongVon)}')
+          if tongTien: print(f'  % gia von  : {tongVon/tongTien*100:.1f}%')
+
+          print(f'\n===== TRANG THAI DON =====')
+          for k, c in tt.most_common(12): print(f'  {c:>7}  {k}')
+
+          print(f'\n===== THEO SAN (top 30) =====')
+          for k, c in san.most_common(30):
+              print(f'  {k:<6} {c:>7} don   {n(sanTien[k]):>18}')
+          print(f'  So san khac nhau: {len(san)}')
+
+          print(f'\n===== LOAI DICH VU =====')
+          for k, c in dv.most_common(15): print(f'  {c:>7}  {k}')
+
+          ds = sorted(ngayCo)
+          print(f'\n===== NGAY CO DU LIEU: {len(ds)} ngay =====')
+          print('  tu', ds[0] if ds else '?', 'den', ds[-1] if ds else '?')
+          print('  ' + ' · '.join(f'{d}:{ngayCo[d]}' for d in ds))
+
+          print(f'\n===== CAN SOI =====')
+          print(f'  Dong co tien nhung GIA VON = 0 : {coVon0}')
+          print(f'  Dong THIEU ma san              : {thieuSan}')
+          PY
