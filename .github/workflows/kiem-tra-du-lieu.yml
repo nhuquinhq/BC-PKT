@@ -17,11 +17,16 @@ jobs:
               "https://bc-pkt.vercel.app$p" || echo "LOI"
           done
 
-      - name: API cpv (nguon cua PKT8 va PKT20)
+      - name: API cpv - do 3 luot lien tiep de xem bo nho dem co an khong
         run: |
-          curl -sS -m 290 -o /tmp/cpv.json \
-            -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' \
-            "https://bc-pkt.vercel.app/api/cpv?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0&url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vS8v730AMvL4_1VC131-HLHBECPrYMtLmv02TkTtpFuXlQEGtVSPpR1URMQ5sOhB6_LbnATeDwZUk__%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0&hist=1&url2=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vQvTKIa8hAWjghuGri8nsnk2zFhlHNIKKgGunBFDolf3IyG4lYZ8G9zt6tYrIIxESHQty7cskmUcbIG%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid2=0&url2=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vTwoaNaItJfQPZDNom-HB06ea0jxglfgeiWZ8Sj-8dWwneE26NCU8NhEQpaXzIAnZc0XI0bbLOzG04i%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid2=0" || true
+          U="https://bc-pkt.vercel.app/api/cpv?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0&url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vS8v730AMvL4_1VC131-HLHBECPrYMtLmv02TkTtpFuXlQEGtVSPpR1URMQ5sOhB6_LbnATeDwZUk__%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0&hist=1&url2=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vQvTKIa8hAWjghuGri8nsnk2zFhlHNIKKgGunBFDolf3IyG4lYZ8G9zt6tYrIIxESHQty7cskmUcbIG%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid2=0&url2=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vTwoaNaItJfQPZDNom-HB06ea0jxglfgeiWZ8Sj-8dWwneE26NCU8NhEQpaXzIAnZc0XI0bbLOzG04i%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid2=0"
+          for i in 1 2 3; do
+            printf 'luot %s  ' "$i"
+            curl -sS -m 290 -o /tmp/cpv$i.json -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' "$U" || true
+            python3 -c "import json,sys;d=json.load(open('/tmp/cpv'+sys.argv[1]+'.json'));m=d.get('meta') or {};print('   detail',len(d.get('detail',[])),'| rows_used',m.get('rows_used'),'| to',m.get('to'),'| bo_nho',m.get('bo_nho'),'| main_error',m.get('main_error'))" "$i" || true
+          done
+          python3 -c "import json;a=json.load(open('/tmp/cpv2.json'));b=json.load(open('/tmp/cpv3.json'));print('luot 2 va 3 giong nhau:', a.get('detail')==b.get('detail'))" || true
+          cp /tmp/cpv1.json /tmp/cpv.json
           echo "--- 400 ky tu dau ---"; head -c 400 /tmp/cpv.json; echo
           echo "--- so dong detail ---"
           python3 -c "import json;d=json.load(open('/tmp/cpv.json'));print('detail',len(d.get('detail',[])),'| error',d.get('error'),'| meta',{k:v for k,v in (d.get('meta') or {}).items() if 'error' in k or k in ('rows_used','main_used','from','to')})" || true
