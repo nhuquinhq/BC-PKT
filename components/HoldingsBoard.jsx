@@ -124,10 +124,12 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
       co: r.co || 0,
     }));
 
-    /* ---- QLTT: file đã cho sẵn GMV và COGS theo ngày × team ---- */
+    /* ---- QLTT: file đã cho sẵn GMV và COGS theo ngày × team.
+       Team trên file là VX101 / WGG, đổi sang mã đơn vị của PKT21 · PKT22. */
+    const DON_VI_QLTT = { VX101: 'HQC100', WGG: 'HQSC200' };
     const qlttRows = trongKy(st.qltt?.qltt_ngay || [], range).map((r) => ({
       ngay: r.ngay,
-      team: `${r.team} · QLTT`,
+      team: `${DON_VI_QLTT[r.team] || r.team} · QLTT`,
       so_don: r.so_don || 0,
       gmv: cheDo === 'vi' ? null : r.gmv || 0,
       /* File QLTT ghi RE = GMV (chưa tách khoản giảm trừ) */

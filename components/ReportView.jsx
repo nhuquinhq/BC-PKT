@@ -233,7 +233,7 @@ export default function ReportView({ report }) {
               {tables}
             </>
           ) : report.sheet?.mode === 'qltt' ? (
-            /* PKT21 — CPV QLTT (C100 + C200) */
+            /* PKT21 · PKT22 — CPV QLTT, mỗi trang một đơn vị */
             <>
               <QlttBoard report={report} onLive={applyLive} range={range} />
               {tables}

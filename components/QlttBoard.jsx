@@ -1,8 +1,9 @@
 'use client';
 
-/* Khối LIVE của PKT21 — CPV QLTT (C100 + C200), hai team WGG và VX101.
-   Đọc /api/qltt rồi lọc theo khoảng thời gian đang chọn và cộng ngược lên
-   bảng team / bảng tháng, để chọn tháng nào thì mọi con số đổi theo. */
+/* Khối LIVE của PKT21 (HQC100 · VX101) và PKT22 (HQSC200 · WGG).
+   Đọc /api/qltt một lần rồi lọc theo khoảng thời gian đang chọn và theo
+   sheet.teamFilter của trang, cộng ngược lên bảng tháng / bảng ngày để
+   chọn tháng nào thì mọi con số đổi theo. */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { sheetQuery } from '@/lib/sheetQuery';
@@ -11,6 +12,9 @@ const REFRESH_MS = 300000;
 
 const CONG = ['gmv', 'co', 'ar', 'cogs', 'pl1', 'so_don', 'gmv_ban_nick', 'gmv_dv_tu_dong',
   'gmv_dv_thu_cong', 'gmv_minigame', 'co_ban_nick', 'co_dv_tu_dong', 'co_dv_thu_cong', 'co_minigame'];
+
+/* Tên team trên file nguồn → mã đơn vị dùng trong báo cáo */
+const DON_VI = { VX101: 'HQC100 · VX101', WGG: 'HQSC200 · WGG' };
 
 function gop(rows, khoa) {
   const m = new Map();
@@ -65,21 +69,31 @@ export default function QlttBoard({ report, onLive, range }) {
         return true;
       });
     }
-    const team = gop(ngay, 'team').sort((a, b) => b.gmv - a.gmv);
+    /* Bảng đối chiếu luôn giữ đủ hai đơn vị; mọi bảng còn lại và KPI thì
+       chỉ tính team của trang đang xem (PKT21 = VX101, PKT22 = WGG). */
+    const team = gop(ngay, 'team')
+      .sort((a, b) => b.gmv - a.gmv)
+      .map((r) => ({ ...r, team: DON_VI[r.team] || r.team }));
+    if (cfg?.teamFilter) ngay = ngay.filter((r) => r.team === cfg.teamFilter);
     const thang = gop(ngay, 'thang')
       .sort((a, b) => (a.sortKey < b.sortKey ? -1 : 1));
     const t = (k) => ngay.reduce((s, r) => s + (r[k] || 0), 0);
     const gmv = t('gmv');
     const cogs = t('cogs');
     return {
-      tables: { qltt_ngay: ngay, qltt_team: team, qltt_nhom: team, qltt_thang: thang },
+      tables: {
+        qltt_ngay: ngay,
+        qltt_team: team,
+        qltt_nhom_thang: thang,
+        qltt_thang: thang,
+      },
       kpis: {
         gmv, co: t('co'), ar: t('ar'), cogs, pl1: gmv - cogs, so_don: t('so_don'),
         ty_le_co: gmv ? (cogs / gmv) * 100 : null,
         bien_pl1: gmv ? ((gmv - cogs) / gmv) * 100 : null,
       },
     };
-  }, [st.data, range]);
+  }, [st.data, range, cfg]);
 
   useEffect(() => {
     if (agg) onLive?.(agg);
