@@ -219,6 +219,14 @@ export async function GET(req) {
       ty_le_co: re ? (co / re) * 100 : null,
       bien_pl1: re ? ((re - co) / re) * 100 : null,
     };
+    /* Tỉ trọng từng khối chi phí trên doanh thu — để vẽ biểu đồ %TOA
+       giống bản trên Google Sheet. Tháng chưa về tiền (RE = 0) để null
+       chứ không để 0: chia cho 0 không có nghĩa, và để 0 sẽ vẽ thành
+       "chi phí bằng 0" trong khi thực tế là chưa có doanh thu để so. */
+    for (const [k, v] of [['se', rec.se], ['me', rec.me], ['op', rec.op], ['ov', rec.ov]]) {
+      rec[`ty_le_${k}`] = re ? (v / re) * 100 : null;
+    }
+    rec.bien_pl7 = re ? (rec.pl7 / re) * 100 : null;
     (laThat ? that : duTru).push(rec);
   }
 
