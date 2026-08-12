@@ -208,6 +208,10 @@ export async function GET(req) {
          với các nguồn theo ngày. A10GG không có số theo từng ngày. */
       ngay: `${String(NGAY_CUOI_THANG(nam, t)).padStart(2, '0')}/${String(t).padStart(2, '0')}/${nam}`,
       re,
+      /* File A10GG không tách GMV riêng. Lấy luôn RE làm GMV để cột GMV
+         của báo cáo tập đoàn đồng nhất giữa các đơn vị — với A10GG thì
+         doanh số và doanh thu ghi nhận là một. */
+      gmv: re,
       co,
       pl1: re - co,
       tong_chi: lay('tong_chi', k),

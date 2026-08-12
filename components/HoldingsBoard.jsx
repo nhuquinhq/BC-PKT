@@ -153,14 +153,16 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
 
     /* ---- A10GG: báo cáo kết quả kinh doanh THEO THÁNG.
        Chỉ nhận các tháng THẬT (/api/a10gg đã loại tháng dự trù). Số được
-       ghi vào ngày cuối tháng nên lọc theo kỳ vẫn ăn đúng tháng. A10GG
-       không có khái niệm GMV và số đơn nên để trống, không để 0 cho khỏi
-       hiểu nhầm là bán được 0 đơn. */
+       ghi vào ngày cuối tháng nên lọc theo kỳ vẫn ăn đúng tháng.
+       File A10GG không tách GMV riêng — lấy luôn RE làm GMV để cột GMV
+       của bảng tập đoàn đồng nhất, không bị hụt một đơn vị. Với A10GG thì
+       GMV = RE nên tỉ lệ nào tính trên GMV cũng bằng tính trên RE.
+       Số đơn vẫn để 0 vì file không ghi số đơn. */
     const a10Rows = trongKy(st.a10?.a10gg_thang || [], range).map((r) => ({
       ngay: r.ngay,
       team: 'A10GG',
       so_don: 0,
-      gmv: null,
+      gmv: cheDo === 'vi' ? null : r.gmv ?? r.re ?? 0,
       re: r.re || 0,
       co: r.co || 0,
     }));
@@ -179,7 +181,7 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
     /* Nói rõ A10GG theo tháng + trễ 45 ngày ngay trên cột Nguồn, vì đây là
        lý do khiến tháng vừa qua nhìn như mất doanh thu. */
     const nguonA10 =
-      `KQKD theo tháng · tiền về chậm ~${st.a10?.meta?.tre_ngay ?? 45} ngày` +
+      `KQKD theo tháng · GMV = RE · tiền về chậm ~${st.a10?.meta?.tre_ngay ?? 45} ngày` +
       trangThai(st.dangDoc?.a10, st.loi?.a10);
 
     const gop = (rows, ten, nguon) => ({
@@ -196,7 +198,7 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
       chuanHoa(gop(hqsRows, 'HQS10000', nguonHqs)),
       chuanHoa(gop(ritoRows, 'Ritokey (C300)', nguonRito)),
       chuanHoa(gop(qlttRows, 'QLTT (C100 + C200)', nguonQltt)),
-      chuanHoa({ ...gop(a10Rows, 'A10GG', nguonA10), gmv: null }),
+      chuanHoa(gop(a10Rows, 'A10GG', nguonA10)),
       ...CHUA_NOI.map((x) => chuanHoa({ ...x, so_don: 0, gmv: cheDo === 'vi' ? null : 0, re: 0, co: 0 })),
     ];
 
