@@ -110,7 +110,7 @@ export default function QlttBoard({ report, onLive, range }) {
     <div className="notice-amber" style={{ marginBottom: 18 }}>
       <b>Cách tính:</b> {m?.ghi_chu}
       {m?.loi_doc_live
-        ? <> {' · '} <b>Chưa đọc được tháng đang chạy:</b> {m.loi_doc_live}</>
+        ? <> <br /><b>Chưa đọc được tháng đang chạy —</b> {m.loi_doc_live}</>
         : <> {' · '} Đã đọc trực tiếp <b>{m?.so_tab_doc_truc_tiep || 0}</b> tab của tháng đang chạy.</>}
     </div>
   );

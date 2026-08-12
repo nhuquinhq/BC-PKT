@@ -76,16 +76,34 @@ async function tai(u, han = 60000) {
   return res.text();
 }
 
-/* Menu tab của trang pubhtml: <li id="sheet-button-<gid>"><a …>Tên tab</a> */
-async function doGid(url) {
+/* Danh sách tab → gid.
+
+   Ưu tiên tham số tabs khai trong cấu hình (dạng "tên tab:gid;tên tab:gid").
+   Không có thì dò menu của trang pubhtml: khi file được xuất bản ở chế độ
+   TOÀN BỘ TÀI LIỆU, Google render <li id="sheet-button-<gid>"><a>Tên</a>.
+   Nếu file chỉ xuất bản MỘT TAB thì trang đó không có menu — lúc ấy phải
+   xuất bản lại hoặc khai gid tay, nên báo hẳn ra cho biết đường xử lý. */
+async function doGid(url, tabs) {
+  const map = new Map();
+  for (const phan of String(tabs || '').split(';')) {
+    const i = phan.lastIndexOf(':');
+    if (i > 0) map.set(chuan(phan.slice(0, i)), phan.slice(i + 1).trim());
+  }
+  if (map.size) return map;
+
   const key = khoaPub(url);
   if (!key) throw new Error('Đường dẫn không phải bản công bố /d/e/…');
   const html = await tai(`https://docs.google.com/spreadsheets/d/e/${key}/pubhtml`, 90000);
-  const map = new Map();
   const re = /id="sheet-button-(\d+)"[^>]*>\s*<a[^>]*>([^<]*)</g;
   let m;
   while ((m = re.exec(html))) map.set(chuan(m[2]), m[1]);
-  if (!map.size) throw new Error('Không đọc được danh sách tab của bản công bố');
+  if (!map.size) {
+    throw new Error(
+      'bản công bố của file đang ở chế độ MỘT TAB nên trang pubhtml không có menu tab. ' +
+      'Mở file → Tệp → Chia sẻ → Xuất bản lên web → chọn "Toàn bộ tài liệu" rồi xuất bản lại; ' +
+      'hoặc gửi gid từng tab để khai thẳng vào cấu hình.'
+    );
+  }
   return map;
 }
 
@@ -163,7 +181,7 @@ export async function GET(request) {
   let soTab = 0;
   if (url && thangLive.length) {
     try {
-      const gid = await doGid(url);
+      const gid = await doGid(url, searchParams.get('tabs'));
       const key = khoaPub(url);
       const viec = [];
       for (const t of thangLive) {
