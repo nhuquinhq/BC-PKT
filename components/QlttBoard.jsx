@@ -74,9 +74,20 @@ export default function QlttBoard({ report, onLive, range }) {
     const team = gop(ngay, 'team')
       .sort((a, b) => b.gmv - a.gmv)
       .map((r) => ({ ...r, team: DON_VI[r.team] || r.team }));
-    if (cfg?.teamFilter) ngay = ngay.filter((r) => r.team === cfg.teamFilter);
+    if (cfg?.teamFilter) {
+      ngay = ngay.filter((r) => r.team === cfg.teamFilter)
+        .sort((a, b) => (a.sortKey < b.sortKey ? -1 : 1));
+    }
     const thang = gop(ngay, 'thang')
       .sort((a, b) => (a.sortKey < b.sortKey ? -1 : 1));
+
+    /* Độ mịn của BIỂU ĐỒ chạy theo bộ lọc: xem một tháng (hay một tuần) thì
+       vẽ từng ngày, xem cả năm thì vẽ từng tháng. Bảng số vẫn giữ nguyên
+       cả bảng tháng lẫn bảng ngày. */
+    const soThang = new Set(ngay.map((r) => r.thang)).size;
+    const qltt_auto = (ngay.length <= 45 || soThang <= 1 ? ngay : thang)
+      .map((r) => ({ ...r, nhan: r.ngay ? r.ngay.slice(0, 5) : r.thang }));
+
     const t = (k) => ngay.reduce((s, r) => s + (r[k] || 0), 0);
     const gmv = t('gmv');
     const cogs = t('cogs');
@@ -86,6 +97,7 @@ export default function QlttBoard({ report, onLive, range }) {
         qltt_team: team,
         qltt_nhom_thang: thang,
         qltt_thang: thang,
+        qltt_auto,
       },
       kpis: {
         gmv, co: t('co'), ar: t('ar'), cogs, pl1: gmv - cogs, so_don: t('so_don'),

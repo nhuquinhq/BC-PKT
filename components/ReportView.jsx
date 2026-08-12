@@ -236,8 +236,8 @@ export default function ReportView({ report }) {
             /* PKT21 · PKT22 — CPV QLTT, mỗi trang một đơn vị */
             <>
               <QlttBoard report={report} onLive={applyLive} range={range} />
-              {tables}
               {charts}
+              {tables}
             </>
           ) : report.sheet?.mode === 'tim_don' ? (
             /* PKT15 — tra cứu mã đơn, chỉ chạy khi kế toán dán mã vào */
