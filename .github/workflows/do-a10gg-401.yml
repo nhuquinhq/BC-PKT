@@ -1,0 +1,40 @@
+# Vi sao Vercel doc A10GG bi 401 trong khi runner tai duoc?
+# So 3 duong: tai thang tu runner · goi /api/a10gg tren site · goi
+# /api/ritokey lam doi chung (cung khuon code, cung kieu link cong bo).
+name: Do loi 401 cua A10GG
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  do:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: A - Tai thang CSV A10GG tu runner
+        run: |
+          U="https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtnyjWuhaqHvTs9rLjzGSDlZKWYww6GROPe3kDW1FBRCFrdLnuYJKXVJslEltOMWy7HpYyOqWRjJG/pub?gid=1620350371&single=true&output=csv"
+          rm -f /tmp/a.csv
+          curl -sSL -m 90 -o /tmp/a.csv -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' "$U" || echo LOI
+          head -c 120 /tmp/a.csv | tr -d '\r'; echo
+
+      - name: B - Site goi /api/a10gg
+        run: |
+          U="https://bc-pkt.vercel.app/api/a10gg?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vQvtnyjWuhaqHvTs9rLjzGSDlZKWYww6GROPe3kDW1FBRCFrdLnuYJKXVJslEltOMWy7HpYyOqWRjJG%2Fpubhtml&gids=1620350371&moi=1"
+          curl -sS -m 200 -o /tmp/b.json -w 'HTTP %{http_code} · %{time_total}s\n' "$U" || echo LOI
+          head -c 400 /tmp/b.json; echo
+
+      - name: C - Doi chung, site goi /api/ritokey
+        run: |
+          U="https://bc-pkt.vercel.app/api/ritokey?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vSkiE47m3g4BL1e6qSEfuyg3uKXqWneiLm_zDBfOsr_hWU4slODT0xE9K1bNJpI9afseGjEQ9PZUtRQ%2Fpubhtml&gids=851205159"
+          curl -sS -m 200 -o /tmp/c.json -w 'HTTP %{http_code} · %{time_total}s\n' "$U" || echo LOI
+          head -c 250 /tmp/c.json; echo
+
+      - name: D - Thu lai A10GG tu runner lan nua (xem co chap chon khong)
+        run: |
+          U="https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtnyjWuhaqHvTs9rLjzGSDlZKWYww6GROPe3kDW1FBRCFrdLnuYJKXVJslEltOMWy7HpYyOqWRjJG/pub?gid=1620350371&single=true&output=csv"
+          for i in 1 2 3; do
+            rm -f /tmp/d.csv
+            curl -sSL -m 60 -o /tmp/d.csv -w "  lan $i: HTTP %{http_code} · %{size_download} byte\n" "$U" || echo "  lan $i LOI"
+            sleep 5
+          done
