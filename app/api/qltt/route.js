@@ -178,6 +178,7 @@ export async function GET(request) {
   for (const r of HIST.ngay) theoKhoa.set(`${r.ngay}|${r.team}`, { ...r, nguon: 'Bản chốt' });
 
   const loi = [];
+  const tabDaDoc = [];
   let soTab = 0;
   if (url && thangLive.length) {
     try {
@@ -209,6 +210,7 @@ export async function GET(request) {
         let rows;
         try { rows = docTab(kq.grid, kq.cfg); } catch (e) { loi.push(`${kq.ten}: ${e.message}`); continue; }
         soTab++;
+        tabDaDoc.push(`${kq.ten} (${rows.length} dòng)`);
         for (const r of rows) {
           const k = `${r.ngay}|${r.team}`;
           const a = song.get(k) || {
@@ -279,6 +281,7 @@ export async function GET(request) {
       don_vi: HIST.don_vi,
       ghi_chu: HIST.ghi_chu,
       so_tab_doc_truc_tiep: soTab,
+      tab_da_doc: tabDaDoc,
       loi_doc_live: loi.length ? loi.join(' · ') : null,
     },
   });
