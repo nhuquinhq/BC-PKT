@@ -1,39 +1,51 @@
 # Do lai file T8 sau khi xuat ban lai (12/08/2026).
-# Chay tu runner GitHub = may chu, giong moi truong Vercel dang goi Google.
+# Ban 2: xoa file tam truoc moi lan tai (ban 1 doc nham noi dung cu),
+# goi /api/cpv dung tham so, va thu them 2 duong khac cua Google.
 name: Do lai T8 sau xuat ban
 
 on:
   workflow_dispatch: {}
 
+env:
+  PUB: "2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0"
+  FID: "19dGSq5_jl8e2X3QrmVJQuK5UKbYThces8jjC8hRxlbE"
+
 jobs:
   do:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
-      - name: Do 3 duong vao
+      - name: Do cac duong vao
         run: |
           do_thu() {
             echo "===== $1"
-            curl -sSL -m 150 -o /tmp/o.csv \
+            rm -f /tmp/o.out
+            curl -sSL -m 120 -o /tmp/o.out \
               -w '   HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' "$2" \
               || echo '   HET GIO / LOI'
-            echo "   --- 200 ky tu dau ---"
-            head -c 200 /tmp/o.csv | tr -d '\r'; echo
-            python3 - <<'PY' || true
-          try:
-              n = sum(1 for _ in open('/tmp/o.csv', encoding='utf-8', errors='ignore'))
-              print('   so dong:', n)
-          except Exception as e:
-              print('   khong doc duoc:', e)
-          PY
+            if [ -s /tmp/o.out ]; then
+              case "$(head -c 20 /tmp/o.out)" in
+                *'<!DOCTYPE'*|*'<html'*) echo "   ==> TRA VE TRANG HTML (khong phai du lieu)" ;;
+                *) echo "   ==> co ve la du lieu:"; head -c 160 /tmp/o.out | tr -d '\r'; echo ;;
+              esac
+              wc -l < /tmp/o.out | xargs echo '   so dong:'
+            else
+              echo "   ==> KHONG NHAN DUOC BYTE NAO"
+            fi
             echo
           }
 
-          do_thu "1. Link /pub CSV — dung y het cai app dang goi" \
-            "https://docs.google.com/spreadsheets/d/e/2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0/pub?gid=0&single=true&output=csv"
+          # Doi 3 lan de biet loi co on dinh hay chi la luc xuat ban chua ngam
+          for lan in 1 2 3; do
+            do_thu "[lan $lan] /pub CSV — dung y het cai app dang goi" \
+              "https://docs.google.com/spreadsheets/d/e/$PUB/pub?gid=0&single=true&output=csv"
+          done
 
-          do_thu "2. Link /export CSV cua file goc" \
-            "https://docs.google.com/spreadsheets/d/19dGSq5_jl8e2X3QrmVJQuK5UKbYThces8jjC8hRxlbE/export?format=csv&gid=0"
+          do_thu "/pubhtml — ban HTML cua chinh link da xuat ban" \
+            "https://docs.google.com/spreadsheets/d/e/$PUB/pubhtml?gid=0&single=true"
 
-          do_thu "3. Site that — /api/cpv doc T8" \
-            "https://bc-pkt.vercel.app/api/cpv"
+          do_thu "gviz CSV — duong thu ba, thuong nhe hon /pub" \
+            "https://docs.google.com/spreadsheets/d/$FID/gviz/tq?tqx=out:csv&gid=0"
+
+          do_thu "Site that — /api/cpv doc dung file T8" \
+            "https://bc-pkt.vercel.app/api/cpv?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F$PUB%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0"
