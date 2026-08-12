@@ -131,6 +131,7 @@ function docTab(grid, cfg) {
   if (cTeam < 0 && cfg.team.length && cGv >= 0) cTeam = cGv + 1; /* vài tháng bỏ trống ô tiêu đề */
   const cCtv = cfg.ctv.length ? timCot(tieuDe, cfg.ctv) : -1;
   const cTt = timCot(tieuDe, ['trang thai']);
+  const cShop = timCot(tieuDe, ['shop', 'ten shop']);
   if (cNgay < 0 || (cfg.dt.length && cDt < 0) || (cfg.gv.length && cGv < 0)) {
     throw new Error(`thiếu cột (ngày=${cNgay} doanh thu=${cDt} giá vốn=${cGv})`);
   }
@@ -154,6 +155,7 @@ function docTab(grid, cfg) {
       sortKey: `${dt.y}${dt.m}${dt.d}`,
       thang: `${dt.m}/${dt.y}`,
       team: team(cTeam >= 0 ? r[cTeam] : ''),
+      shop: cShop >= 0 ? String(r[cShop] ?? '').trim().toLowerCase() : '',
       nhom: cfg.nhom,
       gmv: cDt >= 0 ? viNum(r[cDt]) : 0,
       ar: ngoai ? gv : 0,
@@ -205,13 +207,36 @@ export async function GET(request) {
       /* Ngày nào có dữ liệu live thì bỏ hẳn bản chốt của ngày đó rồi cộng lại
          từ đầu — nếu không sẽ cộng chồng lên số đã chốt. */
       const song = new Map();
+      const tatCa = [];
       for (const kq of ketQua) {
         if (kq.err) { loi.push(`${kq.ten}: ${kq.err.message}`); continue; }
         let rows;
         try { rows = docTab(kq.grid, kq.cfg); } catch (e) { loi.push(`${kq.ten}: ${e.message}`); continue; }
         soTab++;
         tabDaDoc.push(`${kq.ten} (${rows.length} dòng)`);
-        for (const r of rows) {
+        tatCa.push(...rows);
+      }
+      /* Vài tab bỏ trống cột team (đã gặp ở DV thủ công T2, T3) — học map
+         SHOP → TEAM từ các tab CÓ điền rồi gán ngược, thay vì để rơi hết
+         vào "Chưa phân loại". */
+      {
+        const hoc = new Map();
+        for (const r of tatCa) {
+          if (!r.shop || r.team === 'Chưa phân loại') continue;
+          const d = hoc.get(r.shop) || new Map();
+          d.set(r.team, (d.get(r.team) || 0) + 1);
+          hoc.set(r.shop, d);
+        }
+        const mapShop = new Map();
+        for (const [sh, d] of hoc) {
+          mapShop.set(sh, [...d.entries()].sort((x, y) => y[1] - x[1])[0][0]);
+        }
+        for (const r of tatCa) {
+          if (r.team === 'Chưa phân loại' && mapShop.get(r.shop)) r.team = mapShop.get(r.shop);
+        }
+      }
+      {
+        for (const r of tatCa) {
           const k = `${r.ngay}|${r.team}`;
           const a = song.get(k) || {
             ngay: r.ngay, sortKey: r.sortKey, thang: r.thang, team: r.team,
