@@ -9,6 +9,7 @@ import WeeklyRateBoard from './WeeklyRateBoard';
 import CpvBoard from './CpvBoard';
 import TienBoard from './TienBoard';
 import RitokeyBoard from './RitokeyBoard';
+import A10ggBoard from './A10ggBoard';
 import HoldingsBoard from './HoldingsBoard';
 import TimDonBoard from './TimDonBoard';
 import QlttBoard from './QlttBoard';
@@ -252,6 +253,13 @@ export default function ReportView({ report }) {
               {tables}
               {charts}
             </>
+          ) : report.sheet?.mode === 'a10gg' ? (
+            /* PKT13 — CPV A10GG (chỉ có số theo tháng, tiền về chậm 45 ngày) */
+            <>
+              <A10ggBoard report={report} onLive={applyLive} range={range} />
+              {charts}
+              {tables}
+            </>
           ) : report.sheet?.mode === 'ritokey' ? (
             /* PKT12 — CPV Ritokey (C300) */
             <>
@@ -283,7 +291,7 @@ export default function ReportView({ report }) {
           );
         })()}
 
-        {!['order_cpv', 'holdings', 'tim_don', 'qltt'].includes(report.sheet?.mode) ? (
+        {!['order_cpv', 'holdings', 'tim_don', 'qltt', 'a10gg'].includes(report.sheet?.mode) ? (
           <div className="muted" style={{ marginTop: 8 }}>
             {loaded ? `Cập nhật: ${data.meta.cap_nhat || '—'} · Người lập: ${data.meta.nguoi_lap || '—'}` : 'Đang tải dữ liệu…'}
           </div>
