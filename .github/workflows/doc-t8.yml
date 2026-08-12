@@ -1,149 +1,124 @@
-# Doc va tom tat file CPV BE T8 (tab Data, gid=0).
-# Ban 2: Google xuat file nay LUC DUOC LUC KHONG nen phai thu lai nhieu
-# lan va KIEM TRA la CSV that truoc khi phan tich — ban 1 da lo dem trang
-# loi HTML ra phan tich va cho ra so rac.
+# Doc file CPV BE T8 bang HAI CACH:
+#   Cach 1 — tai thang CSV tu Google (hay hong, thu 6 lan).
+#   Cach 2 — goi /api/cpv cua chinh site; site da doc duoc va giu ban nho
+#            nen duong nay an toan hon nhieu.
+# Cach nao xong thi tom tat cach do; chay ca hai de con doi chieu.
 name: Doc file T8
 
 on:
   workflow_dispatch: {}
 
+env:
+  PUB: "2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0"
+
 jobs:
   doc:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
-      - name: Tai tab Data - thu toi 6 lan
+      - name: CACH 1 - tai thang CSV tu Google
+        continue-on-error: true
         run: |
-          U="https://docs.google.com/spreadsheets/d/e/2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0/pub?gid=0&single=true&output=csv"
-          ok=0
+          U="https://docs.google.com/spreadsheets/d/e/$PUB/pub?gid=0&single=true&output=csv"
           for lan in 1 2 3 4 5 6; do
             rm -f /tmp/t8.csv
-            code=$(curl -sSL -m 120 -o /tmp/t8.csv -w '%{http_code}' "$U" || echo 000)
+            code=$(curl -sSL -m 100 -o /tmp/t8.csv -w '%{http_code}' "$U" || echo 000)
             sz=$(stat -c%s /tmp/t8.csv 2>/dev/null || echo 0)
-            head1=$(head -c 15 /tmp/t8.csv 2>/dev/null | tr -d '\n')
-            echo "lan $lan: HTTP $code · $sz byte · dau file: ${head1:0:15}"
-            case "$head1" in
-              '<!DOCTYPE'*|'<html'*) echo "   -> trang loi HTML, thu lai"; sleep 20; continue ;;
-            esac
-            if [ "$code" = "200" ] && [ "$sz" -gt 100000 ]; then
-              echo "   -> DUOC: CSV that, $sz byte"; ok=1; break
-            fi
-            echo "   -> chua dat, thu lai"; sleep 20
+            h=$(head -c 12 /tmp/t8.csv 2>/dev/null | tr -d '\n')
+            echo "lan $lan: HTTP $code · $sz byte"
+            case "$h" in '<!DOCTYPE'*|'<html'*) echo '   -> trang loi HTML'; sleep 15; continue ;; esac
+            if [ "$code" = "200" ] && [ "$sz" -gt 100000 ]; then echo '   -> DUOC'; exit 0; fi
+            sleep 15
           done
-          if [ "$ok" != "1" ]; then
-            echo "KHONG TAI DUOC FILE T8 SAU 6 LAN — Google van dang xuat hong"
-            exit 1
-          fi
+          echo "CACH 1 THAT BAI — Google van khong xuat duoc"
+          rm -f /tmp/t8.csv
+          exit 1
 
-      - name: Tom tat file
+      - name: CACH 2 - goi /api/cpv cua site
+        run: |
+          E="https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F$PUB%2Fpubhtml%3Fgid%3D0%26single%3Dtrue"
+          for lan in 1 2 3; do
+            rm -f /tmp/t8.json
+            code=$(curl -sS -m 280 -o /tmp/t8.json -w '%{http_code}' "https://bc-pkt.vercel.app/api/cpv?url=$E&gid=0" || echo 000)
+            sz=$(stat -c%s /tmp/t8.json 2>/dev/null || echo 0)
+            echo "lan $lan: HTTP $code · $sz byte"
+            [ "$code" = "200" ] && [ "$sz" -gt 5000 ] && echo '   -> DUOC' && break
+            head -c 200 /tmp/t8.json; echo
+            sleep 20
+          done
+
+      - name: Tom tat
         run: |
           python3 - <<'PY'
-          import csv, re, collections, unicodedata
-          csv.field_size_limit(10**9)
-          rows = list(csv.reader(open('/tmp/t8.csv', encoding='utf-8', errors='ignore')))
-          print('TONG DONG :', len(rows))
-          print('SO COT MAX:', max((len(r) for r in rows), default=0))
+          import json, os, collections, csv, re
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
 
-          print('\n===== KHOI TIEU DE (6 dong dau) =====')
-          for i in range(min(6, len(rows))):
-              cells = [(j, c.strip()[:30]) for j, c in enumerate(rows[i]) if c.strip()]
-              if cells: print(f'dong {i}: {cells[:12]}')
+          if os.path.exists('/tmp/t8.csv') and os.path.getsize('/tmp/t8.csv') > 100000:
+              csv.field_size_limit(10**9)
+              rows = list(csv.reader(open('/tmp/t8.csv', encoding='utf-8', errors='ignore')))
+              print(f'== CACH 1 (CSV thang): doc duoc {len(rows)} dong ==')
+              print('  Dong dau:', ','.join(c.strip()[:24] for c in rows[0][:6]))
+          else:
+              print('== CACH 1 (CSV thang): KHONG doc duoc ==')
 
-          def norm(s):
-              s = unicodedata.normalize('NFD', str(s or '')).lower()
-              return ''.join(ch for ch in s if not unicodedata.combining(ch)).replace('đ','d').strip()
+          if not (os.path.exists('/tmp/t8.json') and os.path.getsize('/tmp/t8.json') > 5000):
+              print('\n== CACH 2 (API site): KHONG doc duoc ==')
+              raise SystemExit
 
-          # Dong tieu de = dong dau tien chua ca "san" lan mot cot tien
-          hdr = -1
-          for i in range(min(20, len(rows))):
-              ns = [norm(c) for c in rows[i]]
-              if any('san' == c or 'ma san' in c for c in ns) and any('thanh tien' in c or 'gia von' in c for c in ns):
-                  hdr = i; break
-          if hdr < 0:
-              for i in range(min(20, len(rows))):
-                  if sum(1 for c in rows[i] if c.strip() and not re.fullmatch(r'[\d.,\-]+', c.strip())) >= 8:
-                      hdr = i; break
-          cols = [c.strip() for c in rows[hdr]] if hdr >= 0 else []
-          print(f'\n===== DONG TIEU DE COT = dong {hdr} =====')
-          for j, c in enumerate(cols):
-              if c: print(f'  cot {j:>2} = {c}')
+          d = json.load(open('/tmp/t8.json', encoding='utf-8'))
+          det = d.get('detail') or []
+          m = d.get('meta') or {}
+          print(f'\n== CACH 2 (API site): {len(det)} dong gop ==')
+          print('  Ky du lieu :', m.get('from'), '->', m.get('to'))
+          print('  Dong dung  :', m.get('rows_used'), '· don fail', m.get('don_fail'), '· don huy', m.get('don_huy'))
+          bn = m.get('bo_nho') or {}
+          if bn:
+              print('  Ban nho    : tuoi', round((bn.get('tuoi_giay') or 0)/60), 'phut · dang lam moi', bn.get('dang_lam_moi'))
+              if bn.get('loi_doc_moi'): print('  Loi doc moi:', bn['loi_doc_moi'])
+          if m.get('main_error'): print('  !! THIEU FILE:', m['main_error'])
+          if m.get('api_error'):  print('  !! LOI FILE API:', m['api_error'])
 
-          data = rows[hdr+1:] if hdr >= 0 else []
-          print(f'\nSO DONG DU LIEU: {len(data)}')
+          if det: print('\n  Cac truong moi dong:', ', '.join(sorted(det[0].keys())))
 
-          def tim(*tu):
-              for j, c in enumerate(cols):
-                  n = norm(c)
-                  if all(t in n for t in tu): return j
-              return -1
-          idx = {'ngay': tim('ngay'), 'san': tim('san'), 'thanh_tien': tim('thanh','tien'),
-                 'gia_von': tim('gia','von'), 'trang_thai': tim('trang','thai'),
-                 'loai_dv': tim('loai','dich','vu'), 'bu': tim('bu')}
-          print('\n===== COT DA NHAN DIEN =====')
-          for k, j in idx.items():
-              print(f'  {k:<11} -> cot {j}' + (f'  ({cols[j]})' if j >= 0 else '  [KHONG THAY]'))
+          g = lambda r, k: r.get(k) or 0
+          tien = sum(g(r,'thanh_tien') for r in det)
+          von  = sum(g(r,'gia_von') for r in det)
+          phi  = sum(g(r,'phi_san_vnd') for r in det)
+          usd  = sum(g(r,'doanh_thu_usd') for r in det)
+          don  = sum(g(r,'so_don') for r in det)
+          print(f'\n===== TONG =====')
+          print(f'  Doanh thu goc (USD): {usd:,.2f}')
+          print(f'  Thanh tien (VND)   : {n(tien)}')
+          print(f'  Phi san            : {n(phi)}')
+          print(f'  Gia von            : {n(von)}')
+          print(f'  Loi nhuan gop      : {n(tien-von)}')
+          print(f'  % gia von / DT     : {von/tien*100:.2f}%' if tien else '')
+          print(f'  So don             : {n(don)}')
 
-          def viNum(s):
-              s = str(s or '').strip().replace(' ', '')
-              if not s or s == '-': return 0.0
-              am = s.startswith('-') or (s.startswith('(') and s.endswith(')'))
-              s = s.strip('()-')
-              if ',' in s and '.' in s: s = s.replace('.','').replace(',','.')
-              elif re.search(r',\d{1,2}$', s): s = s.replace('.','').replace(',','.')
-              else: s = re.sub(r'[.,](?=\d{3}\b)', '', s)
-              try: v = float(s)
-              except ValueError: return 0.0
-              return -v if am else v
-          def val(r, k):
-              j = idx[k]
-              return r[j] if 0 <= j < len(r) else ''
+          def top(key, ten, lim=30):
+              m2 = collections.defaultdict(lambda: [0,0,0])
+              for r in det:
+                  k = (r.get(key) or '—')
+                  m2[k][0] += g(r,'so_don'); m2[k][1] += g(r,'thanh_tien'); m2[k][2] += g(r,'gia_von')
+              print(f'\n===== THEO {ten} ({len(m2)}) =====')
+              for k, v in sorted(m2.items(), key=lambda x: -x[1][1])[:lim]:
+                  bien = (v[1]-v[2])/v[1]*100 if v[1] else 0
+                  print(f'  {str(k):<14} {n(v[0]):>7} don · DT {n(v[1]):>16} · von {n(v[2]):>16} · bien {bien:>6.1f}%')
+          top('san','SAN'); top('bu','BU'); top('spdv','SPDV')
 
-          tt=collections.Counter(); san=collections.Counter(); sanTien=collections.Counter()
-          sanVon=collections.Counter(); dv=collections.Counter(); ngayCo=collections.Counter()
-          bu=collections.Counter()
-          tongTien=tongVon=0.0; coVon0=0; thieuSan=0; dem=0
-          for r in data:
-              if not any(c.strip() for c in r): continue
-              dem += 1
-              tt[val(r,'trang_thai').strip() or '(trong)'] += 1
-              s = val(r,'san').strip()
-              if s: san[s]+=1
-              else: thieuSan+=1
-              b = val(r,'bu').strip()
-              if b: bu[b]+=1
-              t=viNum(val(r,'thanh_tien')); v=viNum(val(r,'gia_von'))
-              tongTien+=t; tongVon+=v
-              if s: sanTien[s]+=t; sanVon[s]+=v
-              if t and not v: coVon0+=1
-              d=val(r,'ngay').strip()[:10]
-              m=re.match(r'(\d{1,2})[/-](\d{1,2})', d)
-              if m: ngayCo[f'{int(m.group(1)):02d}/{int(m.group(2)):02d}']+=1
-              lv=val(r,'loai_dv').strip()
-              if lv: dv[lv]+=1
+          mn = collections.defaultdict(lambda: [0,0,0])
+          for r in det:
+              k = r.get('ngay') or '—'
+              mn[k][0] += g(r,'so_don'); mn[k][1] += g(r,'thanh_tien'); mn[k][2] += g(r,'gia_von')
+          print(f'\n===== THEO NGAY ({len(mn)} ngay) =====')
+          for k in sorted(mn, key=lambda x: (x[6:10], x[3:5], x[0:2])):
+              v = mn[k]
+              bien = (v[1]-v[2])/v[1]*100 if v[1] else 0
+              print(f'  {k}  {n(v[0]):>6} don · DT {n(v[1]):>16} · von {n(v[2]):>16} · bien {bien:>6.1f}%')
 
-          n=lambda x: f'{x:,.0f}'.replace(',','.')
-          print(f'\n===== TONG HOP ({dem} dong) =====')
-          print(f'  Thanh tien : {n(tongTien)}')
-          print(f'  Gia von    : {n(tongVon)}')
-          print(f'  Lai gop    : {n(tongTien-tongVon)}')
-          if tongTien: print(f'  % gia von  : {tongVon/tongTien*100:.1f}%')
-
-          print('\n===== TRANG THAI DON =====')
-          for k,c in tt.most_common(12): print(f'  {c:>7}  {k}')
-          print('\n===== THEO BU =====')
-          for k,c in bu.most_common(12): print(f'  {c:>7}  {k}')
-          print(f'\n===== THEO SAN ({len(san)} san) =====')
-          for k,c in san.most_common(30):
-              bien = (sanTien[k]-sanVon[k])/sanTien[k]*100 if sanTien[k] else 0
-              print(f'  {k:<6} {c:>6} don · tien {n(sanTien[k]):>16} · von {n(sanVon[k]):>16} · bien {bien:>6.1f}%')
-          print('\n===== LOAI DICH VU =====')
-          for k,c in dv.most_common(15): print(f'  {c:>7}  {k}')
-          ds=sorted(ngayCo)
-          print(f'\n===== NGAY CO DU LIEU: {len(ds)} ngay =====')
-          if ds:
-              print('  tu', ds[0], 'den', ds[-1])
-              print('  ' + ' · '.join(f'{d}:{ngayCo[d]}' for d in ds))
-          print('\n===== CAN SOI =====')
-          print(f'  Dong co tien nhung GIA VON = 0 : {coVon0}')
-          print(f'  Dong THIEU ma san              : {thieuSan}')
+          nc = d.get('no_cost_list') or []
+          dup = d.get('dup_list') or []
+          print(f'\n===== CAN SOI =====')
+          print(f'  Don CO tien nhung CHUA co gia von : {len(nc)}')
+          print(f'  Ma don TRUNG                      : {len(dup)}')
           PY
