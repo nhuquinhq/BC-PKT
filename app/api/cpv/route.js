@@ -93,18 +93,19 @@ const statusClass = (raw) => {
   return 'other';
 };
 
-/* Google hay trả 400/500 hoặc treo khi xuất CSV file lớn (đã gặp với file
-   CPV BE 08/2026) — thử lại tối đa 3 lượt, lùi 2s/4s giữa các lượt.
+/* Google hay trả 400/500 hoặc treo khi xuất CSV file lớn.
 
-   Hạn chờ TĂNG DẦN 30s · 60s · 90s thay vì 25s đều: file BE tháng đang
-   chạy phình dần theo ngày, đến 08/08 thì Google không kịp xuất trong 25s
-   nên cả 3 lượt cùng hụt và bot tắt tiếng. Tổng xấu nhất ~186s, vẫn nằm
-   trong hạn 300s của hàm. */
-const HAN_CHO = [30000, 60000, 90000];
+   Hạn chờ 90s và CHỈ thử lại khi lỗi là tạm thời. Đo ngày 12/08 cho thấy
+   file nào Google xuất được thì xuất rất nhanh (BE T7: 9,6 MB trong 4,4s),
+   còn file nào hỏng thì hỏng hẳn — BE T8 chạy đủ 240s rồi trả HTTP 400,
+   lượt sau trả 410 ngay. Đợi hết giờ thêm lượt nữa chỉ tổ treo trang, nên
+   gặp hết giờ là dừng luôn; kết hợp với việc nhớ lỗi ở lib/boNho.js thì
+   mỗi 5 phút chỉ đúng một lượt phải trả giá. */
+const HAN_CHO = [90000, 90000];
 /* Có nhớ theo từng file: PKT8, PKT20, các trang team và trang sàn đều đọc
    đúng những file này, chưa kể PKT10/PKT15 cần dữ liệu từng đơn. Nhớ ở đây
    thì cả nhóm dùng chung một lượt tải — xem lib/boNho.js. */
-async function loadGrid(url, gid, luot = 3) {
+async function loadGrid(url, gid, luot = 2) {
   const csvUrl = toCsvUrl(url, gid) || url;
   const { val } = await nhoDocFile(`cpv-file|${csvUrl}`, async () => {
     let loiCuoi = null;
@@ -118,7 +119,10 @@ async function loadGrid(url, gid, luot = 3) {
         if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.');
         return text;
       } catch (e) {
-        loiCuoi = e.name === 'TimeoutError' ? new Error(`Google không trả dữ liệu trong ${han / 1000}s`) : e;
+        if (e.name === 'TimeoutError') {
+          throw new Error(`Google không xuất nổi file này trong ${han / 1000}s — nhiều khả năng phải xuất bản lại hoặc làm nhẹ tab`);
+        }
+        loiCuoi = e;
       }
     }
     throw loiCuoi;

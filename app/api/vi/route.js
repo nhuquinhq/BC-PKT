@@ -53,10 +53,11 @@ function toCsvUrl(sheetUrl, gid) {
   }
 }
 
-/* File ví tháng 8 là bản TỔNG HỢP thô (gần 10 MB) nên Google xuất CSV rất
-   lâu — đã đo: hụt cả ba lượt 30/60/90s. Đổi thành 2 lượt nhưng cho hẳn
-   60s rồi 120s, tổng xấu nhất ~182s, vẫn trong hạn 300s của hàm. */
-const HAN_CHO = [60000, 120000];
+/* Đo ngày 12/08: file ví T7 xuất 5,4 MB trong 13,5s, còn file ví T8 chạy đủ
+   240s rồi Google trả HTTP 400 — tức là hỏng hẳn chứ không phải chậm. Cho
+   90s một lượt; gặp hết giờ thì dừng luôn thay vì đợi thêm lượt nữa, kết
+   hợp với việc nhớ lỗi ở lib/boNho.js cho khỏi treo trang. */
+const HAN_CHO = [90000, 90000];
 /* Có nhớ: file ví tháng đang chạy khá nặng, mà PKT6 và PKT20 đọc chung —
    xem lib/boNho.js */
 async function loadGrid(url, gid) {
@@ -72,7 +73,10 @@ async function loadGrid(url, gid) {
         if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.');
         return text;
       } catch (e) {
-        loiCuoi = e.name === 'TimeoutError' ? new Error(`Google không trả dữ liệu trong ${HAN_CHO[i] / 1000}s`) : e;
+        if (e.name === 'TimeoutError') {
+          throw new Error(`Google không xuất nổi file này trong ${HAN_CHO[i] / 1000}s — nhiều khả năng phải xuất bản lại hoặc làm nhẹ tab`);
+        }
+        loiCuoi = e;
       }
     }
     throw loiCuoi;
