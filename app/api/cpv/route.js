@@ -12,6 +12,7 @@
 
 import Papa from 'papaparse';
 import { spdvOf, teamOf, SAN_BU_MAP } from '@/lib/cpvDims';
+import { nhoDoc, nhoDocFile } from '@/lib/boNho';
 /* "Datalake" tháng đã chốt sổ: dữ liệu đã gộp sẵn (Ngày × Sàn × SPDV) đóng gói
    tĩnh theo app — không phải đọc lại Google Sheet các tháng cũ ở mỗi lượt xem.
    Sinh file bằng chính API này (xem README trong lib/data nếu cần làm lại). */
@@ -100,23 +101,29 @@ const statusClass = (raw) => {
    nên cả 3 lượt cùng hụt và bot tắt tiếng. Tổng xấu nhất ~186s, vẫn nằm
    trong hạn 300s của hàm. */
 const HAN_CHO = [30000, 60000, 90000];
+/* Có nhớ theo từng file: PKT8, PKT20, các trang team và trang sàn đều đọc
+   đúng những file này, chưa kể PKT10/PKT15 cần dữ liệu từng đơn. Nhớ ở đây
+   thì cả nhóm dùng chung một lượt tải — xem lib/boNho.js. */
 async function loadGrid(url, gid, luot = 3) {
   const csvUrl = toCsvUrl(url, gid) || url;
-  let loiCuoi = null;
-  for (let i = 0; i < luot; i++) {
-    if (i) await new Promise((ok) => setTimeout(ok, i * 2000));
-    const han = HAN_CHO[Math.min(i, HAN_CHO.length - 1)];
-    try {
-      const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(han) });
-      if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
-      const text = await res.text();
-      if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.');
-      return Papa.parse(text, { header: false, skipEmptyLines: false }).data;
-    } catch (e) {
-      loiCuoi = e.name === 'TimeoutError' ? new Error(`Google không trả dữ liệu trong ${han / 1000}s`) : e;
+  const { val } = await nhoDocFile(`cpv-file|${csvUrl}`, async () => {
+    let loiCuoi = null;
+    for (let i = 0; i < luot; i++) {
+      if (i) await new Promise((ok) => setTimeout(ok, i * 2000));
+      const han = HAN_CHO[Math.min(i, HAN_CHO.length - 1)];
+      try {
+        const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(han) });
+        if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
+        const text = await res.text();
+        if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.');
+        return text;
+      } catch (e) {
+        loiCuoi = e.name === 'TimeoutError' ? new Error(`Google không trả dữ liệu trong ${han / 1000}s`) : e;
+      }
     }
-  }
-  throw loiCuoi;
+    throw loiCuoi;
+  });
+  return Papa.parse(val, { header: false, skipEmptyLines: false }).data;
 }
 
 /* Đọc một lưới CSV đơn hàng → danh sách đơn đã chuẩn hoá.
@@ -261,20 +268,10 @@ function aggregate(rows) {
   return [...agg.values()].sort((x, y) => (x.sortKey < y.sortKey ? -1 : x.sortKey > y.sortKey ? 1 : x.san.localeCompare(y.san)));
 }
 
-export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  /* Nguồn chính có thể gồm NHIỀU file cùng form (mỗi tháng một file):
-     truyền lặp ?url=...&gid=...&url=...&gid=... — file đầu là file chủ đạo. */
-  const urls = searchParams.getAll('url');
-  const gids = searchParams.getAll('gid');
-  /* File API sàn cũng có thể nhiều file theo tháng: lặp url2/gid2 */
-  const url2s = searchParams.getAll('url2');
-  const gid2s = searchParams.getAll('gid2');
-  const san2 = searchParams.get('san2') || ''; // sàn mặc định cho file API nếu thiếu cột Sàn
-  /* nocost=1 (PKT10): chỉ giữ đơn Hoàn Tất CHƯA TÌM ĐƯỢC GIÁ VỐN (có doanh thu, giá vốn = 0) */
-  const nocost = searchParams.get('nocost') === '1';
-  if (!urls.length) return Response.json({ error: 'Thiếu url' }, { status: 400 });
-
+/* Đọc toàn bộ nguồn LIVE (file BE các tháng đang chạy + file API sàn) rồi
+   chuẩn hoá thành danh sách từng đơn. Tách riêng khỏi GET để bọc được bộ
+   nhớ đệm — xem lib/boNho.js. */
+async function docLive({ urls, gids, url2s, gid2s, san2 }) {
   let mainRows = [];
   let mainMeta = {};
   const mainErrors = [];
@@ -300,7 +297,7 @@ export async function GET(request) {
   /* Chỉ chặn khi KHÔNG đọc được file nào; 1 file lỗi (vd file tháng mới
      chưa có dữ liệu) thì cảnh báo vàng và vẫn chạy các file còn lại */
   if (!mainOkCount) {
-    return Response.json({ error: `File tổng hợp: ${mainErrors.join(' · ')}` }, { status: 502 });
+    throw new Error(`File tổng hợp: ${mainErrors.join(' · ')}`);
   }
 
   /* File API từ sàn (chỉ G1/G2): file BE ƯU TIÊN vì đã đối soát;
@@ -448,36 +445,94 @@ export async function GET(request) {
     nc: r.nguon === 'dh' && r.sc === 'ok' && r.thanh_tien > 0 && !r.gia_von ? 1 : 0,
   }));
 
-  /* raw=1: trả DỮ LIỆU THÔ TỪNG ĐƠN cho nút Xuất Excel trang team/sàn
-     (chỉ gồm các tháng đang đọc live — datalake tháng chốt không lưu từng đơn).
-     Lọc server theo team/san để payload gọn. */
-  if (searchParams.get('raw') === '1') {
-    const teamF = searchParams.get('team') || '';
-    const sanF = searchParams.get('san') || '';
-    let raws = all;
-    if (sanF) raws = raws.filter((r) => r.san === sanF);
-    if (teamF) raws = raws.filter((r) => teamOf(r.bu) === teamF);
-    return Response.json({
-      raw: raws.slice(0, 60000).map((r) => ({
-        ngay: r.ngay,
-        sortKey: r.sortKey,
-        id: r.id,
-        san: r.san,
-        bu: r.bu,
-        spdv: r.spdv,
-        nguon: r.nguon,
-        sc: r.sc,
-        doanh_thu_usd: r.doanh_thu_usd,
-        thanh_tien: r.thanh_tien,
-        gia_von: r.gia_von,
-        loi_nhuan: r.loi_nhuan,
-      })),
-      meta: { tong: raws.length, gioi_han: 60000 },
-    });
-  }
+  return { all, api_file, dupList, mainMeta, apiMeta, dedup, outOfRange, apiNoCost, mainErrors, sanBu };
+}
+
+/* Bản GỌN để cất vào bộ nhớ đệm: đã gộp theo Ngày × Sàn × SPDV nên nhẹ hơn
+   danh sách từng đơn vài chục lần, mà mọi bảng của trang đều chỉ cần bản này.
+   Danh sách từng đơn (raw / nocost) vẫn phải đọc đủ nên không đi đường này. */
+function goiGon(kq) {
+  const dem = (loc) => kq.all.reduce((n, r) => n + (loc(r) ? 1 : 0), 0);
+  return {
+    detail: aggregate(kq.all),
+    api_file: kq.api_file,
+    dup_list: kq.dupList,
+    san_bu: [...kq.sanBu.entries()],
+    meta: {
+      ...kq.mainMeta,
+      rows_used: dem((r) => r.sc === 'ok'),
+      don_fail: dem((r) => r.sc === 'fail'),
+      don_huy: dem((r) => r.sc === 'huy'),
+      main_used: dem((r) => r.nguon === 'dh' && r.sc === 'ok'),
+      api_used: dem((r) => r.nguon === 'api' && r.sc === 'ok'),
+      api_no_cost: kq.apiNoCost,
+      api_error: kq.apiMeta?.error || null,
+      main_error: kq.mainErrors.length ? kq.mainErrors.join(' · ') : null,
+      dedup_removed: kq.dedup,
+      api_out_of_range: kq.outOfRange,
+    },
+  };
+}
+
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  /* Nguồn chính có thể gồm NHIỀU file cùng form (mỗi tháng một file):
+     truyền lặp ?url=...&gid=...&url=...&gid=... — file đầu là file chủ đạo. */
+  const urls = searchParams.getAll('url');
+  const gids = searchParams.getAll('gid');
+  /* File API sàn cũng có thể nhiều file theo tháng: lặp url2/gid2 */
+  const url2s = searchParams.getAll('url2');
+  const gid2s = searchParams.getAll('gid2');
+  const san2 = searchParams.get('san2') || ''; // sàn mặc định cho file API nếu thiếu cột Sàn
+  /* nocost=1 (PKT10): chỉ giữ đơn Hoàn Tất CHƯA TÌM ĐƯỢC GIÁ VỐN (có doanh thu, giá vốn = 0) */
+  const nocost = searchParams.get('nocost') === '1';
+  const raw = searchParams.get('raw') === '1';
+  /* moi=1: bỏ qua bản đang nhớ, đọc lại Google cho bằng được. Trình duyệt
+     dùng tham số này để lấy số mới sau khi đã hiện bản cũ. */
+  const moi = searchParams.get('moi') === '1';
+  if (!urls.length) return Response.json({ error: 'Thiếu url' }, { status: 400 });
+
+  const thamSo = { urls, gids, url2s, gid2s, san2 };
+  const khoa = `cpv|${urls.join(',')}|${gids.join(',')}|${url2s.join(',')}|${gid2s.join(',')}|${san2}`;
+
+  let goi = null;
   let noCostList = null;
-  if (nocost) {
-    noCostList = all
+  let boNho = null;
+
+  if (raw || nocost) {
+    /* PKT10 và PKT15 cần dữ liệu TỪNG ĐƠN nên phải đọc đủ, không dùng bản gộp.
+       Từng file CSV vẫn có bộ nhớ riêng nên thường cũng không phải tải lại. */
+    let kq;
+    try {
+      kq = await docLive(thamSo);
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 502 });
+    }
+    if (raw) {
+      const teamF = searchParams.get('team') || '';
+      const sanF = searchParams.get('san') || '';
+      let raws = kq.all;
+      if (sanF) raws = raws.filter((r) => r.san === sanF);
+      if (teamF) raws = raws.filter((r) => teamOf(r.bu) === teamF);
+      return Response.json({
+        raw: raws.slice(0, 60000).map((r) => ({
+          ngay: r.ngay,
+          sortKey: r.sortKey,
+          id: r.id,
+          san: r.san,
+          bu: r.bu,
+          spdv: r.spdv,
+          nguon: r.nguon,
+          sc: r.sc,
+          doanh_thu_usd: r.doanh_thu_usd,
+          thanh_tien: r.thanh_tien,
+          gia_von: r.gia_von,
+          loi_nhuan: r.loi_nhuan,
+        })),
+        meta: { tong: raws.length, gioi_han: 60000 },
+      });
+    }
+    noCostList = kq.all
       .filter((r) => r.nc)
       .slice(0, 3000)
       .map((r) => ({
@@ -490,17 +545,31 @@ export async function GET(request) {
         doanh_thu_usd: r.doanh_thu_usd,
         thanh_tien: r.thanh_tien,
       }));
+    goi = goiGon(kq);
+  } else {
+    let kq;
+    try {
+      kq = await nhoDoc(khoa, async () => goiGon(await docLive(thamSo)), { moi });
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 502 });
+    }
+    goi = kq.val;
+    if (kq.tuoi > 0) {
+      boNho = { tuoi_giay: Math.round(kq.tuoi / 1000), dang_lam_moi: !!kq.dangLamMoi };
+      if (kq.loi) boNho.loi_doc_moi = kq.loi;
+    }
   }
 
   /* hist=1: nối thêm các tháng đã chốt từ datalake tĩnh */
   const useHist = searchParams.get('hist') === '1';
-  let detail = aggregate(all);
+  let detail = goi.detail;
   let histOk = 0;
   let histFail = 0;
   let histHuy = 0;
   if (useHist) {
     /* Snapshot không lưu BU (file gốc ẩn cột) — gán lại bằng map Sàn→BU
        học từ tháng đang live, cùng chuỗi dự phòng như dòng thường. */
+    const sanBu = new Map(goi.san_bu || []);
     const histRows = HIST.flatMap((h) => h.detail).map((r) => ({
       ...r,
       bu: r.bu || sanBu.get(r.san) || SAN_BU_MAP[r.san] || (r.san.match(/^[A-Za-z]+/)?.[0] || r.san).toUpperCase(),
@@ -516,12 +585,11 @@ export async function GET(request) {
       histHuy += h.counts?.huy || 0;
     }
   }
-  const okRows = all.filter((r) => r.sc === 'ok');
   const dates = detail.map((x) => x.ngay);
 
   /* Đối soát các tháng đã chốt: api_file + danh sách trùng lấy từ datalake */
-  const apiFileOut = useHist ? HIST.flatMap((h) => h.api_file || []).concat(api_file) : api_file;
-  const dupOut = useHist ? HIST.flatMap((h) => h.dup_list || []).concat(dupList) : dupList;
+  const apiFileOut = useHist ? HIST.flatMap((h) => h.api_file || []).concat(goi.api_file) : goi.api_file;
+  const dupOut = useHist ? HIST.flatMap((h) => h.dup_list || []).concat(goi.dup_list) : goi.dup_list;
 
   return Response.json({
     detail,
@@ -529,18 +597,13 @@ export async function GET(request) {
     dup_list: dupOut,
     no_cost_list: noCostList || undefined,
     meta: {
-      ...mainMeta,
-      rows_used: okRows.length + histOk,
-      don_fail: all.filter((r) => r.sc === 'fail').length + histFail,
-      don_huy: all.filter((r) => r.sc === 'huy').length + histHuy,
-      main_used: mainRows.filter((r) => r.sc === 'ok').length + histOk,
-      api_used: apiRows.filter((r) => r.sc === 'ok').length,
-      api_no_cost: apiNoCost,
-      api_error: apiMeta?.error || null,
+      ...goi.meta,
+      rows_used: goi.meta.rows_used + histOk,
+      don_fail: goi.meta.don_fail + histFail,
+      don_huy: goi.meta.don_huy + histHuy,
+      main_used: goi.meta.main_used + histOk,
       main_files: urls.length,
-      main_error: mainErrors.length ? mainErrors.join(' · ') : null,
-      dedup_removed: dedup,
-      api_out_of_range: outOfRange,
+      bo_nho: boNho,
       from: dates[0] || '',
       to: dates[dates.length - 1] || '',
     },

@@ -87,7 +87,19 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
         p = Promise.reject(e);
       }
       p.then(
-        (v) => setSt((s) => ({ ...s, [ten]: v, loi: { ...s.loi, [ten]: null }, dangDoc: { ...s.dangDoc, [ten]: false } })),
+        (v) => {
+          setSt((s) => ({ ...s, [ten]: v, loi: { ...s.loi, [ten]: null }, dangDoc: { ...s.dangDoc, [ten]: false } }));
+          /* Server vừa trả bản đang nhớ và đang đọc lại Google ở nền — hiện
+             số cũ ngay cho khỏi phải chờ, rồi hỏi lại một lượt để lấy số mới. */
+          if (v?.meta?.bo_nho?.dang_lam_moi) {
+            setTimeout(() => {
+              doc(`${url}${url.includes('?') ? '&' : '?'}moi=1`).then(
+                (v2) => setSt((s) => ({ ...s, [ten]: v2 })),
+                () => {}
+              );
+            }, 8000);
+          }
+        },
         (e) => setSt((s) => ({ ...s, loi: { ...s.loi, [ten]: e.message }, dangDoc: { ...s.dangDoc, [ten]: false } }))
       );
     };
@@ -239,6 +251,13 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
     canhBao.push(`THIẾU MỘT FILE ĐƠN HÀNG HQS (${mHqs.main_error}) — số HQS hiện chỉ có từ ${mHqs.from || '?'} đến ${mHqs.to || '?'}`);
   }
   if (mHqs?.api_error) canhBao.push(`chưa gồm file API sàn (${mHqs.api_error})`);
+  /* Bản lấy từ bộ nhớ đệm: nói rõ số cũ bao lâu để không nhầm là số vừa đọc */
+  const bnHqs = mHqs?.bo_nho;
+  if (bnHqs?.dang_lam_moi) {
+    const p = Math.round(bnHqs.tuoi_giay / 60);
+    canhBao.push(`số HQS đang là bản lưu ${p ? `${p} phút trước` : 'vừa nãy'}, đang đọc lại nền`);
+  }
+  if (bnHqs?.loi_doc_moi) canhBao.push(`lượt đọc mới nhất của HQS hỏng (${bnHqs.loi_doc_moi}) — đang hiện bản lưu gần nhất`);
   const mRito = st.rito?.meta;
   if (mRito?.loi_doc_live) canhBao.push(`Ritokey chưa đọc được tháng đang chạy (${mRito.loi_doc_live})`);
   const mQltt = st.qltt?.meta;

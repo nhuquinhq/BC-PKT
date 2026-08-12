@@ -12,6 +12,7 @@ import Papa from 'papaparse';
 import histT4 from '@/lib/data/vi-2026-04.json';
 import histT5 from '@/lib/data/vi-2026-05.json';
 import histT6 from '@/lib/data/vi-2026-06.json';
+import { nhoDocFile } from '@/lib/boNho';
 
 const HIST = [histT4, histT5, histT6];
 
@@ -56,22 +57,27 @@ function toCsvUrl(sheetUrl, gid) {
    lâu — đã đo: hụt cả ba lượt 30/60/90s. Đổi thành 2 lượt nhưng cho hẳn
    60s rồi 120s, tổng xấu nhất ~182s, vẫn trong hạn 300s của hàm. */
 const HAN_CHO = [60000, 120000];
+/* Có nhớ: file ví tháng đang chạy khá nặng, mà PKT6 và PKT20 đọc chung —
+   xem lib/boNho.js */
 async function loadGrid(url, gid) {
   const csvUrl = toCsvUrl(url, gid) || url;
-  let loiCuoi = null;
-  for (let i = 0; i < HAN_CHO.length; i++) {
-    if (i) await new Promise((ok) => setTimeout(ok, i * 2000));
-    try {
-      const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(HAN_CHO[i]) });
-      if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
-      const text = await res.text();
-      if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.');
-      return Papa.parse(text, { header: false, skipEmptyLines: false }).data;
-    } catch (e) {
-      loiCuoi = e.name === 'TimeoutError' ? new Error(`Google không trả dữ liệu trong ${HAN_CHO[i] / 1000}s`) : e;
+  const { val } = await nhoDocFile(`vi|${csvUrl}`, async () => {
+    let loiCuoi = null;
+    for (let i = 0; i < HAN_CHO.length; i++) {
+      if (i) await new Promise((ok) => setTimeout(ok, i * 2000));
+      try {
+        const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(HAN_CHO[i]) });
+        if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
+        const text = await res.text();
+        if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.');
+        return text;
+      } catch (e) {
+        loiCuoi = e.name === 'TimeoutError' ? new Error(`Google không trả dữ liệu trong ${HAN_CHO[i] / 1000}s`) : e;
+      }
     }
-  }
-  throw loiCuoi;
+    throw loiCuoi;
+  });
+  return Papa.parse(val, { header: false, skipEmptyLines: false }).data;
 }
 
 /* Tab THVí Tiền: header dòng 5 — Tên sàn | ID | Trạng thái | Số Tiền | Ngày |

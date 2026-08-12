@@ -11,6 +11,7 @@
 
 import Papa from 'papaparse';
 import HIST from '@/lib/data/ritokey-2026.json';
+import { nhoDocFile } from '@/lib/boNho';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -65,22 +66,27 @@ function csvUrl(url, gid) {
   return `https://docs.google.com/spreadsheets/d/e/${pub[1]}/pub?gid=${gid}&single=true&output=csv`;
 }
 
+/* Có nhớ: PKT12 và PKT20 đọc chung file này — xem lib/boNho.js */
 async function taiTab(url, gid) {
   const u = csvUrl(url, gid);
   if (!u) return [];
-  for (let i = 0; i < 3; i++) {
-    if (i) await new Promise((ok) => setTimeout(ok, i * 2000));
-    try {
-      const res = await fetch(u, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(25000) });
-      if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
-      const text = await res.text();
-      if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV');
-      return Papa.parse(text, { header: false, skipEmptyLines: false }).data;
-    } catch (e) {
-      if (i === 2) throw e;
+  const { val } = await nhoDocFile(`rito|${u}`, async () => {
+    let loiCuoi = null;
+    for (let i = 0; i < 3; i++) {
+      if (i) await new Promise((ok) => setTimeout(ok, i * 2000));
+      try {
+        const res = await fetch(u, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(25000) });
+        if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
+        const text = await res.text();
+        if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV');
+        return text;
+      } catch (e) {
+        loiCuoi = e;
+      }
     }
-  }
-  return [];
+    throw loiCuoi;
+  });
+  return Papa.parse(val, { header: false, skipEmptyLines: false }).data;
 }
 
 /* Tab Daily.Report là bảng NGANG: dòng 5 là ngày (từ cột H), mỗi chỉ tiêu

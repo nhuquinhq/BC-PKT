@@ -16,6 +16,7 @@
 
 import Papa from 'papaparse';
 import HIST from '@/lib/data/qltt-2026.json';
+import { nhoDocFile } from '@/lib/boNho';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -77,10 +78,15 @@ const HO = [
 
 const khoaPub = (url) => (String(url || '').match(/\/spreadsheets\/d\/e\/([^/]+)/) || [])[1] || '';
 
+/* Có nhớ: tháng đang chạy phải kéo cả chục tab, mà mở PKT21 rồi PKT22 rồi
+   PKT20 là đọc lại đúng những tab đó. Xem lib/boNho.js. */
 async function tai(u, han = 60000) {
-  const res = await fetch(u, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(han) });
-  if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
-  return res.text();
+  const { val } = await nhoDocFile(`qltt|${u}`, async () => {
+    const res = await fetch(u, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(han) });
+    if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
+    return res.text();
+  });
+  return val;
 }
 
 /* Danh sách tab → gid.

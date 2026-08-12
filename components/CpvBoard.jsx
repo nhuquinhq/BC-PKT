@@ -62,14 +62,20 @@ export default function CpvBoard({ report, sheet, onLive, range }) {
   const cfg = sheet || report.sheet; /* trang team có thể truyền nguồn thay thế (LS Ví) */
   const [state, setState] = useState({ status: 'loading' });
 
-  const load = useCallback(async () => {
+  /* them: chuỗi nối thêm vào query (dùng cho lượt hỏi lại &moi=1). Có nơi gắn
+     thẳng hàm này vào onClick nên phải bỏ qua đối số không phải chuỗi. */
+  const load = useCallback(async (thamSo) => {
+    const them = typeof thamSo === 'string' ? thamSo : '';
     setState((s) => ({ ...s, status: s.detail ? 'refreshing' : 'loading' }));
     try {
       const qs = sheetQuery(cfg);
-      const res = await fetch(`${cfg.endpoint || '/api/cpv'}?${qs}`, { cache: 'no-store' });
+      const res = await fetch(`${cfg.endpoint || '/api/cpv'}?${qs}${them}`, { cache: 'no-store' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Không đọc được dữ liệu');
       setState({ status: 'ok', detail: json.detail, apiFile: json.api_file || [], dupList: json.dup_list || [], ncList: json.no_cost_list || [], meta: json.meta, at: new Date() });
+      /* Server vừa trả bản đang nhớ và đang đọc lại Google ở nền — hiện số cũ
+         ngay cho khỏi phải chờ, rồi hỏi lại một lượt để lấy số mới. */
+      if (json?.meta?.bo_nho?.dang_lam_moi && !them) setTimeout(() => load('&moi=1'), 8000);
     } catch (e) {
       setState((s) => ({ ...s, status: 'err', error: e.message }));
     }
