@@ -57,3 +57,8 @@ jobs:
           curl -sS -m 290 -o /tmp/q.json -w 'HTTP %{http_code} · %{time_total}s\n' \
             "https://bc-pkt.vercel.app/api/qltt?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vR2ufGWQkzgBr-F0hibPVNPwfKehx62qEB4EabwaA1du8-J07iZdkKBGrqAGMnDieFVJb7AhvbmqQGx%2Fpubhtml&gid=0&thang=7%2C8" || true
           python3 -c "import json,collections as C;d=json.load(open('/tmp/q.json'));m=d.get('meta') or {};print('error',d.get('error'),'| tab doc truc tiep',m.get('so_tab_doc_truc_tiep'),'| loi',m.get('loi_doc_live'));print('team:',[(r['team'],round(r['gmv'])) for r in d.get('qltt_team',[])]);print('thang:',[(r['thang'],round(r['gmv']),r['nguon']) for r in d.get('qltt_thang',[])])" || true
+
+      - name: Dump menu tab cua file QLTT
+        run: |
+          curl -sSL -m 120 -o /tmp/pub.html "https://docs.google.com/spreadsheets/d/e/2PACX-1vR2ufGWQkzgBr-F0hibPVNPwfKehx62qEB4EabwaA1du8-J07iZdkKBGrqAGMnDieFVJb7AhvbmqQGx/pubhtml" -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' || true
+          python3 -c "import re,sys;h=open('/tmp/pub.html',encoding='utf-8',errors='ignore').read();print('do dai html', len(h));i=h.find('sheet-button');print('vi tri sheet-button:', i);print(repr(h[max(0,i-300):i+700]) if i>=0 else 'KHONG CO chuoi sheet-button');j=h.find('sheet-menu');print('vi tri sheet-menu:', j);print(repr(h[max(0,j-200):j+700]) if j>=0 else 'KHONG CO chuoi sheet-menu')" || true
