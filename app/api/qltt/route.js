@@ -57,6 +57,13 @@ const team = (v) => {
   return 'Chưa phân loại';
 };
 
+/* Shop khai báo tay: ô team trên file là #N/A hoặc ghi sai mã (vd "Shop thẻ"),
+   mà shop chỉ xuất hiện đúng một lần nên không tự học được từ dòng khác. */
+const MAP_TAY = new Map([
+  ['shopminhhz.com', 'WGG'],
+  ['meusan.net', 'WGG'],
+]);
+
 /* Họ tab → tên cột cần tìm (khớp theo chuỗi con đã bỏ dấu) */
 const HO = [
   { ten: 'ban nick', date: ['thoi gian ban'], dt: ['doanh thu'], gv: ['gia von ban nick'], team: ['pl team'], ctv: ['pl ctv'], nhom: 'ban_nick' },
@@ -232,7 +239,9 @@ export async function GET(request) {
           mapShop.set(sh, [...d.entries()].sort((x, y) => y[1] - x[1])[0][0]);
         }
         for (const r of tatCa) {
-          if (r.team === 'Chưa phân loại' && mapShop.get(r.shop)) r.team = mapShop.get(r.shop);
+          if (r.team !== 'Chưa phân loại') continue;
+          const t = MAP_TAY.get(r.shop) || mapShop.get(r.shop);
+          if (t) r.team = t;
         }
       }
       {
