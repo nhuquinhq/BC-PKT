@@ -1,0 +1,33 @@
+{
+  "nguon": "Bảng Danh sách Sàn – BU của PKT (bản chụp ngày 12/08/2026)",
+  "ghi_chu": "Nguồn chuẩn DUY NHẤT cho mã sàn, tên sàn, BU và trạng thái bán hàng. Sàn mới / đổi BU / dừng bán thì sửa ở ĐÂY, không sửa rải rác trong code: lib/cpvDims.js (SAN_BU_MAP, TEAM_SAN_MAP) và lib/reports.js (SAN_LIST) đều đọc từ file này. BU → team quy đổi qua TEAM_MAP bên lib/cpvDims.js. Chỉ sàn trạng thái 'Đang bán hàng' mới được dựng trang báo cáo riêng.",
+  "cap_nhat": "12/08/2026",
+  "san": [
+    { "ma": "EL1", "ten": "Eldorado", "bu": "BU1", "trang_thai": "Đang bán hàng" },
+    { "ma": "EL2", "ten": "Eldorado2", "bu": "BU1", "trang_thai": "Đang bán hàng" },
+    { "ma": "G1", "ten": "G2G", "bu": "BU4", "trang_thai": "Đang bán hàng" },
+    { "ma": "G2", "ten": "G2G2", "bu": "BU4", "trang_thai": "Đang bán hàng" },
+    { "ma": "KG1", "ten": "Kinguin", "bu": "BU1", "trang_thai": "Đang bán hàng" },
+    { "ma": "PT1", "ten": "Plati.market1", "bu": "BU1", "trang_thai": "Đang bán hàng" },
+    { "ma": "PO2", "ten": "Playerok2", "bu": "BU2", "trang_thai": "Đang bán hàng" },
+    { "ma": "PO3", "ten": "Playerok3", "bu": "BU2", "trang_thai": "Đang bán hàng" },
+    { "ma": "PO4", "ten": "Playerok4", "bu": "BU2", "trang_thai": "Đang bán hàng" },
+    { "ma": "PO5", "ten": "Playerok5", "bu": "BU2", "trang_thai": "Đang bán hàng" },
+    { "ma": "FP1", "ten": "Funpay", "bu": "BU2", "trang_thai": "Đang bán hàng" },
+    { "ma": "FP2", "ten": "Funpay2", "bu": "BU2", "trang_thai": "Đang bán hàng" },
+    { "ma": "GS1", "ten": "GGSell1", "bu": "BU2", "trang_thai": "Đang bán hàng" },
+    { "ma": "GS2", "ten": "GGSell2", "bu": "BU2", "trang_thai": "Đang bán hàng" },
+    { "ma": "GF1", "ten": "Gameflip", "bu": "BU5", "trang_thai": "Đang bán hàng" },
+    { "ma": "GF2", "ten": "Gameflip2", "bu": "BU5", "trang_thai": "Đang bán hàng" },
+    { "ma": "IK1", "ten": "Itemku", "bu": "BU4", "trang_thai": "Đang bán hàng" },
+    { "ma": "U1", "ten": "U7Buy", "bu": "BU4", "trang_thai": "Đang bán hàng" },
+    { "ma": "U2", "ten": "U7Buy2", "bu": "BU4", "trang_thai": "Đang bán hàng" },
+    { "ma": "ZX1", "ten": "Zeusx", "bu": "BU5", "trang_thai": "Đang bán hàng" },
+    { "ma": "ZX2", "ten": "Zeusx2", "bu": "BU5", "trang_thai": "Đang bán hàng" },
+    { "ma": "ZX3", "ten": "Zeusx3", "bu": "BU5", "trang_thai": "Đang bán hàng" },
+    { "ma": "GO1", "ten": "Gamsgo", "bu": "BU2", "trang_thai": "Đang bán hàng" },
+    { "ma": "GB1", "ten": "Gameboost", "bu": "BU2", "trang_thai": "Đang bán hàng" },
+    { "ma": "BE1", "ten": "Beee.pro", "bu": "BU4", "trang_thai": "Đang bán hàng" },
+    { "ma": "GV1", "ten": "Gamivo", "bu": "BU2", "trang_thai": "Đang bán hàng" }
+  ]
+}
