@@ -1,51 +1,42 @@
-# Do lai file T8 sau khi xuat ban lai (12/08/2026).
-# Ban 2: xoa file tam truoc moi lan tai (ban 1 doc nham noi dung cu),
-# goi /api/cpv dung tham so, va thu them 2 duong khac cua Google.
+# Ban 3: tach bach "rieng file CPV T8 hong" hay "moi file Google deu hong".
+# So file CPV T8 voi file Vi va mot file Google bat ky khac.
 name: Do lai T8 sau xuat ban
 
 on:
   workflow_dispatch: {}
 
-env:
-  PUB: "2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0"
-  FID: "19dGSq5_jl8e2X3QrmVJQuK5UKbYThces8jjC8hRxlbE"
-
 jobs:
   do:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     steps:
-      - name: Do cac duong vao
+      - name: So sanh cac file
         run: |
           do_thu() {
             echo "===== $1"
             rm -f /tmp/o.out
-            curl -sSL -m 120 -o /tmp/o.out \
+            curl -sSL -m 75 -o /tmp/o.out \
               -w '   HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' "$2" \
               || echo '   HET GIO / LOI'
             if [ -s /tmp/o.out ]; then
               case "$(head -c 20 /tmp/o.out)" in
-                *'<!DOCTYPE'*|*'<html'*) echo "   ==> TRA VE TRANG HTML (khong phai du lieu)" ;;
-                *) echo "   ==> co ve la du lieu:"; head -c 160 /tmp/o.out | tr -d '\r'; echo ;;
+                *'<!DOCTYPE'*|*'<html'*) echo "   ==> TRANG HTML (khong phai du lieu)" ;;
+                *) echo "   ==> DU LIEU:"; head -c 120 /tmp/o.out | tr -d '\r'; echo ;;
               esac
-              wc -l < /tmp/o.out | xargs echo '   so dong:'
             else
               echo "   ==> KHONG NHAN DUOC BYTE NAO"
             fi
             echo
           }
 
-          # Doi 3 lan de biet loi co on dinh hay chi la luc xuat ban chua ngam
-          for lan in 1 2 3; do
-            do_thu "[lan $lan] /pub CSV — dung y het cai app dang goi" \
-              "https://docs.google.com/spreadsheets/d/e/$PUB/pub?gid=0&single=true&output=csv"
-          done
+          do_thu "A. CPV BE T8 (file dang hong)" \
+            "https://docs.google.com/spreadsheets/d/e/2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0/pub?gid=0&single=true&output=csv"
 
-          do_thu "/pubhtml — ban HTML cua chinh link da xuat ban" \
-            "https://docs.google.com/spreadsheets/d/e/$PUB/pubhtml?gid=0&single=true"
+          do_thu "B. File VI — file KHAC, cung tai khoan" \
+            "https://docs.google.com/spreadsheets/d/e/2PACX-1vTmigt_mS16GnHQ5qpx2jxv_0F9irT-jJt6c3KyfUrTn2AgbZVZ4d5Q0fBvoINSmnMJHm5GcDU58ai2/pub?gid=1425184209&single=true&output=csv"
 
-          do_thu "gviz CSV — duong thu ba, thuong nhe hon /pub" \
-            "https://docs.google.com/spreadsheets/d/$FID/gviz/tq?tqx=out:csv&gid=0"
+          do_thu "C. File CPV T7 — file KHAC, cung loai bao cao" \
+            "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8v730AMvL4_1VC131-HLHBECPrYMtLmv02TkTtpFuXlQEGtVSPpR1URMQ5sOhB6_LbnATeDwZUk__/pub?gid=0&single=true&output=csv"
 
-          do_thu "Site that — /api/cpv doc dung file T8" \
-            "https://bc-pkt.vercel.app/api/cpv?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F$PUB%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0"
+          do_thu "D. File TIEN — file KHAC nua, PKT3 van dang doc duoc" \
+            "https://docs.google.com/spreadsheets/d/e/2PACX-1vTLTvWG0zTceE2zZ1-f-8EDouwxfQUWj-LBDj0K4qXsbvOO1mdp2pbt7pqvraPj6gfTnq0oQORAIRWb/pub?gid=116298870&single=true&output=csv"
