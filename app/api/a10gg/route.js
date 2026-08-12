@@ -132,7 +132,11 @@ const NGAY_CUOI_THANG = (nam, thang) => new Date(Date.UTC(nam, thang, 0)).getUTC
 export async function GET(req) {
   const q = new URL(req.url).searchParams;
   const url = q.get('url');
-  const gid = q.get('gid') || q.get('gids') || '1620350371';
+  /* Đọc 'gids' TRƯỚC 'gid'. lib/sheetQuery.js luôn append gid=<cfg.gid||'0'>
+     cho mỗi file, còn số tab thật của nguồn một-tab thì nằm ở qs.gids —
+     nếu ưu tiên 'gid' thì sẽ vớ phải '0' (chuỗi rỗng mới là falsy) và đi
+     đòi nhầm tab, Google trả 401 vì tab 0 không được xuất bản. */
+  const gid = q.get('gids') || q.get('gid') || '1620350371';
   if (!url) return Response.json({ error: 'Thiếu url' }, { status: 400 });
 
   let grid;
