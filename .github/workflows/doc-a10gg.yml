@@ -1,0 +1,64 @@
+# Doc cau truc file A10GG de viet bo doc so, va kiem tra site da het loi T8 chua.
+name: Doc cau truc A10GG
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  doc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Site co doc duoc T8 chua
+        run: |
+          curl -sS -m 200 -o /tmp/s.json \
+            -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' \
+            "https://bc-pkt.vercel.app/api/cpv?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0&moi=1" \
+            || echo 'LOI'
+          head -c 400 /tmp/s.json; echo
+
+      - name: Tai tab A10GG gid=1620350371
+        run: |
+          curl -sSL -m 200 -o /tmp/a10.csv \
+            -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' \
+            "https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtnyjWuhaqHvTs9rLjzGSDlZKWYww6GROPe3kDW1FBRCFrdLnuYJKXVJslEltOMWy7HpYyOqWRjJG/pub?gid=1620350371&single=true&output=csv" \
+            || echo 'LOI'
+
+      - name: In cau truc tab
+        run: |
+          python3 - <<'PY'
+          import csv
+          rows = list(csv.reader(open('/tmp/a10.csv', encoding='utf-8', errors='ignore')))
+          print('TONG SO DONG:', len(rows))
+          print('SO COT DONG DAI NHAT:', max((len(r) for r in rows), default=0))
+          print()
+          print('===== 45 DONG DAU (bo o rong o cuoi dong) =====')
+          for i, r in enumerate(rows[:45]):
+              while r and not r[-1].strip():
+                  r.pop()
+              if not r:
+                  print(f'{i:>3} |')
+                  continue
+              print(f'{i:>3} | ' + ' | '.join(c.strip()[:26] for c in r[:16]))
+          PY
+
+      - name: Liet ke cac tab khac trong file
+        run: |
+          curl -sSL -m 200 -o /tmp/a10.html \
+            "https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtnyjWuhaqHvTs9rLjzGSDlZKWYww6GROPe3kDW1FBRCFrdLnuYJKXVJslEltOMWy7HpYyOqWRjJG/pubhtml" \
+            || echo 'LOI'
+          python3 - <<'PY'
+          import re
+          try:
+              h = open('/tmp/a10.html', encoding='utf-8', errors='ignore').read()
+          except Exception as e:
+              print('khong doc duoc:', e); raise SystemExit
+          tabs = re.findall(r'#gid=(\d+)[^>]*>([^<]{1,60})<', h)
+          seen = set()
+          for gid, ten in tabs:
+              if gid in seen: continue
+              seen.add(gid)
+              print(f'  gid={gid}  ten={ten.strip()}')
+          if not seen:
+              print('  (khong tim thay danh sach tab)')
+          PY
