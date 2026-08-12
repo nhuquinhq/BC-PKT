@@ -55,8 +55,8 @@ jobs:
       - name: API qltt (PKT21) - da doc duoc T7/T8 chua
         run: |
           curl -sS -m 290 -o /tmp/q.json -w 'HTTP %{http_code} · %{time_total}s\n' \
-            "https://bc-pkt.vercel.app/api/qltt?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vR2ufGWQkzgBr-F0hibPVNPwfKehx62qEB4EabwaA1du8-J07iZdkKBGrqAGMnDieFVJb7AhvbmqQGx%2Fpubhtml&gid=0&thang=7%2C8" || true
-          python3 -c "import json,collections as C;d=json.load(open('/tmp/q.json'));m=d.get('meta') or {};print('error',d.get('error'),'| tab doc truc tiep',m.get('so_tab_doc_truc_tiep'),'| loi',m.get('loi_doc_live'));print('team:',[(r['team'],round(r['gmv'])) for r in d.get('qltt_team',[])]);print('thang:',[(r['thang'],round(r['gmv']),r['nguon']) for r in d.get('qltt_thang',[])])" || true
+            "https://bc-pkt.vercel.app/api/qltt?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vR2ufGWQkzgBr-F0hibPVNPwfKehx62qEB4EabwaA1du8-J07iZdkKBGrqAGMnDieFVJb7AhvbmqQGx%2Fpubhtml&gid=0&thang=7%2C8&tabs=B%C3%A1n+nick+T7%3A400765897%3BB%C3%A1n+nick+T8%3A1993907780%3BDV+T%E1%BB%B1+%C4%91%E1%BB%99ng+T7%3A155307356%3BDV+T%E1%BB%B1+%C4%91%E1%BB%99ng+T8%3A1292063564%3BDoanh+thu+Minigame+T7%3A1843769043%3BDT+-+GV+DV+Th%E1%BB%A7+c%C3%B4ng+T7%3A0%3BDT+-+GV+DV+Th%E1%BB%A7+c%C3%B4ng+T8%3A251239352%3BGi%C3%A1+v%E1%BB%91n+Minigame+t%E1%BB%B1+%C4%91%E1%BB%99ng+T7%3A1052756758" || true
+          python3 -c "import json;d=json.load(open('/tmp/q.json'));m=d.get('meta') or {};print('error',d.get('error'),'| so tab',m.get('so_tab_doc_truc_tiep'),'| loi',m.get('loi_doc_live'));print('tab da doc:',m.get('tab_da_doc'));print('thang:',[(r['thang'],round(r['gmv']),r['nguon']) for r in d.get('qltt_thang',[])]);print('team:',[(r['team'],round(r['gmv']),round(r['cogs'])) for r in d.get('qltt_team',[])])" || true
 
       - name: Dump menu tab cua file QLTT
         run: |
