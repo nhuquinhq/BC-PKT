@@ -1,4 +1,5 @@
-# Doc cau truc file A10GG de viet bo doc so, va kiem tra site da het loi T8 chua.
+# Ban 2: dump chinh xac tung cot cua tab A10GG (khong cat chu, co so thu tu cot)
+# de viet bo doc so cho dung. Bao cao tai chinh nen khong duoc doan.
 name: Doc cau truc A10GG
 
 on:
@@ -9,56 +10,48 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Site co doc duoc T8 chua
-        run: |
-          curl -sS -m 200 -o /tmp/s.json \
-            -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' \
-            "https://bc-pkt.vercel.app/api/cpv?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0&moi=1" \
-            || echo 'LOI'
-          head -c 400 /tmp/s.json; echo
-
-      - name: Tai tab A10GG gid=1620350371
+      - name: Tai tab A10GG
         run: |
           curl -sSL -m 200 -o /tmp/a10.csv \
             -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' \
-            "https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtnyjWuhaqHvTs9rLjzGSDlZKWYww6GROPe3kDW1FBRCFrdLnuYJKXVJslEltOMWy7HpYyOqWRjJG/pub?gid=1620350371&single=true&output=csv" \
-            || echo 'LOI'
+            "https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtnyjWuhaqHvTs9rLjzGSDlZKWYww6GROPe3kDW1FBRCFrdLnuYJKXVJslEltOMWy7HpYyOqWRjJG/pub?gid=1620350371&single=true&output=csv"
 
-      - name: In cau truc tab
+      - name: Khoi tieu de - tung o mot dong
         run: |
           python3 - <<'PY'
           import csv
           rows = list(csv.reader(open('/tmp/a10.csv', encoding='utf-8', errors='ignore')))
-          print('TONG SO DONG:', len(rows))
-          print('SO COT DONG DAI NHAT:', max((len(r) for r in rows), default=0))
-          print()
-          print('===== 45 DONG DAU (bo o rong o cuoi dong) =====')
-          for i, r in enumerate(rows[:45]):
-              while r and not r[-1].strip():
-                  r.pop()
-              if not r:
-                  print(f'{i:>3} |')
-                  continue
-              print(f'{i:>3} | ' + ' | '.join(c.strip()[:26] for c in r[:16]))
+          for i in (0, 1, 2, 3, 4, 5):
+              print(f'--- DONG {i} ---')
+              for j, c in enumerate(rows[i]):
+                  if c.strip():
+                      print(f'    cot {j:>2} = {c.strip()!r}')
           PY
 
-      - name: Liet ke cac tab khac trong file
+      - name: Cac dong tieu de cap 1 (cot 1 co chu)
         run: |
-          curl -sSL -m 200 -o /tmp/a10.html \
-            "https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtnyjWuhaqHvTs9rLjzGSDlZKWYww6GROPe3kDW1FBRCFrdLnuYJKXVJslEltOMWy7HpYyOqWRjJG/pubhtml" \
-            || echo 'LOI'
           python3 - <<'PY'
-          import re
-          try:
-              h = open('/tmp/a10.html', encoding='utf-8', errors='ignore').read()
-          except Exception as e:
-              print('khong doc duoc:', e); raise SystemExit
-          tabs = re.findall(r'#gid=(\d+)[^>]*>([^<]{1,60})<', h)
-          seen = set()
-          for gid, ten in tabs:
-              if gid in seen: continue
-              seen.add(gid)
-              print(f'  gid={gid}  ten={ten.strip()}')
-          if not seen:
-              print('  (khong tim thay danh sach tab)')
+          import csv
+          rows = list(csv.reader(open('/tmp/a10.csv', encoding='utf-8', errors='ignore')))
+          print('TONG DONG:', len(rows))
+          for i, r in enumerate(rows):
+              c1 = r[1].strip() if len(r) > 1 else ''
+              if not c1:
+                  continue
+              ma = r[2].strip() if len(r) > 2 else ''
+              vals = [(j, r[j].strip()) for j in range(6, min(len(r), 19)) if r[j].strip()]
+              print(f'dong {i:>3} | cot1={c1!r} | cot2={ma!r}')
+              print(f'          {vals}')
+          PY
+
+      - name: Cac dong cap 2 (cot 3 co chu) - de biet chi tiet duoi moi khoi
+        run: |
+          python3 - <<'PY'
+          import csv
+          rows = list(csv.reader(open('/tmp/a10.csv', encoding='utf-8', errors='ignore')))
+          for i, r in enumerate(rows):
+              c3 = r[3].strip() if len(r) > 3 else ''
+              if c3:
+                  tong = r[6].strip() if len(r) > 6 else ''
+                  print(f'dong {i:>3} | cot3={c3!r} | TONG={tong!r}')
           PY
