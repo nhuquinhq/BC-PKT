@@ -1,7 +1,6 @@
-# Doc file CPV BE T8. Google xuat file nay luc duoc luc khong nen cu thu
-# lai nhieu lan — thuc te lan 3 thuong an. Ban truoc tai duoc file roi ma
-# chi in so dong vi phan phan tich chi viet cho nhanh API; nay phan tich
-# thang tren CSV.
+# Doc file CPV BE T8. Da biet chinh xac khuon cot nen chi dinh thang,
+# khong do theo ten nua: file co BA cot ten "Gia von" (23, 26, 39) va HAI
+# cot ngay (15 "Ngay tao", 29 "Ngay") — do theo ten se bat nham cot dau.
 name: Doc file T8
 
 on:
@@ -25,55 +24,27 @@ jobs:
             h=$(head -c 12 /tmp/t8.csv 2>/dev/null | tr -d '\n')
             echo "lan $lan: HTTP $code · $sz byte"
             case "$h" in '<!DOCTYPE'*|'<html'*) echo '   -> trang loi HTML'; sleep 15; continue ;; esac
-            if [ "$code" = "200" ] && [ "$sz" -gt 100000 ]; then echo "   -> DUOC ($sz byte)"; exit 0; fi
+            if [ "$code" = "200" ] && [ "$sz" -gt 100000 ]; then echo "   -> DUOC"; exit 0; fi
             sleep 15
           done
-          echo "KHONG TAI DUOC SAU 8 LAN"
-          exit 1
+          echo "KHONG TAI DUOC SAU 8 LAN"; exit 1
 
       - name: Phan tich
         run: |
           python3 - <<'PY'
-          import csv, re, collections, unicodedata
+          import csv, re, collections
           csv.field_size_limit(10**9)
           rows = list(csv.reader(open('/tmp/t8.csv', encoding='utf-8', errors='ignore')))
           n = lambda x: f'{x:,.0f}'.replace(',', '.')
-          print('TONG DONG TRONG FILE:', len(rows))
+          HDR = 4
+          cols = [c.strip() for c in rows[HDR]]
 
-          def norm(s):
-              s = unicodedata.normalize('NFD', str(s or '')).lower()
-              return ''.join(c for c in s if not unicodedata.combining(c)).replace('đ','d').strip()
-
-          print('\n===== KHOI TIEU DE =====')
-          for i in range(min(4, len(rows))):
-              cells = [(j, c.strip()[:32]) for j, c in enumerate(rows[i]) if c.strip()]
-              if cells: print(f'  dong {i}: {cells[:10]}')
-
-          hdr = -1
-          for i in range(min(25, len(rows))):
-              ns = [norm(c) for c in rows[i]]
-              if any(c in ('san','ma san') for c in ns) and any('thanh tien' in c or 'gia von' in c for c in ns):
-                  hdr = i; break
-          if hdr < 0:
-              for i in range(min(25, len(rows))):
-                  if sum(1 for c in rows[i] if c.strip() and not re.fullmatch(r'[\d.,\-]+', c.strip())) >= 8:
-                      hdr = i; break
-          cols = [c.strip() for c in rows[hdr]] if hdr >= 0 else []
-          print(f'\n===== DONG TIEU DE = dong {hdr} =====')
-          print('  ' + ' | '.join(f'{j}:{c}' for j, c in enumerate(cols) if c))
-
-          data = rows[hdr+1:] if hdr >= 0 else []
-          def tim(*tu):
-              for j, c in enumerate(cols):
-                  nc = norm(c)
-                  if all(t in nc for t in tu): return j
-              return -1
-          idx = {'ngay':tim('ngay'), 'san':tim('san'), 'thanh_tien':tim('thanh','tien'),
-                 'gia_von':tim('gia','von'), 'trang_thai':tim('trang','thai'),
-                 'loai_dv':tim('loai','dich','vu'), 'bu':tim('bu'), 'usd':tim('usd')}
-          print('\n===== COT NHAN DIEN =====')
-          for k, j in idx.items():
-              print(f'  {k:<11} -> cot {j}' + (f'  ({cols[j]})' if j >= 0 else '   [KHONG THAY]'))
+          # Cot chi dinh thang — doi chieu voi khoi tong o dau file
+          C = {'san':2, 'dv':17, 'tt':18, 'usd':7, 'phi':8, 'thuc_nhan':9,
+               'ngay':29, 'thang':30, 'gmv':34, 'co':39, 'ln':40, 'pl_dt':36, 'pl_hang':38}
+          print('===== COT DANG DUNG =====')
+          for k, j in C.items():
+              print(f'  {k:<10} cot {j:>2} = {cols[j] if j < len(cols) else "?"}')
 
           def viNum(s):
               s = str(s or '').strip().replace(' ', '')
@@ -86,57 +57,65 @@ jobs:
               try: v = float(s)
               except ValueError: return 0.0
               return -v if am else v
-          val = lambda r, k: (r[idx[k]] if 0 <= idx[k] < len(r) else '')
+          v = lambda r, k: (r[C[k]] if C[k] < len(r) else '')
 
-          tt=collections.Counter(); ngayCo=collections.Counter()
-          agg=lambda: collections.defaultdict(lambda:[0,0.0,0.0])
-          bySan, byBu, byDv, byNgay = agg(), agg(), agg(), agg()
-          tien=von=usd=0.0; dem=0; von0=0; thieuSan=0
-          for r in data:
+          print('\n===== TONG TREN DAU FILE (do Google tinh san) =====')
+          for i in (0, 1, 2):
+              cel = [c.strip() for c in rows[i][2:4] if c.strip()]
+              if cel: print('  ', ' = '.join(cel))
+
+          agg = lambda: collections.defaultdict(lambda: [0, 0.0, 0.0])
+          bySan, byDv, byNgay, byPl = agg(), agg(), agg(), agg()
+          tt = collections.Counter()
+          gmv = co = usd = phi = thuc = 0.0
+          don = 0; co0 = 0
+          for r in rows[HDR+1:]:
               if not any(c.strip() for c in r): continue
-              dem += 1
-              t = viNum(val(r,'thanh_tien')); v = viNum(val(r,'gia_von')); u = viNum(val(r,'usd'))
-              tien += t; von += v; usd += u
-              tt[val(r,'trang_thai').strip() or '(trong)'] += 1
-              s = val(r,'san').strip() or '(trong)'
-              if s == '(trong)': thieuSan += 1
-              for box, key in ((bySan, s), (byBu, val(r,'bu').strip() or '—'),
-                               (byDv, val(r,'loai_dv').strip() or '—')):
-                  box[key][0] += 1; box[key][1] += t; box[key][2] += v
-              d = val(r,'ngay').strip()[:10]
-              mm = re.match(r'(\d{1,2})[/-](\d{1,2})', d)
-              if mm:
-                  k = f'{int(mm.group(1)):02d}/{int(mm.group(2)):02d}'
-                  ngayCo[k] += 1
-                  byNgay[k][0] += 1; byNgay[k][1] += t; byNgay[k][2] += v
-              if t and not v: von0 += 1
+              s = v(r, 'san').strip()
+              st = v(r, 'tt').strip()
+              if not s and not st: continue          # dong trong cua bang
+              don += 1
+              tt[st or '(trong)'] += 1
+              g = viNum(v(r,'gmv')); c = viNum(v(r,'co'))
+              gmv += g; co += c
+              usd += viNum(v(r,'usd')); phi += viNum(v(r,'phi')); thuc += viNum(v(r,'thuc_nhan'))
+              if g and not c: co0 += 1
+              for box, key in ((bySan, s or '(trong)'), (byDv, v(r,'dv').strip() or '—'),
+                               (byPl, v(r,'pl_dt').strip() or '—')):
+                  box[key][0] += 1; box[key][1] += g; box[key][2] += c
+              d = v(r,'ngay').strip()
+              m = re.search(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', d) or re.search(r'(\d{4})-(\d{2})-(\d{2})', d)
+              if m:
+                  k = f'{int(m.group(1)):02d}/{int(m.group(2)):02d}' if '/' in d or '-' in d and len(m.group(1)) <= 2 else f'{int(m.group(3)):02d}/{int(m.group(2)):02d}'
+                  byNgay[k][0] += 1; byNgay[k][1] += g; byNgay[k][2] += c
 
-          print(f'\n===== TONG ({n(dem)} dong don) =====')
+          print(f'\n===== TONG TINH LAI TU {n(don)} DONG DON =====')
+          print(f'  GMV (Thanh tien)   : {n(gmv)}')
+          print(f'  Gia von (CO)       : {n(co)}')
+          print(f'  Loi nhuan gop      : {n(gmv-co)}')
+          if gmv:
+              print(f'  % gia von / GMV    : {co/gmv*100:.2f}%')
+              print(f'  Bien loi nhuan gop : {(gmv-co)/gmv*100:.2f}%')
           print(f'  Doanh thu goc (USD): {usd:,.2f}')
-          print(f'  Thanh tien (VND)   : {n(tien)}')
-          print(f'  Gia von            : {n(von)}')
-          print(f'  Loi nhuan gop      : {n(tien-von)}')
-          if tien:
-              print(f'  % gia von / DT     : {von/tien*100:.2f}%')
-              print(f'  Bien loi nhuan gop : {(tien-von)/tien*100:.2f}%')
+          print(f'  Phi san (USD)      : {phi:,.2f}')
+          print(f'  DThu thuc nhan(USD): {thuc:,.2f}')
 
           print('\n===== TRANG THAI DON =====')
           for k, c in tt.most_common(10): print(f'  {n(c):>7}  {k}')
 
           def inBang(box, ten, lim=30):
               print(f'\n===== THEO {ten} ({len(box)}) =====')
-              for k, v in sorted(box.items(), key=lambda x: -x[1][1])[:lim]:
-                  b = (v[1]-v[2])/v[1]*100 if v[1] else 0
-                  print(f'  {str(k)[:16]:<16} {n(v[0]):>7} don · DT {n(v[1]):>16} · von {n(v[2]):>16} · bien {b:>6.1f}%')
-          inBang(bySan,'SAN'); inBang(byBu,'BU'); inBang(byDv,'LOAI DICH VU')
+              for k, x in sorted(box.items(), key=lambda y: -y[1][1])[:lim]:
+                  b = (x[1]-x[2])/x[1]*100 if x[1] else 0
+                  print(f'  {str(k)[:22]:<22} {n(x[0]):>6} don · GMV {n(x[1]):>15} · CO {n(x[2]):>15} · bien {b:>6.1f}%')
+          inBang(bySan,'SAN'); inBang(byDv,'DICH VU'); inBang(byPl,'PHAN LOAI DOANH THU')
 
-          print(f'\n===== THEO NGAY ({len(byNgay)} ngay) =====')
+          print(f'\n===== THEO NGAY ({len(byNgay)}) =====')
           for k in sorted(byNgay, key=lambda x: (x[3:5], x[0:2])):
-              v = byNgay[k]
-              b = (v[1]-v[2])/v[1]*100 if v[1] else 0
-              print(f'  {k}  {n(v[0]):>6} don · DT {n(v[1]):>15} · von {n(v[2]):>15} · bien {b:>6.1f}%')
+              x = byNgay[k]
+              b = (x[1]-x[2])/x[1]*100 if x[1] else 0
+              print(f'  {k}  {n(x[0]):>5} don · GMV {n(x[1]):>14} · CO {n(x[2]):>14} · bien {b:>6.1f}%')
 
           print('\n===== CAN SOI =====')
-          print(f'  Dong co tien nhung GIA VON = 0 : {n(von0)}')
-          print(f'  Dong THIEU ma san              : {n(thieuSan)}')
+          print(f'  Don co GMV nhung CHUA co gia von : {n(co0)}')
           PY
