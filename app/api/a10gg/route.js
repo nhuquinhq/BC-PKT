@@ -159,6 +159,11 @@ export async function GET(req) {
     ['me', 'ME'],
     ['op', 'OP'],
     ['ov', 'OV'],
+    /* Ba khối này trên tab Phân bổ hiện đang bằng 0, nhưng vẫn phải đọc
+       để dựng đủ tầng P&L bên PKT2 — mai kia có số là tự lên. */
+    ['fi', 'Fi'],
+    ['ca', 'CA'],
+    ['ot', 'OT'],
   ];
 
   const dong = {};
@@ -220,6 +225,9 @@ export async function GET(req) {
       me: lay('me', k),
       op: lay('op', k),
       ov: lay('ov', k),
+      fi: lay('fi', k),
+      ca: lay('ca', k),
+      ot: lay('ot', k),
       ty_le_co: re ? (co / re) * 100 : null,
       bien_pl1: re ? ((re - co) / re) * 100 : null,
     };
