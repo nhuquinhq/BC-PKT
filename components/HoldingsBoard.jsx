@@ -65,15 +65,16 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
   const cfgRito = report.sheetRitokey;
   const cfgQltt = report.sheetQltt;
   const cfgA10 = report.sheetA10gg;
+  const cfgCh = report.sheetCharging;
   const [st, setSt] = useState({
-    hqs: null, rito: null, qltt: null, a10: null,
-    dangDoc: { hqs: true, rito: true, qltt: true, a10: true }, loi: {},
+    hqs: null, rito: null, qltt: null, a10: null, ch: null,
+    dangDoc: { hqs: true, rito: true, qltt: true, a10: true, ch: true }, loi: {},
   });
 
   /* Hai nguồn tải ĐỘC LẬP nhau: file đơn hàng HQS to nên đọc lâu, nguồn nào
      về trước hiện trước, không bắt cả trang chờ nguồn chậm nhất. */
   const load = useCallback(() => {
-    setSt((s) => ({ ...s, dangDoc: { hqs: true, rito: true, qltt: true, a10: true } }));
+    setSt((s) => ({ ...s, dangDoc: { hqs: true, rito: true, qltt: true, a10: true, ch: true } }));
     const doc = async (url) => {
       const res = await fetch(url, { cache: 'no-store' });
       const json = await res.json();
@@ -108,7 +109,8 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
     nhan('rito', `/api/ritokey?${sheetQuery(cfgRito)}`);
     nhan('qltt', `/api/qltt?${sheetQuery(cfgQltt)}`);
     if (cfgA10) nhan('a10', `/api/a10gg?${sheetQuery(cfgA10)}`);
-  }, [cfgHqs, cfgRito, cfgQltt, cfgA10]);
+    if (cfgCh) nhan('ch', `/api/charging?${sheetQuery(cfgCh)}`);
+  }, [cfgHqs, cfgRito, cfgQltt, cfgA10, cfgCh]);
 
   useEffect(() => {
     load();
@@ -167,6 +169,17 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
       co: r.co || 0,
     }));
 
+    /* ---- Charging: cũng là KQKD theo THÁNG. /api/charging đã loại các
+       tháng chưa tới (chỉ có chi phí ghi trước, chưa có doanh thu). */
+    const chRows = trongKy(st.ch?.charging_thang || [], range).map((r) => ({
+      ngay: r.ngay,
+      team: 'Charging',
+      so_don: 0,
+      gmv: cheDo === 'vi' ? null : r.gmv ?? r.re ?? 0,
+      re: r.re || 0,
+      co: r.co || 0,
+    }));
+
     /* Cột Nguồn nói luôn tình trạng đọc để không nhầm "đang tải" với "bằng 0" */
     const trangThai = (dang, loi) => (dang ? ' — đang đọc…' : loi ? ' — lỗi đọc' : '');
     const nguonHqs =
@@ -183,6 +196,8 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
     const nguonA10 =
       `KQKD theo tháng · GMV = RE · tiền về chậm ~${st.a10?.meta?.tre_ngay ?? 45} ngày` +
       trangThai(st.dangDoc?.a10, st.loi?.a10);
+    const nguonCh =
+      'KQKD theo tháng · GMV = RE' + trangThai(st.dangDoc?.ch, st.loi?.ch);
 
     const gop = (rows, ten, nguon) => ({
       don_vi: ten,
@@ -199,14 +214,16 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
       chuanHoa(gop(ritoRows, 'Ritokey (C300)', nguonRito)),
       chuanHoa(gop(qlttRows, 'QLTT (C100 + C200)', nguonQltt)),
       chuanHoa(gop(a10Rows, 'A10GG', nguonA10)),
+      chuanHoa(gop(chRows, 'Charging', nguonCh)),
       ...CHUA_NOI.map((x) => chuanHoa({ ...x, so_don: 0, gmv: cheDo === 'vi' ? null : 0, re: 0, co: 0 })),
     ];
 
     /* ---- So sánh theo TEAM ---- */
     const mTeam = new Map();
-    for (const r of [...hqsRows, ...ritoRows, ...qlttRows, ...a10Rows]) {
+    for (const r of [...hqsRows, ...ritoRows, ...qlttRows, ...a10Rows, ...chRows]) {
       const dv = r.team === 'C300 · Ritokey' ? 'Ritokey (C300)'
         : r.team === 'A10GG' ? 'A10GG'
+        : r.team === 'Charging' ? 'Charging'
         : r.team.endsWith('· QLTT') ? 'QLTT (C100 + C200)' : 'HQS10000';
       const a = mTeam.get(r.team) || { team: r.team, don_vi: dv, so_don: 0, gmv: 0, re: 0, co: 0 };
       a.so_don += r.so_don;
@@ -221,7 +238,7 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
 
     /* ---- Toàn tập đoàn theo THÁNG ---- */
     const mThang = new Map();
-    for (const r of [...hqsRows, ...ritoRows, ...qlttRows, ...a10Rows]) {
+    for (const r of [...hqsRows, ...ritoRows, ...qlttRows, ...a10Rows, ...chRows]) {
       const t = String(r.ngay || '').slice(3);
       if (!t) continue;
       const a = mThang.get(t) || { thang: t, so_don: 0, gmv: 0, re: 0, co: 0 };
@@ -263,12 +280,20 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
   }, [agg, onLive]);
 
   const dangDoc = [st.dangDoc?.hqs ? 'HQS' : null, st.dangDoc?.rito ? 'Ritokey' : null,
-    st.dangDoc?.qltt ? 'QLTT' : null, cfgA10 && st.dangDoc?.a10 ? 'A10GG' : null].filter(Boolean);
+    st.dangDoc?.qltt ? 'QLTT' : null, cfgA10 && st.dangDoc?.a10 ? 'A10GG' : null,
+    cfgCh && st.dangDoc?.ch ? 'Charging' : null].filter(Boolean);
   const canhBao = [];
   if (st.loi?.hqs) canhBao.push(`chưa đọc được số HQS — ${st.loi.hqs}`);
   if (st.loi?.rito) canhBao.push(`chưa đọc được số Ritokey — ${st.loi.rito}`);
   if (st.loi?.qltt) canhBao.push(`chưa đọc được số QLTT — ${st.loi.qltt}`);
   if (st.loi?.a10) canhBao.push(`chưa đọc được số A10GG — ${st.loi.a10}`);
+  if (st.loi?.ch) canhBao.push(`chưa đọc được số Charging — ${st.loi.ch}`);
+  /* Tháng chưa tới của Charging chỉ có chi phí ghi trước — nói ra để không
+     ai thắc mắc vì sao số trên trang thấp hơn số cộng tay trên file. */
+  const chChuaToi = st.ch?.meta?.thang_chua_toi;
+  if (chChuaToi?.length) {
+    canhBao.push(`Charging: đã loại ${chChuaToi.length} tháng chưa tới (${chChuaToi.join(', ')}) khỏi tổng tập đoàn`);
+  }
   /* Tháng dự trù bị loại khỏi tổng — nói ra để không ai thắc mắc vì sao
      số A10GG trên trang thấp hơn số trên file. */
   const thangDuTru = st.a10?.meta?.thang_du_tru;
@@ -307,7 +332,7 @@ export default function HoldingsBoard({ report, sheet, onLive, range }) {
     );
   }
 
-  if (!st.hqs && !st.rito && !st.qltt && !st.a10) {
+  if (!st.hqs && !st.rito && !st.qltt && !st.a10 && !st.ch) {
     return (
       <section className="panel">
         <div className="panel-body">
