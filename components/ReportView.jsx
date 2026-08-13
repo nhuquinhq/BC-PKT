@@ -12,6 +12,9 @@ import RitokeyBoard from './RitokeyBoard';
 import A10ggBoard from './A10ggBoard';
 import ChargingBoard from './ChargingBoard';
 import PnlDonViBoard from './PnlDonViBoard';
+import SopBoard from './SopBoard';
+import { ORG as SOP_ORG, SOPS_NB } from '@/lib/sop/noi-bo';
+import { SOPS_LP } from '@/lib/sop/lien-phong-ban';
 import HoldingsBoard from './HoldingsBoard';
 import TimDonBoard from './TimDonBoard';
 import QlttBoard from './QlttBoard';
@@ -255,6 +258,12 @@ export default function ReportView({ report }) {
               {tables}
               {charts}
             </>
+          ) : report.sheet?.mode === 'sop' ? (
+            /* PKT30 / PKT31 — trang tài liệu SOP, không có số liệu */
+            <SopBoard
+              sops={report.sheet.kind === 'lp' ? SOPS_LP : SOPS_NB}
+              org={report.sheet.kind === 'lp' ? null : SOP_ORG}
+            />
           ) : report.sheet?.mode === 'charging' ? (
             /* PKT14 — CPV dự án Charging (chỉ có số theo tháng) */
             <>
@@ -304,7 +313,7 @@ export default function ReportView({ report }) {
           );
         })()}
 
-        {!['order_cpv', 'holdings', 'tim_don', 'qltt', 'a10gg', 'charging'].includes(report.sheet?.mode) ? (
+        {!['order_cpv', 'holdings', 'tim_don', 'qltt', 'a10gg', 'charging', 'sop'].includes(report.sheet?.mode) ? (
           <div className="muted" style={{ marginTop: 8 }}>
             {loaded ? `Cập nhật: ${data.meta.cap_nhat || '—'} · Người lập: ${data.meta.nguoi_lap || '—'}` : 'Đang tải dữ liệu…'}
           </div>
