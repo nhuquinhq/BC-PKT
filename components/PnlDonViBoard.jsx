@@ -32,20 +32,35 @@ const DON_VI = [
   { key: 'ch', ten: 'Charging', api: '/api/charging', cfgKey: 'charging', rows: 'charging_thang' },
 ];
 
-/* Cây tầng P&L — giữ đúng mã của từ điển khái niệm HQS bên bảng chính */
+/* Bản đồ 22 dòng của bảng P&L chính (pnl_main) sang số của hai đơn vị.
+   nguon:
+     'so'   — lấy thẳng từ số đã gộp
+     'khong'— hai đơn vị này KHÔNG có khái niệm đó, đúng bằng 0
+     'trong'— file không tách được, để trống chứ không điền 0 cho khỏi
+              hiểu nhầm là đã đối chiếu ra 0 */
 const CAY = [
-  { ma: 'RE', khoan_muc: 'DOANH THU NET', cong_thuc: 'Doanh thu ghi nhận', key: 're', dam: true },
-  { ma: 'COGS', khoan_muc: 'Giá vốn hàng bán', cong_thuc: 'COGS', key: 'co', chi: true },
-  { ma: 'PL1', khoan_muc: 'LÃI SAU GIÁ VỐN', cong_thuc: 'RE − COGS', key: 'pl1', dam: true },
-  { ma: 'SE', khoan_muc: 'Chi phí nhân sự bán hàng', cong_thuc: 'SE', key: 'se', chi: true },
-  { ma: 'ME', khoan_muc: 'Chi phí marketing / ads', cong_thuc: 'ME', key: 'me', chi: true },
-  { ma: 'OP', khoan_muc: 'Chi phí vận hành trực tiếp', cong_thuc: 'OP', key: 'op', chi: true },
-  { ma: 'FI', khoan_muc: 'Chi phí tài chính & thuế', cong_thuc: 'FI', key: 'fi', chi: true },
-  { ma: 'PL2', khoan_muc: 'LÃI SAU CHI PHÍ TRỰC TIẾP', cong_thuc: 'PL1 − SE − ME − OP − FI', key: 'pl2', dam: true },
-  { ma: 'OV', khoan_muc: 'Chi phí nhân sự gián tiếp (BOD, BO)', cong_thuc: 'OV', key: 'ov', chi: true },
-  { ma: 'CA', khoan_muc: 'Chi phí tài sản & khấu hao', cong_thuc: 'CA', key: 'ca', chi: true },
-  { ma: 'OT', khoan_muc: 'Chi phí khác', cong_thuc: 'OT', key: 'ot', chi: true },
-  { ma: 'PL7', khoan_muc: 'LỢI NHUẬN SAU CÙNG', cong_thuc: 'PL2 − OV − CA − OT', key: 'pl7', dam: true },
+  { ma: 'GMV1', khoan_muc: 'GMV mô hình Tự nhập bán', cong_thuc: 'GMV100..104', nguon: 'trong' },
+  { ma: 'GMV2', khoan_muc: 'GMV mô hình Flip', cong_thuc: 'GMV200..204', nguon: 'trong' },
+  { ma: 'RR', khoan_muc: 'Giảm trừ doanh thu (hoàn hủy)', cong_thuc: 'RR1 + RR2', nguon: 'khong' },
+  { ma: 'AR', khoan_muc: 'Phải trả NCC / Sàn Flip', cong_thuc: 'AR1 + AR2', nguon: 'trong' },
+  { ma: 'RE', khoan_muc: 'DOANH THU NET', cong_thuc: 'RE1 + RE2', nguon: 'so', key: 're' },
+  { ma: 'CO1', khoan_muc: 'Giá vốn hàng bán', cong_thuc: 'CO100..104', nguon: 'so', key: 'co' },
+  { ma: 'CO2', khoan_muc: 'Giá vốn cung ứng (nhân sự xử lý đơn)', cong_thuc: 'CO200 + CO201', nguon: 'trong' },
+  { ma: 'CO3', khoan_muc: 'Giá vốn die / thất thoát / dự phòng', cong_thuc: 'CO300 + CO301', nguon: 'trong' },
+  { ma: 'PL1', khoan_muc: 'LÃI SAU GIÁ VỐN', cong_thuc: 'RE − COGS', nguon: 'so', key: 'pl1' },
+  { ma: 'SF', khoan_muc: 'Phí sàn', cong_thuc: 'SF1 + SF2', nguon: 'khong' },
+  { ma: 'CF', khoan_muc: 'Phí rút tiền (gồm quy đổi USDT)', cong_thuc: 'Phí thực rút + FV × biến phí', nguon: 'khong' },
+  { ma: 'PL2A', khoan_muc: 'LÃI SAU PHÍ BÁN HÀNG', cong_thuc: 'PL1 − SF − CF', nguon: 'so', key: 'pl1' },
+  { ma: 'SE', khoan_muc: 'Chi phí nhân sự bán hàng', cong_thuc: 'SE1 + SE2', nguon: 'so', key: 'se' },
+  { ma: 'ME', khoan_muc: 'Chi phí marketing / ads', cong_thuc: 'ME1 + ME2', nguon: 'so', key: 'me' },
+  { ma: 'OP', khoan_muc: 'Chi phí vận hành trực tiếp', cong_thuc: 'OP1 + OP2', nguon: 'so', key: 'op' },
+  { ma: 'FI', khoan_muc: 'Chi phí tài chính & thuế', cong_thuc: 'FI1 + FI2', nguon: 'so', key: 'fi' },
+  { ma: 'FG', khoan_muc: 'Flip Gain', cong_thuc: 'FG1 + FG2', nguon: 'khong' },
+  { ma: 'PL2', khoan_muc: 'LÃI SAU CHI PHÍ TRỰC TIẾP', cong_thuc: 'PL201 + PL202 + FG', nguon: 'so', key: 'pl2' },
+  { ma: 'OV', khoan_muc: 'Chi phí nhân sự gián tiếp (BOD, BO)', cong_thuc: 'OVS+OVC+OVE+OVP+OVD', nguon: 'so', key: 'ov' },
+  { ma: 'CA', khoan_muc: 'Chi phí tài sản & khấu hao', cong_thuc: 'CA1 + CA2', nguon: 'so', key: 'ca' },
+  { ma: 'OT', khoan_muc: 'Chi phí khác', cong_thuc: '', nguon: 'so', key: 'ot' },
+  { ma: 'PL7', khoan_muc: 'LỢI NHUẬN SAU CÙNG', cong_thuc: 'PL2 − OV − CA − OT', nguon: 'so', key: 'pl7' },
 ];
 
 function trongKy(rows, range) {
@@ -113,47 +128,61 @@ export default function PnlDonViBoard({ report, onLive, range }) {
     return () => clearInterval(t);
   }, [load]);
 
-  /* Số đã gộp của từng đơn vị + bản Tổng (cộng ngang hai đơn vị) */
+  /* Gộp hai bản: theo KỲ ĐANG LỌC và LŨY KẾ cả năm (không lọc) */
   const soLieu = useMemo(() => {
-    const out = {};
-    for (const dv of DON_VI) {
-      const json = st.data[dv.key];
-      if (!json) continue;
-      out[dv.key] = gopTang(trongKy(json[dv.rows] || [], range));
-    }
-    const co = Object.values(out);
-    if (co.length) {
-      const t = {};
-      for (const k of ['re', 'co', 'se', 'me', 'op', 'fi', 'ov', 'ca', 'ot', 'pl1', 'pl2', 'pl7', 'pl7_file', 'so_thang']) {
-        t[k] = co.reduce((x, s) => x + (s[k] || 0), 0);
+    const lam = (locTheoKy) => {
+      const out = {};
+      for (const dv of DON_VI) {
+        const json = st.data[dv.key];
+        if (!json) continue;
+        const rows = json[dv.rows] || [];
+        out[dv.key] = gopTang(locTheoKy ? trongKy(rows, range) : rows);
       }
-      t.lech = Math.round(t.pl7 - t.pl7_file);
-      out.tong = t;
-    }
-    return out;
+      const co = Object.values(out);
+      if (co.length) {
+        const t = {};
+        for (const k of ['re', 'co', 'se', 'me', 'op', 'fi', 'ov', 'ca', 'ot', 'pl1', 'pl2', 'pl7', 'pl7_file', 'so_thang']) {
+          t[k] = co.reduce((x, s2) => x + (s2[k] || 0), 0);
+        }
+        t.lech = Math.round(t.pl7 - t.pl7_file);
+        out.tong = t;
+      }
+      return out;
+    };
+    return { ky: lam(true), nam: lam(false) };
   }, [st.data, range]);
 
-  const dangXem = soLieu[tab] || null;
+  const dangXem = soLieu.ky[tab] || null;
+  const caNam = soLieu.nam[tab] || null;
 
-  /* Bảng đẩy sang PKT2 — dựng theo đúng đơn vị đang chọn ở dải nút */
+  /* Điền thẳng vào BẢNG P&L CHÍNH (pnl_main) — phải trả về ĐỦ 22 dòng
+     vì đẩy live là thay nguyên bảng, thiếu dòng nào là mất dòng đó.
+     Mã · khoản mục · công thức giữ nguyên theo khung sẵn có (ReportView
+     đã gộp sẵn phần khung, ở đây chỉ điền phần số). */
   const bang = useMemo(() => {
     if (!dangXem) return [];
     const re = dangXem.re;
     return CAY.map((d) => {
-      const v = dangXem[d.key] || 0;
+      const co = d.nguon === 'so';
+      const v = co ? dangXem[d.key] || 0 : d.nguon === 'khong' ? 0 : null;
+      const vNam = co ? (caNam?.[d.key] ?? null) : d.nguon === 'khong' ? 0 : null;
       return {
         ma: d.ma,
         khoan_muc: d.khoan_muc,
         cong_thuc: d.cong_thuc,
-        /* Dòng chi phí hiện số âm cho thấy rõ nó trừ đi khỏi doanh thu */
-        gia_tri: d.chi ? -Math.abs(v) : v,
-        tren_re: re ? (v / re) * 100 : null,
+        ky_nay: v,
+        /* Kỳ trước & %MoM để trống: dải lọc là tuỳ ý (có thể nhiều tháng)
+           nên không có "kỳ trước" xác định để so — điền bừa là số sai. */
+        ky_truoc: null,
+        mom: null,
+        luy_ke: vNam,
+        tren_re: v !== null && re ? (v / re) * 100 : null,
       };
     });
-  }, [dangXem]);
+  }, [dangXem, caNam]);
 
   useEffect(() => {
-    if (bang.length) onLive?.({ tables: { pnl_don_vi: bang } });
+    if (bang.length) onLive?.({ tables: { pnl_main: bang } });
   }, [bang, onLive]);
 
   if (!cfg) return null;
