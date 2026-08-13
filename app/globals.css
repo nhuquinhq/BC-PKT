@@ -1297,3 +1297,82 @@ table.matrix td.breach { font-weight: 700; text-shadow: 0 0 12px rgba(251, 113, 
 }
 .ma-nhap:focus { outline: none; border-color: #189BD8; }
 .ma-hang { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+
+/* ---------- BPMN (trang SOP — PKT30 / PKT31) ----------
+   Bộ vẽ chép từ repo sop-pkt sinh ra SVG với lớp .lane-*, .node-*, .edge.
+   Repo đó dùng bộ biến màu riêng, ở đây ánh xạ sang biến của BC-PKT chứ
+   không chép nguyên bảng màu — để sơ đồ ăn theo theme chung của trang. */
+.bpmn-scroll {
+  overflow: auto;
+  padding: 10px;
+  border-radius: 12px;
+  background:
+    linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 100% 33px,
+    var(--glass);
+  cursor: grab;
+}
+.bpmn-scroll:active { cursor: grabbing; }
+svg.bpmn { display: block; }
+
+.lane-band { fill: transparent; stroke: var(--line); stroke-width: 1; }
+.lane-tab  { fill: var(--glass-2); stroke: var(--line); }
+.lane-text {
+  fill: var(--ink-2); font-family: var(--f-mono); font-size: 10px;
+  letter-spacing: .14em; text-anchor: middle; font-weight: 600;
+}
+
+.edge { fill: none; stroke: var(--ink-3); stroke-width: 1.4; }
+.edge--back { stroke-dasharray: 5 4; stroke: var(--loss); }
+.edge--msg  { stroke-dasharray: 3 4; }
+.arrow { fill: var(--ink-3); }
+.edge-label rect { fill: var(--bg); stroke: var(--line); }
+.edge-label text { fill: var(--ink-2); font-family: var(--f-mono); font-size: 9.5px; }
+
+.node .shape   { fill: var(--glass-2); stroke: var(--line-strong); stroke-width: 1.2; }
+.node .n-label { fill: var(--ink); font-family: var(--f-sans); font-size: 11.5px; font-weight: 700; text-anchor: middle; }
+.node .n-tag   { fill: var(--ink-3); font-family: var(--f-mono); font-size: 9.5px; text-anchor: middle; }
+.node .g-label { fill: var(--ink-2); font-family: var(--f-sans); font-size: 10.5px; font-weight: 700; text-anchor: middle; }
+.node .g-mark  { fill: var(--ink-2); font-family: var(--f-mono); font-size: 15px; text-anchor: middle; }
+.node .dot     { fill: var(--ink-3); opacity: .6; }
+.node--gateway .shape { fill: var(--glass); stroke: var(--warn); }
+.node--start .shape { fill: none; stroke: var(--gr); stroke-width: 2; }
+.node--end .shape   { fill: rgba(46, 230, 168, .22); stroke: var(--gr); stroke-width: 2.4; }
+
+/* Màu theo vai trò — dùng chung cho vạch màu của nút và ô tên làn.
+   Khoá lane lấy từ dữ liệu SOP: dt · tien · kho · thue · tc · bod ·
+   pkd · pcu · ext · sys. */
+.node .accent { fill: var(--bl); }
+.node--dt   .accent { fill: var(--cy); }
+.node--tien .accent { fill: var(--gr); }
+.node--kho  .accent { fill: var(--warn); }
+.node--thue .accent { fill: var(--pk); }
+.node--tc   .accent { fill: var(--v1); }
+.node--bod  .accent { fill: var(--loss); }
+.node--pkd  .accent { fill: var(--bl); }
+.node--pcu  .accent { fill: var(--gain); }
+.node--ext  .accent { fill: var(--ink-3); }
+.node--sys  .accent { fill: var(--ink-3); }
+
+.lane--dt   .lane-tab { fill: rgba(47, 217, 255, .16); }
+.lane--tien .lane-tab { fill: rgba(46, 230, 168, .16); }
+.lane--kho  .lane-tab { fill: rgba(251, 191, 36, .16); }
+.lane--thue .lane-tab { fill: rgba(244, 114, 182, .16); }
+.lane--tc   .lane-tab { fill: rgba(124, 92, 255, .16); }
+.lane--bod  .lane-tab { fill: rgba(251, 113, 133, .18); }
+.lane--pkd  .lane-tab { fill: rgba(61, 123, 253, .16); }
+.lane--pcu  .lane-tab { fill: rgba(52, 211, 153, .16); }
+.lane--ext  .lane-tab,
+.lane--sys  .lane-tab { fill: rgba(141, 160, 201, .14); }
+
+/* Chú giải màu làn dưới sơ đồ */
+.lane-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-3); font-family: var(--f-mono); }
+.lane-sw  { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--bl); }
+.lane-sw--dt { background: var(--cy); }
+.lane-sw--tien { background: var(--gr); }
+.lane-sw--kho { background: var(--warn); }
+.lane-sw--thue { background: var(--pk); }
+.lane-sw--tc { background: var(--v1); }
+.lane-sw--bod { background: var(--loss); }
+.lane-sw--pkd { background: var(--bl); }
+.lane-sw--pcu { background: var(--gain); }
+.lane-sw--ext, .lane-sw--sys { background: var(--ink-3); }

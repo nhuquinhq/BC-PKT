@@ -16,6 +16,7 @@
 import { useMemo, useState } from 'react';
 import { ORG, SOPS_NB } from '@/lib/sop/noi-bo';
 import { SOPS_LP } from '@/lib/sop/lien-phong-ban';
+import { renderBPMN } from '@/lib/sop/bpmn';
 
 const LOAI_NUT = {
   start: 'Bắt đầu', end: 'Kết thúc', decision: 'Quyết định',
@@ -69,6 +70,18 @@ function ChiTiet({ sop, onQuayLai }) {
     return nhom.filter((g) => g.nodes.length);
   }, [sop]);
 
+  /* Sơ đồ dựng một lần cho mỗi SOP. Bọc try/catch vì dữ liệu SOP chép từ
+     repo khác — thiếu node hay lệch chỉ số lane thì thà không có sơ đồ
+     còn hơn vỡ cả trang. */
+  const svg = useMemo(() => {
+    if (!sop?.nodes?.length || !sop?.lanes?.length) return '';
+    try {
+      return renderBPMN(sop);
+    } catch {
+      return '';
+    }
+  }, [sop]);
+
   return (
     <>
       <div style={{ marginBottom: 14 }}>
@@ -104,6 +117,27 @@ function ChiTiet({ sop, onQuayLai }) {
           </table>
         </div>
       </section>
+
+      {svg ? (
+        <section className="panel" style={{ marginBottom: 18 }}>
+          <div className="panel-head">
+            <h3>Sơ đồ luồng (BPMN)</h3>
+            <span className="tag">{(sop.lanes || []).length} làn · {sop.nodes.length} nút</span>
+          </div>
+          <div className="panel-body">
+            {/* SVG do lib/sop/bpmn.js dựng — chuỗi tự sinh từ dữ liệu SOP
+                trong repo, không phải nội dung người dùng nhập. */}
+            <div className="bpmn-scroll" dangerouslySetInnerHTML={{ __html: svg }} />
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10 }}>
+              {(sop.lanes || []).map((l, i) => (
+                <span key={i} className="lane-dot">
+                  <i className={`lane-sw lane-sw--${l.key}`} />{l.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {theoLane.length ? (
         <section className="panel" style={{ marginBottom: 18 }}>

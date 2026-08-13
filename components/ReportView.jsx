@@ -257,12 +257,6 @@ export default function ReportView({ report }) {
               {charts}
             </>
           ) : report.sheet?.mode === 'sop' ? (
-            /* PKT30 / PKT31 — trang tài liệu SOP, không có số liệu */
-            <SopBoard
-              sops={report.sheet.kind === 'lp' ? SOPS_LP : SOPS_NB}
-              org={report.sheet.kind === 'lp' ? null : SOP_ORG}
-            />
-          ) : report.sheet?.mode === 'sop' ? (
             /* PKT30 / PKT31 — trang quy trình, không có số liệu */
             <SopBoard report={report} />
           ) : report.sheet?.mode === 'charging' ? (
