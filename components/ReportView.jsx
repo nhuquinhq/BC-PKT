@@ -11,6 +11,7 @@ import TienBoard from './TienBoard';
 import RitokeyBoard from './RitokeyBoard';
 import A10ggBoard from './A10ggBoard';
 import ChargingBoard from './ChargingBoard';
+import PnlDonViBoard from './PnlDonViBoard';
 import HoldingsBoard from './HoldingsBoard';
 import TimDonBoard from './TimDonBoard';
 import QlttBoard from './QlttBoard';
@@ -293,6 +294,10 @@ export default function ReportView({ report }) {
           ) : (
             <>
               {source}
+              {/* PKT2 — kéo thêm P&L của A10GG · Charging vào bảng riêng */}
+              {report.sheetDonVi ? (
+                <PnlDonViBoard report={report} onLive={applyLive} range={range} />
+              ) : null}
               {tables}
               {charts}
             </>
