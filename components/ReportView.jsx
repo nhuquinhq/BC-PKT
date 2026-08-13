@@ -13,8 +13,6 @@ import A10ggBoard from './A10ggBoard';
 import ChargingBoard from './ChargingBoard';
 import PnlDonViBoard from './PnlDonViBoard';
 import SopBoard from './SopBoard';
-import { ORG as SOP_ORG, SOPS_NB } from '@/lib/sop/noi-bo';
-import { SOPS_LP } from '@/lib/sop/lien-phong-ban';
 import HoldingsBoard from './HoldingsBoard';
 import TimDonBoard from './TimDonBoard';
 import QlttBoard from './QlttBoard';
@@ -264,6 +262,9 @@ export default function ReportView({ report }) {
               sops={report.sheet.kind === 'lp' ? SOPS_LP : SOPS_NB}
               org={report.sheet.kind === 'lp' ? null : SOP_ORG}
             />
+          ) : report.sheet?.mode === 'sop' ? (
+            /* PKT30 / PKT31 — trang quy trình, không có số liệu */
+            <SopBoard report={report} />
           ) : report.sheet?.mode === 'charging' ? (
             /* PKT14 — CPV dự án Charging (chỉ có số theo tháng) */
             <>
