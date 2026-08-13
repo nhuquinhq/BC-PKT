@@ -1,0 +1,55 @@
+# Doc cau truc file du an Charging de biet no bay so kieu nao truoc khi
+# viet bo doc. Khong doan — in nguyen tung o kem so thu tu cot.
+name: Doc cau truc Charging
+
+on:
+  workflow_dispatch: {}
+
+env:
+  PUB: "2PACX-1vRoJlJPjNblPMAmO8vrfmC-JWe_dCY7ub4Joqd0exc6oAMnEpDYrUle8QLuBrenFOFGdFtXfTE7TtAR"
+  GID: "894789387"
+
+jobs:
+  doc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Tai tab - thu toi 6 lan
+        run: |
+          U="https://docs.google.com/spreadsheets/d/e/$PUB/pub?gid=$GID&single=true&output=csv"
+          for lan in 1 2 3 4 5 6; do
+            rm -f /tmp/c.csv
+            code=$(curl -sSL -m 100 -o /tmp/c.csv -w '%{http_code}' "$U" || echo 000)
+            sz=$(stat -c%s /tmp/c.csv 2>/dev/null || echo 0)
+            h=$(head -c 12 /tmp/c.csv 2>/dev/null | tr -d '\n')
+            echo "lan $lan: HTTP $code · $sz byte"
+            case "$h" in '<!DOCTYPE'*|'<html'*) echo '   -> trang loi HTML'; sleep 15; continue ;; esac
+            if [ "$code" = "200" ] && [ "$sz" -gt 200 ]; then echo '   -> DUOC'; exit 0; fi
+            sleep 15
+          done
+          echo "KHONG TAI DUOC"; exit 1
+
+      - name: In cau truc
+        run: |
+          python3 - <<'PY'
+          import csv
+          csv.field_size_limit(10**9)
+          rows = list(csv.reader(open('/tmp/c.csv', encoding='utf-8', errors='ignore')))
+          print('TONG DONG :', len(rows))
+          print('SO COT MAX:', max((len(r) for r in rows), default=0))
+
+          print('\n===== 30 DONG DAU — tung o co chu, kem so cot =====')
+          for i in range(min(30, len(rows))):
+              cells = [(j, c.strip()[:38]) for j, c in enumerate(rows[i]) if c.strip()]
+              print(f'dong {i:>3}: {cells[:14] if cells else "(trong)"}')
+
+          print('\n===== CAC DONG CO NHAN O COT 0..4 (khung chi tieu) =====')
+          for i, r in enumerate(rows):
+              for j in range(min(5, len(r))):
+                  c = r[j].strip()
+                  if c and len(c) <= 45:
+                      vals = [(k, r[k].strip()) for k in range(j+1, min(len(r), 20)) if r[k].strip()]
+                      print(f'dong {i:>3} cot{j}={c!r}')
+                      if vals: print(f'          {vals[:12]}')
+                      break
+          PY
