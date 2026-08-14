@@ -105,9 +105,12 @@ const HAN_CHO = [90000, 90000];
 /* Có nhớ theo từng file: PKT8, PKT20, các trang team và trang sàn đều đọc
    đúng những file này, chưa kể PKT10/PKT15 cần dữ liệu từng đơn. Nhớ ở đây
    thì cả nhóm dùng chung một lượt tải — xem lib/boNho.js. */
-async function loadGrid(url, gid, luot = 2) {
+/* vet: mảng thu thập tình trạng đọc từng file, để GET nói được số đang hiện
+   lấy từ bản nhớ bao lâu rồi. Không có nó thì Google hỏng cả buổi mà trang
+   vẫn hiện số cũ y như số mới — đúng vụ bot bắn 18h và 23h ra cùng một số. */
+async function loadGrid(url, gid, luot = 2, vet = null) {
   const csvUrl = toCsvUrl(url, gid) || url;
-  const { val } = await nhoDocFile(`cpv-file|${csvUrl}`, async () => {
+  const kq = await nhoDocFile(`cpv-file|${csvUrl}`, async () => {
     let loiCuoi = null;
     for (let i = 0; i < luot; i++) {
       if (i) await new Promise((ok) => setTimeout(ok, i * 2000));
@@ -127,7 +130,8 @@ async function loadGrid(url, gid, luot = 2) {
     }
     throw loiCuoi;
   });
-  return Papa.parse(val, { header: false, skipEmptyLines: false }).data;
+  if (vet) vet.push({ url: csvUrl, tuoi_giay: Math.round((kq.tuoi || 0) / 1000), loi: kq.loi || null });
+  return Papa.parse(kq.val, { header: false, skipEmptyLines: false }).data;
 }
 
 /* Đọc một lưới CSV đơn hàng → danh sách đơn đã chuẩn hoá.
@@ -279,9 +283,10 @@ async function docLive({ urls, gids, url2s, gid2s, san2 }) {
   let mainRows = [];
   let mainMeta = {};
   const mainErrors = [];
+  const vetFile = [];
   const loaded = await Promise.all(
     urls.map((u, i) =>
-      loadGrid(u, gids[i] || '0')
+      loadGrid(u, gids[i] || '0', 2, vetFile)
         .then((grid) => ({ grid }))
         .catch((e) => ({ err: e }))
     )
@@ -331,7 +336,7 @@ async function docLive({ urls, gids, url2s, gid2s, san2 }) {
     const apiErrors = [];
     const apiGrids = await Promise.all(
       url2s.map((u, i) =>
-        loadGrid(u, gid2s[i] || '0')
+        loadGrid(u, gid2s[i] || '0', 2, vetFile)
           .then((grid) => ({ grid }))
           .catch((e) => ({ err: e }))
       )
@@ -449,7 +454,7 @@ async function docLive({ urls, gids, url2s, gid2s, san2 }) {
     nc: r.nguon === 'dh' && r.sc === 'ok' && r.thanh_tien > 0 && !r.gia_von ? 1 : 0,
   }));
 
-  return { all, api_file, dupList, mainMeta, apiMeta, dedup, outOfRange, apiNoCost, mainErrors, sanBu };
+  return { all, api_file, dupList, mainMeta, apiMeta, dedup, outOfRange, apiNoCost, mainErrors, sanBu, vetFile };
 }
 
 /* Bản GỌN để cất vào bộ nhớ đệm: đã gộp theo Ngày × Sàn × SPDV nên nhẹ hơn
@@ -474,6 +479,11 @@ function goiGon(kq) {
       main_error: kq.mainErrors.length ? kq.mainErrors.join(' · ') : null,
       dedup_removed: kq.dedup,
       api_out_of_range: kq.outOfRange,
+      /* Tuổi bản nhớ của file GIÀ NHẤT trong lượt đọc này. Google xuất hụt
+         thì lib/boNho.js trả bản cũ tới 6 tiếng — không ghi ra đây thì số cũ
+         trông y hệt số mới. */
+      nguon_cu_giay: kq.vetFile?.length ? Math.max(...kq.vetFile.map((v) => v.tuoi_giay || 0)) : 0,
+      nguon_loi: kq.vetFile?.map((v) => v.loi).filter(Boolean).join(' · ') || null,
     },
   };
 }

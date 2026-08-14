@@ -213,11 +213,13 @@ export async function GET(request) {
      chính deployment dễ nghẽn và tốn thêm một vòng mạng. */
   const origin = new URL(request.url).origin;
   let detail;
+  let nguonCuGiay = 0;
   try {
     const res = await docSoLieu(new Request(`${origin}/api/cpv?${qs}`));
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
     detail = json.detail;
+    nguonCuGiay = json.meta?.nguon_cu_giay || 0;
   } catch (e) {
     await ghiVet(`ĐỌC SỐ LỖI: ${e.message}`);
     /* Đọc hụt thì TRẢ LẠI LƯỢT ngay, đừng ôm khoá 10 phút — chuyến ping kế
@@ -268,6 +270,15 @@ export async function GET(request) {
   lines.push(`GMV ($): <b>${fmtUsd(usdThang)}</b>`);
   lines.push(`GMV (VND): <b>${fmtVnd(gmvThang)}</b>`);
   lines.push(`Số đơn: <b>${donThang.toLocaleString('vi-VN')} đơn</b>`);
+  /* Google xuất file hụt thì lib/boNho.js trả bản cũ tới 6 tiếng. Không nói ra
+     thì tin 18h và tin 23h ra y hệt nhau mà tưởng là hôm nay không bán được gì.
+     Ngưỡng 15 phút: dưới mức đó là nhịp đọc bình thường, không đáng báo. */
+  if (nguonCuGiay > 900) {
+    const phut = Math.round(nguonCuGiay / 60);
+    const doc = phut >= 60 ? `${Math.floor(phut / 60)}h${String(phut % 60).padStart(2, '0')}` : `${phut} phút`;
+    lines.push('');
+    lines.push(`⚠️ <b>Số đọc từ bản lưu ${doc} trước</b> — Google đang xuất hụt file BE, chưa lấy được bản mới.`);
+  }
   lines.push(`🔗 bc-pkt.vercel.app/bao-cao/pkt8`);
   const text1 = lines.join('\n');
 
