@@ -1,0 +1,163 @@
+# Chan doan: bot CPV vua ban nhung so khong nhay.
+# Tach ba lop de biet loi nam o dau:
+#   1. Bot da ban khung nao, chuyen goi ghi lai gi
+#   2. /api/cpv tra so gi — ban NHO (bot dung cai nay) vs ban DOC MOI
+#   3. File CSV goc tren Google co dong cua hom nay chua
+# Chi doc, khong gui gi len Telegram.
+name: Chan doan CPV hom nay
+
+on:
+  workflow_dispatch:
+    inputs:
+      ngay:
+        description: 'Ngay can soi, dang dd/mm/yyyy (bo trong = hom nay gio VN)'
+        required: false
+        default: ''
+
+env:
+  BE_T8: "2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0"
+  API_T8: "2PACX-1vQvTKIa8hAWjghuGri8nsnk2zFhlHNIKKgGunBFDolf3IyG4lYZ8G9zt6tYrIIxESHQty7cskmUcbIG"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Ngay can soi
+        id: ng
+        run: |
+          N="${{ inputs.ngay }}"
+          [ -z "$N" ] && N=$(TZ=Asia/Ho_Chi_Minh date +%d/%m/%Y)
+          echo "ngay=$N" >> $GITHUB_OUTPUT
+          echo "Soi ngay: $N · gio VN hien tai: $(TZ=Asia/Ho_Chi_Minh date +%H:%M)"
+
+      - name: 1. Bot da ban khung nao hom nay
+        run: |
+          curl -sS -m 120 "https://bc-pkt.vercel.app/api/bot/cpv?trangthai=1" | python3 -m json.tool || true
+
+      - name: 2. Bot preview - so bot dang cam tren tay
+        run: |
+          curl -sS -m 290 -o /tmp/pv.json "https://bc-pkt.vercel.app/api/bot/cpv?preview=1" || true
+          python3 - <<'PY'
+          import json, re
+          try: d = json.load(open('/tmp/pv.json'))
+          except Exception as e: print('khong doc duoc:', e); raise SystemExit
+          if d.get('error'): print('LOI:', d['error']); raise SystemExit
+          print(re.sub(r'</?b>', '', d.get('message') or '(trong)'))
+          PY
+
+      - name: 3. API cpv - ban NHO vs ban DOC MOI
+        env:
+          NGAY: ${{ steps.ng.outputs.ngay }}
+        run: |
+          Q="url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F$BE_T8%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0&url2=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F$API_T8%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid2=0"
+          for che in nho moi; do
+            U="https://bc-pkt.vercel.app/api/cpv?$Q"
+            [ "$che" = "moi" ] && U="$U&moi=1"
+            printf '=== ban %s  ' "$che"
+            curl -sS -m 290 -o /tmp/$che.json -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' "$U" || echo LOI
+            python3 - "$che" <<'PY' || true
+          import json, sys, os
+          che = sys.argv[1]; ngay = os.environ['NGAY']
+          d = json.load(open(f'/tmp/{che}.json'))
+          if d.get('error'): print('   LOI:', d['error']); raise SystemExit
+          m = d.get('meta') or {}
+          print('   bo_nho:', m.get('bo_nho'), '| main_error:', m.get('main_error'), '| api_error:', m.get('api_error'))
+          print('   khoang ngay trong file:', m.get('from'), '->', m.get('to'), '| rows_used:', m.get('rows_used'))
+          det = d.get('detail') or []
+          hn = [r for r in det if r.get('ngay') == ngay]
+          th = [r for r in det if str(r.get('ngay',''))[3:] == ngay[3:]]
+          s = lambda rs, k: sum(r.get(k) or 0 for r in rs)
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+          print(f'   NGAY {ngay}: {len(hn)} dong · GMV {n(s(hn,"thanh_tien"))} d · USD {s(hn,"doanh_thu_usd"):,.0f} · {n(s(hn,"so_don"))} don')
+          print(f'   LUY KE {ngay[3:]}: GMV {n(s(th,"thanh_tien"))} d · USD {s(th,"doanh_thu_usd"):,.0f} · {n(s(th,"so_don"))} don')
+          ngays = sorted({r['ngay'] for r in th}, key=lambda x: x[:2])
+          print('   ngay cuoi co so:', ngays[-3:] if ngays else '(khong co)')
+          PY
+          done
+          python3 -c "
+          import json
+          a=json.load(open('/tmp/nho.json')); b=json.load(open('/tmp/moi.json'))
+          print('=== hai ban giong het nhau:', a.get('detail')==b.get('detail'))" || true
+
+      - name: 4. File CSV goc tren Google - co dong hom nay chua
+        env:
+          NGAY: ${{ steps.ng.outputs.ngay }}
+        run: |
+          tai() {
+            for lan in 1 2 3 4 5 6; do
+              rm -f "$2"
+              code=$(curl -sSL -m 120 -o "$2" -w '%{http_code}' "$1" || echo 000)
+              sz=$(stat -c%s "$2" 2>/dev/null || echo 0)
+              h=$(head -c 12 "$2" 2>/dev/null | tr -d '\n')
+              echo "   lan $lan: HTTP $code · $sz byte"
+              case "$h" in '<!DOCTYPE'*|'<html'*) sleep 12; continue ;; esac
+              [ "$code" = "200" ] && [ "$sz" -gt 50000 ] && return 0
+              sleep 12
+            done
+            return 1
+          }
+          echo '--- file BE T8 ---'
+          tai "https://docs.google.com/spreadsheets/d/e/$BE_T8/pub?gid=0&single=true&output=csv" /tmp/be.csv || echo 'KHONG TAI DUOC'
+          echo '--- file API san T8 ---'
+          tai "https://docs.google.com/spreadsheets/d/e/$API_T8/pub?gid=0&single=true&output=csv" /tmp/api.csv || echo 'KHONG TAI DUOC'
+
+          python3 - <<'PY'
+          import csv, re, os, collections, unicodedata
+          csv.field_size_limit(10**9)
+          ngay = os.environ['NGAY']; thang = ngay[3:]
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+
+          def bo_dau(s):
+              s = unicodedata.normalize('NFD', str(s or ''))
+              s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+              return s.replace('đ','d').replace('Đ','D').lower().strip()
+
+          def viNum(s):
+              s = str(s or '').strip().replace(' ', '')
+              if not s or s == '-': return 0.0
+              am = s.startswith('-') or (s.startswith('(') and s.endswith(')'))
+              s = s.strip('()-')
+              if ',' in s and '.' in s: s = s.replace('.','').replace(',','.')
+              elif re.search(r',\d{1,2}$', s): s = s.replace('.','').replace(',','.')
+              else: s = re.sub(r'[.,](?=\d{3}\b)', '', s)
+              try: v = float(s)
+              except ValueError: return 0.0
+              return -v if am else v
+
+          def chuanNgay(s):
+              s = str(s or '').strip()
+              m = re.search(r'(\d{4})-(\d{2})-(\d{2})', s)
+              if m: return f'{m.group(3)}/{m.group(2)}/{m.group(1)}'
+              m = re.search(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', s)
+              if m: return f'{int(m.group(1)):02d}/{int(m.group(2)):02d}/{m.group(3)}'
+              return ''
+
+          def soi(path, ten, hdr):
+              if not os.path.exists(path): print(f'\n### {ten}: khong co file'); return
+              rows = list(csv.reader(open(path, encoding='utf-8', errors='ignore')))
+              cols = [c.strip() for c in rows[hdr]]
+              print(f'\n### {ten} — {len(rows)} dong, dong tieu de {hdr}')
+              # Liet ke moi cot co chua chu "ngay" de biet chac cot nao la Ngay hoan tat
+              cot_ngay = [(i,c) for i,c in enumerate(cols) if 'ngay' in bo_dau(c) or 'date' in bo_dau(c)]
+              print('   cac cot ngay:', cot_ngay)
+              # Cot Ngay hoan tat
+              ht = next((i for i,c in cot_ngay if 'hoan tat' in bo_dau(c) or 'hoan thanh' in bo_dau(c) or 'complete' in bo_dau(c)), None)
+              if ht is None and cot_ngay: ht = cot_ngay[-1][0]
+              print(f'   -> dung cot {ht} = {cols[ht] if ht is not None else "?"} lam Ngay hoan tat')
+              if ht is None: return
+              theoNgay = collections.Counter()
+              for r in rows[hdr+1:]:
+                  d = chuanNgay(r[ht] if ht < len(r) else '')
+                  if d: theoNgay[d] += 1
+              trong_thang = {k:v for k,v in theoNgay.items() if k[3:] == thang}
+              xep = sorted(trong_thang, key=lambda x: int(x[:2]))
+              print(f'   ngay co du lieu trong thang {thang}: {len(xep)} ngay, moi nhat = {xep[-3:] if xep else "(khong co)"}')
+              print(f'   >>> DONG CUA NGAY {ngay}: {theoNgay.get(ngay, 0)}')
+              if xep:
+                  print('   duoi day 7 ngay cuoi:')
+                  for k in xep[-7:]: print(f'      {k}: {n(trong_thang[k])} dong')
+
+          soi('/tmp/be.csv', 'File BE T8 (nguon chinh)', 4)
+          soi('/tmp/api.csv', 'File API san T8', 0)
+          PY
