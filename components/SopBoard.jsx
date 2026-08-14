@@ -46,7 +46,7 @@ function TheSop({ sop, onMo }) {
             {sop.use || sop.tagline}
           </div>
         ) : null}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="sop-chan" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <span className="tag" style={{ color: xong ? XANH : VANG, borderColor: 'currentColor' }}>
             {xong ? 'Done' : sop.status || 'Chờ bổ sung'}
           </span>
@@ -263,23 +263,16 @@ function DanhSach({ tieuDe, moTa, sops, onMoSop, onVeTong }) {
       <section className="panel" style={{ marginBottom: 18 }}>
         <div className="panel-head"><h3>{tieuDe}</h3></div>
         <div className="panel-body">
-          {moTa ? <div className="muted" style={{ marginBottom: 14 }}>{moTa}</div> : null}
-          <div style={{ display: 'flex', gap: 34, flexWrap: 'wrap' }}>
+          {moTa ? <div className="muted" style={{ marginBottom: 16, lineHeight: 1.6, maxWidth: 900 }}>{moTa}</div> : null}
+          <div className="sop-so">
             <OSo so={tk.soSop} ten="Quy trình" />
             <OSo so={tk.buoc} ten="Bước công việc" />
             <OSo so={tk.dauMoi} ten="Đầu mối tham gia" />
-            {tk.cho ? <OSo so={tk.cho} ten="Chờ bổ sung" /> : null}
+            <OSo so={tk.cho} ten="Chờ bổ sung" />
           </div>
         </div>
       </section>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
-          gap: 14,
-          marginBottom: 18,
-        }}
-      >
+      <div className="sop-luoi sop-luoi--3">
         {sops.map((s, i) => <TheSop key={s.id || i} sop={s} onMo={() => onMoSop(i)} />)}
       </div>
     </>
@@ -342,48 +335,47 @@ export default function SopBoard({ report }) {
           <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>
             Quy trình kế toán, tách theo người cần đọc.
           </div>
-          <div className="muted" style={{ marginBottom: 16, lineHeight: 1.6 }}>
+          <div className="muted" style={{ marginBottom: 18, lineHeight: 1.6, maxWidth: 900 }}>
             Cùng một bộ SOP nhưng hai đối tượng khác nhau. Bản nội bộ dành cho 5 vị trí trong
             Phòng Kế toán. Bản liên phòng ban dành cho PKD, PCU, các BU và nhà cung cấp —
             chỉ gồm phần họ cần biết để phối hợp.
           </div>
-          <div style={{ display: 'flex', gap: 34, flexWrap: 'wrap' }}>
+          <div className="sop-so">
             <OSo so={tkNb.soSop + tkLp.soSop} ten="Quy trình" />
             <OSo so={tkNb.buoc + tkLp.buoc} ten="Bước công việc" />
             <OSo so={5} ten="Vị trí kế toán" />
-            {tkNb.cho + tkLp.cho ? <OSo so={tkNb.cho + tkLp.cho} ten="Chờ bổ sung" /> : null}
+            <OSo so={tkNb.cho + tkLp.cho} ten="Chờ bổ sung" />
           </div>
         </div>
       </section>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-          gap: 14,
-        }}
-      >
+      <div className="sop-luoi sop-luoi--2">
         {[
           {
-            key: 'nb', nhan: 'BẢN 1 · DÙNG TRONG PHÒNG', tieuDe: BO.nb.tieuDe, moTa: BO.nb.moTa,
+            key: 'nb', nhan: 'BẢN 1 · DÙNG TRONG PHÒNG', tieuDe: BO.nb.tieuDe, moTa: BO.nb.moTa, tk: tkNb,
             diem: ['Kế toán Doanh thu · Dòng tiền · Kho · Thuế · Tài chính', 'Chuỗi bàn giao giữa 5 vị trí và các chốt kiểm soát', 'Vai trò & luồng phê duyệt chung'],
             nut: 'Mở bản nội bộ →',
           },
           {
-            key: 'lp', nhan: 'BẢN 2 · GỬI PHÒNG BAN KHÁC', tieuDe: BO.lp.tieuDe, moTa: BO.lp.moTa,
+            key: 'lp', nhan: 'BẢN 2 · GỬI PHÒNG BAN KHÁC', tieuDe: BO.lp.tieuDe, moTa: BO.lp.moTa, tk: tkLp,
             diem: ['Đối soát doanh thu & giá vốn HQS10000', 'Duyệt thanh toán hàng hoá / tạm ứng / Topup ví', 'Kiểm kê kho & đối chiếu công nợ nhà cung cấp'],
             nut: 'Mở bản liên phòng ban →',
           },
         ].map((b) => (
-          <div key={b.key} className="panel" onClick={() => setMan(b.key)} style={{ cursor: 'pointer', margin: 0 }}>
+          <div key={b.key} className="panel" onClick={() => setMan(b.key)} style={{ cursor: 'pointer' }}>
             <div className="panel-body">
               <div className="eyebrow" style={{ marginBottom: 8 }}>{b.nhan}</div>
               <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 8 }}>{b.tieuDe}</div>
-              <div className="muted" style={{ marginBottom: 10, lineHeight: 1.55 }}>{b.moTa}</div>
-              <ul className="muted" style={{ margin: '0 0 12px', paddingLeft: 20, lineHeight: 1.7 }}>
+              <div className="muted" style={{ marginBottom: 12, lineHeight: 1.55 }}>{b.moTa}</div>
+              <ul className="muted" style={{ margin: '0 0 14px', paddingLeft: 20, lineHeight: 1.7 }}>
                 {b.diem.map((d) => <li key={d}>{d}</li>)}
               </ul>
-              <b>{b.nut}</b>
+              <div className="sop-chan" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <b>{b.nut}</b>
+                <span style={{ flex: 1 }} />
+                <span className="tag">{b.tk.soSop} quy trình</span>
+                <span className="tag">{b.tk.buoc} bước</span>
+              </div>
             </div>
           </div>
         ))}

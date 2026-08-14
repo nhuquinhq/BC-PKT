@@ -1376,3 +1376,33 @@ svg.bpmn { display: block; }
 .lane-sw--pkd { background: var(--bl); }
 .lane-sw--pcu { background: var(--gain); }
 .lane-sw--ext, .lane-sw--sys { background: var(--ink-3); }
+
+/* ---------- Bố cục trang SOP ----------
+   Trang SOP chỉ có 2 thẻ ở lớp tổng và 6–9 thẻ ở lớp danh sách, nên dùng số
+   cột cố định thay vì auto-fill: auto-fill chia khung rộng thành 4–5 rãnh làm
+   hai thẻ dồn hết về trái, bỏ trống nửa phải. */
+.sop-luoi { display: grid; gap: 14px; margin-bottom: 18px; }
+.sop-luoi--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sop-luoi--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* Thẻ trong lưới cao bằng nhau, phần chân (nút / nhãn) tụt xuống đáy thẻ
+   để các hàng thẳng mép dưới. */
+.sop-luoi > .panel { margin: 0; height: 100%; display: flex; flex-direction: column; }
+.sop-luoi > .panel > .panel-body { flex: 1; display: flex; flex-direction: column; }
+.sop-luoi .sop-chan { margin-top: auto; padding-top: 4px; }
+.sop-luoi > .panel:hover { border-color: rgba(47, 217, 255, .45); }
+
+/* Dải số liệu trải đều hết bề ngang, mỗi ô một cột bằng nhau.
+   Dùng grid-auto-flow: column để số ô thay đổi (3 hay 4) vẫn chia đều. */
+.sop-so { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; }
+.sop-so > div { padding: 0 18px; border-left: 1px solid var(--line); }
+.sop-so > div:first-child { padding-left: 0; border-left: 0; }
+
+@media (max-width: 1180px) {
+  .sop-luoi--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .sop-luoi--2, .sop-luoi--3 { grid-template-columns: 1fr; }
+  .sop-so { grid-auto-flow: row; grid-template-columns: 1fr 1fr; gap: 14px 0; }
+  .sop-so > div:nth-child(odd) { padding-left: 0; border-left: 0; }
+}

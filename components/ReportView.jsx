@@ -206,7 +206,11 @@ export default function ReportView({ report }) {
               ) : null}
             </div>
           </div>
-          <FilterBar range={range} onChange={setRange} />
+          {/* Trang quy trình (SOP) không có số liệu theo thời gian nên
+              không hiện thanh lọc ngày — bày ra chỉ tổ gây hiểu nhầm. */}
+          {report.sheet?.mode === 'sop' ? null : (
+            <FilterBar range={range} onChange={setRange} />
+          )}
         </div>
       </div>
 
