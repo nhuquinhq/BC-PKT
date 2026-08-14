@@ -13,6 +13,7 @@ on:
 
 env:
   BE_T8: "2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0"
+  API_T8: "2PACX-1vQvTKIa8hAWjghuGri8nsnk2zFhlHNIKKgGunBFDolf3IyG4lYZ8G9zt6tYrIIxESHQty7cskmUcbIG"
 
 jobs:
   tinh:
@@ -37,10 +38,26 @@ jobs:
             h=$(head -c 12 /tmp/be.csv 2>/dev/null | tr -d '\n')
             echo "lan $lan: HTTP $code · $sz byte"
             case "$h" in '<!DOCTYPE'*|'<html'*) echo '   -> trang loi HTML, thu lai'; sleep 15; continue ;; esac
-            if [ "$code" = "200" ] && [ "$sz" -gt 100000 ]; then echo '   -> TAI DUOC'; exit 0; fi
+            if [ "$code" = "200" ] && [ "$sz" -gt 100000 ]; then echo '   -> TAI DUOC'; break; fi
             sleep 15
           done
-          echo 'KHONG TAI DUOC SAU 10 LAN'; exit 1
+          [ -s /tmp/be.csv ] || { echo 'KHONG TAI DUOC SAU 10 LAN'; exit 1; }
+
+      - name: Tai CSV file API san T8
+        run: |
+          U="https://docs.google.com/spreadsheets/d/e/$API_T8/pub?gid=0&single=true&output=csv"
+          for lan in 1 2 3 4 5; do
+            rm -f /tmp/api.csv
+            code=$(curl -sSL -m 110 -o /tmp/api.csv -w '%{http_code}' "$U" || echo 000)
+            sz=$(stat -c%s /tmp/api.csv 2>/dev/null || echo 0)
+            h=$(head -c 12 /tmp/api.csv 2>/dev/null | tr -d '\n')
+            echo "lan $lan: HTTP $code · $sz byte"
+            case "$h" in '<!DOCTYPE'*|'<html'*) sleep 15; continue ;; esac
+            # File API nho (~45 KB) nen nguong 10 KB, dung lay nguong cua file BE
+            if [ "$code" = "200" ] && [ "$sz" -gt 10000 ]; then echo '   -> TAI DUOC'; break; fi
+            sleep 15
+          done
+          [ -s /tmp/api.csv ] || echo 'KHONG TAI DUOC FILE API — se bo qua phan bo sung'
 
       - name: Tinh GMV
         env:
@@ -142,4 +159,46 @@ jobs:
 
           # Ngay moi nhat co so — de biet file gia den dau
           if xep: print(f'\n  Ngay moi nhat co so trong file: {xep[-1]}')
+
+          # ---- File API san: /api/cpv CONG THEM cac don nay (don trung Order ID
+          # la don bu tra thieu hang, van tinh doanh thu, chi ghi vao bang doi soat).
+          # File API toan USD nen quy doi bang TY GIA TUAN cua file BE theo ngay.
+          if not os.path.exists('/tmp/api.csv') or os.path.getsize('/tmp/api.csv') == 0:
+              print('\n===== FILE API SAN: khong tai duoc, so tren chi la phan file BE =====')
+              raise SystemExit
+
+          # Ty gia tuan theo ngay — cot "Ty gia tuan" CUOI cung cua file BE
+          i_tg = None
+          for i, c in enumerate(cols):
+              if 'ty gia tuan' in bd(c): i_tg = i
+          tgTheoNgay = {}
+          for r in rows[HDR+1:]:
+              g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
+              d = ngayChuan(g(ht)); tg = viNum(g(i_tg))
+              if d and tg > 0 and d not in tgTheoNgay: tgTheoNgay[d] = tg
+
+          arows = list(csv.reader(open('/tmp/api.csv', encoding='utf-8', errors='ignore')))
+          acols = [c.strip() for c in arows[0]]
+          a_ht = next((i for i, c in enumerate(acols) if 'hoan tat' in bd(c)), None)
+          a_usd = next((i for i, c in enumerate(acols) if bd(c) == 'doanh thu'), None)
+          a_st = next((i for i, c in enumerate(acols) if 'trang thai' in bd(c)), None)
+          a_san = next((i for i, c in enumerate(acols) if bd(c) == 'san'), None)
+          print(f'\n===== FILE API SAN — {len(arows)} dong =====')
+          for ten, i in (('Ngay hoan tat', a_ht), ('Doanh thu USD', a_usd), ('Trang thai', a_st), ('San', a_san)):
+              print(f'  {ten:<16} cot {i} = {acols[i] if i is not None else "KHONG THAY"}')
+
+          a_don = 0; a_usd_t = 0.0; a_vnd = 0.0
+          for r in arows[1:]:
+              g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
+              if not okTt(g(a_st)): continue
+              if ngayChuan(g(a_ht)) != ngay: continue
+              u = viNum(g(a_usd))
+              a_don += 1; a_usd_t += u; a_vnd += u * tgTheoNgay.get(ngay, 0)
+          print(f'  Ty gia tuan ngay {ngay}: {n(tgTheoNgay.get(ngay, 0))} d/USDT')
+          print(f'  Bo sung ngay {ngay}: {a_don} don · ${a_usd_t:,.0f} · {n(a_vnd)} d')
+
+          print(f'\n===== TONG NGAY {ngay} (BE + API san, dung cach /api/cpv gop) =====')
+          print(f'  So don   : {n(hn[0] + a_don)}')
+          print(f'  GMV (VND): {n(hn[1] + a_vnd)}')
+          print(f'  GMV (USD): ${hn[2] + a_usd_t:,.0f}')
           PY
