@@ -1,0 +1,145 @@
+# Tinh GMV hom nay THANG TU FILE GOC, khong qua site — de doi chieu voi so
+# bot ban. Lap lai dung cach /api/cpv doc: loc trang thai, lay Ngay hoan tat,
+# GMV = cot Thanh tien. In ca danh sach cot de khoi phai doan.
+name: GMV hom nay tu file goc
+
+on:
+  workflow_dispatch:
+    inputs:
+      ngay:
+        description: 'Ngay dd/mm/yyyy (bo trong = hom nay gio VN)'
+        required: false
+        default: ''
+
+env:
+  BE_T8: "2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0"
+
+jobs:
+  tinh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Ngay
+        id: ng
+        run: |
+          N="${{ inputs.ngay }}"
+          [ -z "$N" ] && N=$(TZ=Asia/Ho_Chi_Minh date +%d/%m/%Y)
+          echo "ngay=$N" >> $GITHUB_OUTPUT
+          echo "Ngay soi: $N · gio VN: $(TZ=Asia/Ho_Chi_Minh date +'%H:%M %d/%m/%Y')"
+
+      - name: Tai CSV file BE T8
+        run: |
+          U="https://docs.google.com/spreadsheets/d/e/$BE_T8/pub?gid=0&single=true&output=csv"
+          for lan in 1 2 3 4 5 6 7 8 9 10; do
+            rm -f /tmp/be.csv
+            code=$(curl -sSL -m 110 -o /tmp/be.csv -w '%{http_code}' "$U" || echo 000)
+            sz=$(stat -c%s /tmp/be.csv 2>/dev/null || echo 0)
+            h=$(head -c 12 /tmp/be.csv 2>/dev/null | tr -d '\n')
+            echo "lan $lan: HTTP $code · $sz byte"
+            case "$h" in '<!DOCTYPE'*|'<html'*) echo '   -> trang loi HTML, thu lai'; sleep 15; continue ;; esac
+            if [ "$code" = "200" ] && [ "$sz" -gt 100000 ]; then echo '   -> TAI DUOC'; exit 0; fi
+            sleep 15
+          done
+          echo 'KHONG TAI DUOC SAU 10 LAN'; exit 1
+
+      - name: Tinh GMV
+        env:
+          NGAY: ${{ steps.ng.outputs.ngay }}
+        run: |
+          python3 - <<'PY'
+          import csv, re, os, collections, unicodedata
+          csv.field_size_limit(10**9)
+          ngay = os.environ['NGAY']; thang = ngay[3:]
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+
+          def bd(s):
+              s = unicodedata.normalize('NFD', str(s or ''))
+              s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+              return s.replace('đ','d').replace('Đ','D').lower().strip()
+
+          def viNum(s):
+              s = str(s or '').strip().replace(' ', '')
+              if not s or s == '-': return 0.0
+              am = s.startswith('-') or (s.startswith('(') and s.endswith(')'))
+              s = s.strip('()-')
+              if ',' in s and '.' in s: s = s.replace('.','').replace(',','.')
+              elif re.search(r',\d{1,2}$', s): s = s.replace('.','').replace(',','.')
+              else: s = re.sub(r'[.,](?=\d{3}\b)', '', s)
+              try: v = float(s)
+              except ValueError: return 0.0
+              return -v if am else v
+
+          def ngayChuan(s):
+              s = str(s or '').strip()
+              m = re.search(r'(\d{4})-(\d{2})-(\d{2})', s)
+              if m: return f'{m.group(3)}/{m.group(2)}/{m.group(1)}'
+              m = re.search(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', s)
+              if m: return f'{int(m.group(1)):02d}/{int(m.group(2)):02d}/{m.group(3)}'
+              return ''
+
+          rows = list(csv.reader(open('/tmp/be.csv', encoding='utf-8', errors='ignore')))
+          HDR = 4
+          cols = [c.strip() for c in rows[HDR]]
+          print(f'File {len(rows)} dong · {len(cols)} cot · dong tieu de {HDR}\n')
+          print('===== DANH SACH COT =====')
+          for i, c in enumerate(cols): print(f'  {i:>2}  {c}')
+
+          # Cot ngay hoan tat: uu tien ten co "hoan tat", khong co thi lay cot ngay CUOI
+          ds_ngay = [(i, c) for i, c in enumerate(cols) if 'ngay' in bd(c) or 'date' in bd(c)]
+          ht = next((i for i, c in ds_ngay if 'hoan tat' in bd(c) or 'hoan thanh' in bd(c) or 'complete' in bd(c)), None)
+          if ht is None and ds_ngay: ht = ds_ngay[-1][0]
+          # Cot thanh tien (GMV VND) va trang thai
+          i_tt = next((i for i, c in enumerate(cols) if bd(c) == 'thanh tien'), None)
+          if i_tt is None: i_tt = next((i for i, c in enumerate(cols) if 'thanh tien' in bd(c)), None)
+          i_st = next((i for i, c in enumerate(cols) if 'trang thai' in bd(c) or bd(c) == 'status'), None)
+          i_usd = next((i for i, c in enumerate(cols) if bd(c) == 'doanh thu'), None)
+          i_san = next((i for i, c in enumerate(cols) if bd(c) == 'san'), None)
+          print(f'\n===== COT DUNG DE TINH =====')
+          for ten, i in (('Ngay hoan tat', ht), ('Thanh tien (GMV)', i_tt), ('Trang thai', i_st), ('Doanh thu USD', i_usd), ('San', i_san)):
+              print(f'  {ten:<18} cot {i} = {cols[i] if i is not None else "KHONG THAY"}')
+
+          def okTt(s):
+              s = bd(s)
+              return (not s) or 'hoan tat' in s or 'hoan thanh' in s or 'complete' in s or 'success' in s
+
+          theoNgay = collections.defaultdict(lambda: [0, 0.0, 0.0])
+          bySan = collections.defaultdict(lambda: [0, 0.0, 0.0])
+          bo_khong_ngay = 0; bo_trang_thai = 0
+          for r in rows[HDR+1:]:
+              g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
+              san = str(g(i_san)).strip()
+              if not san: continue
+              if not okTt(g(i_st)): bo_trang_thai += 1; continue
+              d = ngayChuan(g(ht))
+              if not d: bo_khong_ngay += 1; continue
+              tt = viNum(g(i_tt)); usd = viNum(g(i_usd))
+              theoNgay[d][0] += 1; theoNgay[d][1] += tt; theoNgay[d][2] += usd
+              if d == ngay:
+                  bySan[san][0] += 1; bySan[san][1] += tt; bySan[san][2] += usd
+
+          trong_thang = {k: v for k, v in theoNgay.items() if k[3:] == thang}
+          xep = sorted(trong_thang, key=lambda x: int(x[:2]))
+          print(f'\n===== GMV THEO NGAY — thang {thang} =====')
+          for k in xep:
+              c, t, u = trong_thang[k]
+              sao = '  <<< HOM NAY' if k == ngay else ''
+              print(f'  {k}  {n(c):>5} don · GMV {n(t):>16} d · ${u:>12,.0f}{sao}')
+          ct = sum(v[0] for v in trong_thang.values())
+          tt_ = sum(v[1] for v in trong_thang.values())
+          ut = sum(v[2] for v in trong_thang.values())
+          print(f'  {"LUY KE":<5}  {n(ct):>5} don · GMV {n(tt_):>16} d · ${ut:>12,.0f}')
+
+          hn = theoNgay.get(ngay, [0, 0.0, 0.0])
+          print(f'\n===== NGAY {ngay} =====')
+          print(f'  So don   : {n(hn[0])}')
+          print(f'  GMV (VND): {n(hn[1])}')
+          print(f'  GMV (USD): ${hn[2]:,.0f}')
+          if bySan:
+              print('  Theo san:')
+              for k, v in sorted(bySan.items(), key=lambda x: -x[1][1]):
+                  print(f'     {k:<10} {n(v[0]):>5} don · {n(v[1]):>15} d · ${v[2]:>10,.0f}')
+          print(f'\n  (bo qua: {n(bo_khong_ngay)} dong chua co Ngay hoan tat · {n(bo_trang_thai)} dong trang thai khac)')
+
+          # Ngay moi nhat co so — de biet file gia den dau
+          if xep: print(f'\n  Ngay moi nhat co so trong file: {xep[-1]}')
+          PY
