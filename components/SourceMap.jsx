@@ -11,13 +11,13 @@ import { REPORTS } from '@/lib/reports';
 const DATALAKE_ROWS = [
   {
     label: 'CPV BE các tháng đã chốt (kèm đối soát API + danh sách trùng)',
-    file: 'lib/data/cpv-2026-01.json → cpv-2026-06.json',
+    file: 'lib/data/cpv-2026-01.json → cpv-2026-07.json',
     kind: 'DATALAKE',
     reps: ['PKT8', 'Tầng 3 (team)', 'Tầng 3B (sàn)', 'PKT9'],
   },
   {
     label: 'Lịch sử ví HQS các tháng đã chốt',
-    file: 'lib/data/vi-2026-04.json → vi-2026-06.json',
+    file: 'lib/data/vi-2026-04.json → vi-2026-07.json',
     kind: 'DATALAKE',
     reps: ['PKT6', 'chế độ "CPV theo LS Ví" trang team/sàn'],
   },

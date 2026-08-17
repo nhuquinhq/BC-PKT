@@ -12,9 +12,10 @@ import Papa from 'papaparse';
 import histT4 from '@/lib/data/vi-2026-04.json';
 import histT5 from '@/lib/data/vi-2026-05.json';
 import histT6 from '@/lib/data/vi-2026-06.json';
+import histT7 from '@/lib/data/vi-2026-07.json';
 import { nhoDocFile } from '@/lib/boNho';
 
-const HIST = [histT4, histT5, histT6];
+const HIST = [histT4, histT5, histT6, histT7];
 
 export const dynamic = 'force-dynamic';
 
@@ -108,7 +109,15 @@ function parseWallet(grid, { month, year }) {
     gia_von: headers.indexOf('gia von'),
     tim: headers.indexOf('tim'),
     loi_nhuan: headers.indexOf('loi nhuan'),
-    loai_don: headers.findIndex((h) => h.startsWith('loai don hang')),
+    /* Cột phân loại đơn. Bản ver1 gọi là "Loại đơn hàng BE" (Tự động / Thủ
+       công / Flip), bản ver2 đổi thành "Phân loại doanh thu BE" (Flip /
+       Doanh thu dịch vụ). Phải bám hậu tố BE: file ver2 còn hai cột trùng
+       tên "Phân loại doanh thu" ở cuối bảng, lấy nhầm là ra số khác. */
+    loai_don: (() => {
+      const i = headers.findIndex((h) => h.startsWith('loai don hang'));
+      if (i >= 0) return i;
+      return headers.findIndex((h) => h === 'phan loai doanh thu be');
+    })(),
     bu: headers.indexOf('bu'),
   };
 
