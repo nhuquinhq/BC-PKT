@@ -1,0 +1,39 @@
+# PKT3 bao "Khong nhan ra tab BCLCTT trong 6 gid" chi sau 0,5s — qua nhanh de
+# tai 6 tab, nen nghi la nho loi chu khong phai file hong. Tai THANG tung tab
+# tu Google de biet chac.
+name: Soi PKT3 Tien
+
+on:
+  workflow_dispatch: {}
+
+env:
+  PUB: "2PACX-1vTLTvWG0zTceE2zZ1-f-8EDouwxfQUWj-LBDj0K4qXsbvOO1mdp2pbt7pqvraPj6gfTnq0oQORAIRWb"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Tai thang tung tab tu Google
+        run: |
+          for g in 116298870 959678702 513088085 1068979883 731668787 2029983632; do
+            U="https://docs.google.com/spreadsheets/d/e/$PUB/pub?gid=$g&single=true&output=csv"
+            out=$(curl -sSL -m 120 -o /tmp/t.csv -w '%{http_code}|%{time_total}|%{size_download}' "$U" 2>/dev/null || echo '000|timeout|0')
+            code=${out%%|*}; rest=${out#*|}; tg=${rest%%|*}; sz=${rest##*|}
+            h=$(head -c 12 /tmp/t.csv 2>/dev/null | tr -d '\n')
+            ghi=OK
+            case "$h" in '<!DOCTYPE'*|'<html'*) ghi='TRA VE HTML' ;; esac
+            [ "$code" = "200" ] || ghi="HTTP $code"
+            dong=$(wc -l < /tmp/t.csv 2>/dev/null || echo 0)
+            printf 'gid %-12s HTTP %-3s · %8ss · %9s byte · %5s dong · %s\n' "$g" "$code" "$tg" "$sz" "$dong" "$ghi"
+            [ "$ghi" = "OK" ] && head -c 160 /tmp/t.csv | tr '\n' ' ' && echo
+          done
+
+      - name: Goi lai /api/tien vai lan
+        run: |
+          U="https://bc-pkt.vercel.app/api/tien?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F$PUB%2Fpubhtml&gids=116298870,959678702,513088085,1068979883,731668787,2029983632"
+          for i in 1 2 3; do
+            curl -sS -m 290 -o /tmp/r.json -w "lan $i: HTTP %{http_code} · %{time_total}s · %{size_download} byte\n" "$U" || true
+            head -c 260 /tmp/r.json; echo; echo
+            sleep 60
+          done
