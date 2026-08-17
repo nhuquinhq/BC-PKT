@@ -1,0 +1,145 @@
+# Doi chieu so BOT bay gio ban ra voi so tinh thang tu file V3.
+# Chay sau khi Vercel deploy xong. Chi doc, khong gui Telegram.
+name: Doi chieu bot V3
+
+on:
+  workflow_dispatch:
+    inputs:
+      ngay:
+        description: 'Ngay dd/mm/yyyy (bo trong = hom nay gio VN)'
+        required: false
+        default: ''
+
+env:
+  DH_V3: "1AIJYxsS-SKcE-DVFWom0DqQsGJmvIo03JzBViCLJe3M"
+  API_V3: "1MgKdAkn_shglL0xoduuUnqhKTmJDwpCilUnJgwpmAEQ"
+
+jobs:
+  doi_chieu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ngay
+        id: ng
+        run: |
+          N="${{ inputs.ngay }}"
+          [ -z "$N" ] && N=$(TZ=Asia/Ho_Chi_Minh date +%d/%m/%Y)
+          echo "ngay=$N" >> $GITHUB_OUTPUT
+          echo "Soi ngay $N · gio VN $(TZ=Asia/Ho_Chi_Minh date +'%H:%M %d/%m/%Y')"
+
+      - name: 1. So BOT dang bắn
+        run: |
+          curl -sS -m 290 -o /tmp/pv.json "https://bc-pkt.vercel.app/api/bot/cpv?preview=1" || true
+          python3 - <<'PY'
+          import json, re
+          d = json.load(open('/tmp/pv.json'))
+          if d.get('error'): print('LOI:', d['error']); raise SystemExit
+          print(re.sub(r'</?b>', '', d.get('message') or '(trong)'))
+          PY
+
+      - name: 2. Tinh thang tu file V3
+        env:
+          NGAY: ${{ steps.ng.outputs.ngay }}
+        run: |
+          for f in "$DH_V3:/tmp/dh.csv" "$API_V3:/tmp/api.csv"; do
+            id="${f%%:*}"; out="${f##*:}"
+            for i in 1 2 3 4 5; do
+              rm -f "$out"
+              code=$(curl -sSL -m 120 -o "$out" -w '%{http_code}' \
+                "https://docs.google.com/spreadsheets/d/$id/export?format=csv&gid=0" 2>/dev/null || echo 000)
+              sz=$(stat -c%s "$out" 2>/dev/null || echo 0)
+              echo "$out lan $i: HTTP $code · $sz byte"
+              [ "$code" = "200" ] && [ "$sz" -gt 5000 ] && break
+              sleep 10
+            done
+          done
+          python3 - <<'PY'
+          import csv, os, re, json, collections, unicodedata
+          csv.field_size_limit(10**9)
+          ngay = os.environ['NGAY']; thang = ngay[3:]
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+
+          def bd(s):
+              s = unicodedata.normalize('NFD', str(s or ''))
+              s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+              return s.replace('đ','d').replace('Đ','D').lower().strip()
+          def viNum(s):
+              s = str(s or '').strip().replace(' ', '')
+              if not s or s == '-': return 0.0
+              am = s.startswith('-') or (s.startswith('(') and s.endswith(')'))
+              s = s.strip('()-')
+              if ',' in s and '.' in s: s = s.replace('.','').replace(',','.')
+              elif re.search(r',\d{1,2}$', s): s = s.replace('.','').replace(',','.')
+              else: s = re.sub(r'[.,](?=\d{3}\b)', '', s)
+              try: v = float(s)
+              except ValueError: return 0.0
+              return -v if am else v
+          def ngayChuan(s):
+              s = str(s or '').strip()
+              m = re.search(r'(\d{4})-(\d{2})-(\d{2})', s)
+              if m: return f'{m.group(3)}/{m.group(2)}/{m.group(1)}'
+              m = re.search(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', s)
+              if m: return f'{int(m.group(1)):02d}/{int(m.group(2)):02d}/{m.group(3)}'
+              return ''
+
+          # Bang ty gia REV — dung dung file datalake cua repo
+          bang = json.load(open('lib/data/ty-gia-tuan.json', encoding='utf-8'))
+          moc = sorted([(f"{m['tu'][6:]}{m['tu'][3:5]}{m['tu'][:2]}", float(m['ty_gia'])) for m in bang['moc']], reverse=True)
+          def tyGia(d):
+              k = f'{d[6:]}{d[3:5]}{d[:2]}'
+              for kk, v in moc:
+                  if kk <= k: return v
+              return 0.0
+
+          def doc(path, ten):
+              if not os.path.exists(path) or os.path.getsize(path) == 0:
+                  print(f'{ten}: khong co file'); return {}
+              rows = list(csv.reader(open(path, encoding='utf-8', errors='ignore')))
+              cols = [c.strip() for c in rows[0]]
+              i_ht = next((i for i, c in enumerate(cols) if 'hoan tat' in bd(c) and 'ngay' in bd(c)), None)
+              i_usd = next((i for i, c in enumerate(cols) if bd(c) == 'doanh thu'), None)
+              i_st = next((i for i, c in enumerate(cols) if 'trang thai' in bd(c)), None)
+              i_san = next((i for i, c in enumerate(cols) if bd(c) == 'san'), None)
+              def ok(s):
+                  s = bd(s)
+                  return (not s) or 'hoan tat' in s or 'hoan thanh' in s or 'complete' in s or 'success' in s
+              ra = collections.defaultdict(lambda: [0, 0.0])
+              for r in rows[1:]:
+                  g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
+                  if not str(g(i_san)).strip(): continue
+                  if not ok(g(i_st)): continue
+                  d = ngayChuan(g(i_ht))
+                  if not d: continue
+                  ra[d][0] += 1; ra[d][1] += viNum(g(i_usd))
+              print(f'{ten}: {len(rows)} dong · {len(ra)} ngay')
+              return ra
+
+          dh = doc('/tmp/dh.csv', 'Don hang V3')
+          ap = doc('/tmp/api.csv', 'API V3')
+          gop = collections.defaultdict(lambda: [0, 0.0])
+          for src in (dh, ap):
+              for d, v in src.items():
+                  gop[d][0] += v[0]; gop[d][1] += v[1]
+
+          trong = {d: v for d, v in gop.items() if d[3:] == thang}
+          xep = sorted(trong, key=lambda x: int(x[:2]))
+          print(f'\n===== THANG {thang} =====')
+          for d in xep:
+              c, u = trong[d]
+              tg = tyGia(d)
+              sao = '  <<<' if d == ngay else ''
+              print(f'  {d}  {n(c):>6} don · ${u:>10,.0f} · ty gia {n(tg):>7} · {n(u*tg):>16} d{sao}')
+          tc = sum(v[0] for v in trong.values())
+          tu = sum(v[1] for v in trong.values())
+          tv = sum(v[1] * tyGia(d) for d, v in trong.items())
+          print(f'  {"LUY KE":<10} {n(tc):>6} don · ${tu:>10,.0f} · {" ":>15} {n(tv):>16} d')
+
+          hn = trong.get(ngay, [0, 0.0])
+          print(f'\n===== NGAY {ngay} =====')
+          print(f'  So don   : {n(hn[0])}')
+          print(f'  GMV (USD): ${hn[1]:,.0f}')
+          print(f'  Ty gia   : {n(tyGia(ngay))} d/USDT')
+          print(f'  GMV (VND): {n(hn[1] * tyGia(ngay))}')
+          PY
