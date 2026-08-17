@@ -57,7 +57,7 @@ function csvUrl(url, gid) {
   return `https://docs.google.com/spreadsheets/d/e/${pub[1]}/pub?gid=${gid}&single=true&output=csv`;
 }
 
-async function taiTab(url, gid) {
+async function taiTab(url, gid, moi = false) {
   const u = csvUrl(url, gid);
   if (!u) throw new Error('Link Charging không phải link đã công bố');
   const { val } = await nhoDocFile(`charging|${u}`, async () => {
@@ -75,7 +75,7 @@ async function taiTab(url, gid) {
       }
     }
     throw loiCuoi;
-  });
+  }, { moi });
   return Papa.parse(val, { header: false, skipEmptyLines: false }).data;
 }
 
@@ -112,6 +112,9 @@ const NGAY_CUOI_THANG = (nam, thang) => new Date(Date.UTC(nam, thang, 0)).getUTC
 
 export async function GET(req) {
   const q = new URL(req.url).searchParams;
+  /* moi=1: bỏ qua bản nhớ, đọc lại Google. Trình duyệt gửi tham số này ở lượt
+     hỏi lại sau khi đã hiện số cũ — thiếu chỗ nhận thì lượt đó vô nghĩa. */
+  const moi = q.get('moi') === '1';
   const url = q.get('url');
   /* Đọc 'gids' TRƯỚC 'gid' — sheetQuery luôn append gid=<cfg.gid||'0'> nên
      ưu tiên 'gid' sẽ vớ phải '0' và đòi nhầm tab (đã dính ở /api/a10gg). */
@@ -120,7 +123,7 @@ export async function GET(req) {
 
   let grid;
   try {
-    grid = await taiTab(url, gid);
+    grid = await taiTab(url, gid, moi);
   } catch (e) {
     return Response.json({ error: `Charging: ${e.message}` }, { status: 502 });
   }

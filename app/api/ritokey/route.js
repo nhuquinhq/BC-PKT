@@ -67,7 +67,7 @@ function csvUrl(url, gid) {
 }
 
 /* Có nhớ: PKT12 và PKT20 đọc chung file này — xem lib/boNho.js */
-async function taiTab(url, gid) {
+async function taiTab(url, gid, moi = false) {
   const u = csvUrl(url, gid);
   if (!u) return [];
   const { val } = await nhoDocFile(`rito|${u}`, async () => {
@@ -85,7 +85,7 @@ async function taiTab(url, gid) {
       }
     }
     throw loiCuoi;
-  });
+  }, { moi });
   return Papa.parse(val, { header: false, skipEmptyLines: false }).data;
 }
 
@@ -173,6 +173,9 @@ function docDaily(grid) {
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
+  /* moi=1: bỏ qua bản nhớ, đọc lại Google. Trình duyệt gửi tham số này ở lượt
+     hỏi lại sau khi đã hiện số cũ — thiếu chỗ nhận thì lượt đó vô nghĩa. */
+  const moi = searchParams.get('moi') === '1';
   const url = searchParams.get('url');
   const gids = (searchParams.get('gids') || searchParams.get('gid') || '')
     .split(',').map((x) => x.trim()).filter(Boolean);
@@ -186,7 +189,7 @@ export async function GET(request) {
   if (url && gids.length) {
     for (const g of gids) {
       try {
-        const live = docDaily(await taiTab(url, g));
+        const live = docDaily(await taiTab(url, g, moi));
         for (const r of live) theoNgay.set(r.ngay, { ...r, nguon: 'Đọc trực tiếp' });
         songay += live.length;
       } catch (e) {

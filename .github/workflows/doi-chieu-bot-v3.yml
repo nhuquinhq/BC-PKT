@@ -86,7 +86,8 @@ jobs:
 
           # Bang ty gia REV — dung dung file datalake cua repo
           bang = json.load(open('lib/data/ty-gia-tuan.json', encoding='utf-8'))
-          moc = sorted([(f"{m['tu'][6:]}{m['tu'][3:5]}{m['tu'][:2]}", float(m['ty_gia'])) for m in bang['moc']], reverse=True)
+          # Truong ty gia doanh thu ten la `re` (con `co` la ty gia gia von)
+          moc = sorted([(f"{m['tu'][6:]}{m['tu'][3:5]}{m['tu'][:2]}", float(m['re'])) for m in bang['moc']], reverse=True)
           def tyGia(d):
               k = f'{d[6:]}{d[3:5]}{d[:2]}'
               for kk, v in moc:
