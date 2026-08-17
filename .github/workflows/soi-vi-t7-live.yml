@@ -1,6 +1,7 @@
-# Xem /api/vi dang doc file vi T7 LIVE ra so gi, de doi chieu voi snapshot
-# sap dua vao datalake. Chi doc, khong ghi gi.
-name: Soi vi T7 va T8 live
+# Kiem tra /api/vi theo DUNG cau hinh PKT6 dang chay: chi con file T8 doc
+# live, cac thang T4-T7 lay tu datalake. Xem T7 co ra so tu datalake khong,
+# va T8 da nhan dung cot phan loai chua.
+name: Soi vi PKT6
 
 on:
   workflow_dispatch: {}
@@ -8,38 +9,38 @@ on:
 jobs:
   soi:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
-      - name: Goi /api/vi cho tung thang
+      - name: Goi /api/vi dung cau hinh PKT6
         run: |
-          T7="https://bc-pkt.vercel.app/api/vi?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vQumf3iUT9n-lh-sNiJ1TeV24RjqRm1Eo6RTMafFsN9g_Hr6qtKZfyjFzb4gBpo5QhTieMSqU4sJORx%2Fpubhtml%3Fgid%3D1106881524%26single%3Dtrue&gid=1106881524&month=7&year=2026"
-          T8="https://bc-pkt.vercel.app/api/vi?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vTmigt_mS16GnHQ5qpx2jxv_0F9irT-jJt6c3KyfUrTn2AgbZVZ4d5Q0fBvoINSmnMJHm5GcDU58ai2%2Fpubhtml%3Fgid%3D1425184209%26single%3Dtrue&gid=1425184209&month=8&year=2026"
-          echo "===== THANG 8 (dang chay) ====="
-          curl -sS -m 290 -o /tmp/vi8.json -w 'HTTP %{http_code} · %{time_total}s\n' "$T8" || true
-          head -c 400 /tmp/vi8.json; echo; echo
-          echo "===== THANG 7 ====="
-          U="$T7"
-          for i in 1 2 3; do
-            curl -sS -m 290 -o /tmp/vi.json -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' "$U" && break
-            echo "thu lai"; sleep 20
+          U="https://bc-pkt.vercel.app/api/vi?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vTmigt_mS16GnHQ5qpx2jxv_0F9irT-jJt6c3KyfUrTn2AgbZVZ4d5Q0fBvoINSmnMJHm5GcDU58ai2%2Fpubhtml%3Fgid%3D1425184209%26single%3Dtrue&gid=1425184209&month=8&year=2026&hist=1"
+          # File vi T8 Google hay xuat hut — thu nhieu lan
+          cat > /tmp/co_detail.py <<'CHK'
+          import json, sys
+          try: sys.exit(0 if json.load(open('/tmp/vi.json')).get('detail') else 1)
+          except Exception: sys.exit(1)
+          CHK
+          sed -i 's/^          //' /tmp/co_detail.py
+          for i in 1 2 3 4 5; do
+            curl -sS -m 290 -o /tmp/vi.json -w "lan $i: HTTP %{http_code} · %{time_total}s · %{size_download} byte\n" "$U" || true
+            python3 /tmp/co_detail.py && break
+            echo "   $(head -c 200 /tmp/vi.json)"; sleep 25
           done
           python3 - <<'PY'
           import json, collections
           d = json.load(open('/tmp/vi.json'))
-          if d.get('error'): print('LOI:', d['error']); raise SystemExit
-          det = [r for r in d.get('detail', []) if r.get('ngay','').endswith('/07/2026')]
+          if not d.get('detail'):
+              print('KHONG LAY DUOC:', d.get('error')); raise SystemExit
           n = lambda x: f'{x:,.0f}'.replace(',', '.')
-          s = lambda k: sum(r.get(k) or 0 for r in det)
-          print('meta:', {k: v for k, v in (d.get('meta') or {}).items() if k in ('rows_used','ok','from','to','loi','bo_nho')})
-          print(f'\nT7 LIVE: {len(det)} dong gop · {n(s("so_don"))} dong DT')
-          print(f'  USD      {s("doanh_thu_usd"):,.2f}')
-          print(f'  DT VND   {n(s("thanh_tien"))}')
-          print(f'  Gia von  {n(s("gia_von"))}')
-          print(f'  Loi nhuan{n(s("loi_nhuan"))}')
-          c = collections.Counter(r['spdv'] for r in det)
-          print('\n  spdv:', dict(c))
-          b = collections.Counter(r['bu'] for r in det)
-          print('  bu  :', dict(b))
-          ng = sorted({r['ngay'] for r in det}, key=lambda x: int(x[:2]))
-          print(f'  ngay : {len(ng)} · {ng[0]} -> {ng[-1]}' if ng else '  khong co ngay')
+          det = d['detail']
+          print('meta:', {k: v for k, v in (d.get('meta') or {}).items() if k in ('rows_used','main_error','from','to')})
+          for thang in ('07/2026', '08/2026'):
+              rs = [r for r in det if r['ngay'].endswith('/' + thang)]
+              if not rs:
+                  print(f'\n{thang}: KHONG CO DONG NAO'); continue
+              s = lambda k: sum(r.get(k) or 0 for r in rs)
+              print(f'\n{thang}: {len(rs)} dong gop · {n(s("so_don"))} dong DT')
+              print(f'   DT VND  {n(s("thanh_tien"))} · Gia von {n(s("gia_von"))}')
+              print(f'   spdv: {dict(collections.Counter(r["spdv"] for r in rs))}')
+          print('\nCac thang co trong ket qua:', sorted({r['ngay'][3:] for r in det}))
           PY
