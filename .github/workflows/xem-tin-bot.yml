@@ -1,0 +1,28 @@
+# Chi in ban xem truoc cua bot CPV, khong gui Telegram. Tach rieng de output
+# nam cuoi log, khoi lan voi cac buoc khac khi doc lai.
+name: Xem tin bot
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  xem:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Ban xem truoc
+        run: |
+          echo "Gio VN: $(TZ=Asia/Ho_Chi_Minh date +'%H:%M %d/%m/%Y')"
+          curl -sS -m 290 -o /tmp/pv.json "https://bc-pkt.vercel.app/api/bot/cpv?preview=1" || true
+          python3 - <<'PY'
+          import json, re
+          d = json.load(open('/tmp/pv.json'))
+          if d.get('error'):
+              print('LOI:', d['error']); raise SystemExit
+          bo = lambda s: re.sub(r'</?b>', '', s or '')
+          print('======== TIN 1 ========')
+          print(bo(d.get('message')))
+          print()
+          print('======== TIN 2 ========')
+          print(bo(d.get('message2')))
+          PY
