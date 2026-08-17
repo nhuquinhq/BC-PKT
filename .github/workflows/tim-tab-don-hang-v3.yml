@@ -1,0 +1,94 @@
+# File "Bao cao don hang V3" co nhieu tab; gid 1245992231 la tab TONG HOP
+# (bang theo ngay, khong co Order ID) nen /api/cpv khong doc duoc.
+# Workflow nay liet ke moi tab kem gid, roi do toc do + soi khuon cot
+# cua tung tab de tim dung tab don hang muc TUNG DON.
+name: Tim tab don hang V3
+
+on:
+  workflow_dispatch: {}
+
+env:
+  DH_V3: "1AIJYxsS-SKcE-DVFWom0DqQsGJmvIo03JzBViCLJe3M"
+
+jobs:
+  tim:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Liet ke tab va gid
+        run: |
+          # Trang htmlview cua file chia se cong khai co chua danh sach tab + gid
+          curl -sSL -m 90 -o /tmp/hv.html "https://docs.google.com/spreadsheets/d/$DH_V3/htmlview"
+          echo "htmlview: $(stat -c%s /tmp/hv.html) byte"
+          python3 - <<'PY' | tee /tmp/tabs.txt
+          import re, html
+          s = open('/tmp/hv.html', encoding='utf-8', errors='ignore').read()
+          # Cac cap (gid, ten tab) nam trong bang menu cuoi trang
+          cap = re.findall(r'#gid=(\d+)[^>]*>([^<]{1,80})</a>', s)
+          seen = set(); ra = []
+          for g, t in cap:
+              t = html.unescape(t).strip()
+              if g in seen or not t: continue
+              seen.add(g); ra.append((g, t))
+          if not ra:
+              # Du phong: doc bien items trong script
+              for g, t in re.findall(r'\{"name":"([^"]+)","gid":"?(\d+)"?', s):
+                  ra.append((t, g))
+          for g, t in ra: print(f'{g}\t{t}')
+          PY
+
+      - name: Do toc do va soi khuon cot tung tab
+        run: |
+          python3 - <<'PY' > /tmp/gids.txt
+          for ln in open('/tmp/tabs.txt', encoding='utf-8'):
+              p = ln.rstrip('\n').split('\t')
+              if len(p) == 2 and p[0].isdigit(): print(p[0], p[1], sep='\t')
+          PY
+          echo "So tab tim duoc: $(wc -l < /tmp/gids.txt)"
+          while IFS=$'\t' read -r gid ten; do
+            [ -z "$gid" ] && continue
+            echo "===== gid $gid · $ten"
+            rm -f /tmp/t.csv
+            out=$(curl -sSL -m 120 -o /tmp/t.csv -w '%{http_code}|%{time_total}|%{size_download}' \
+              "https://docs.google.com/spreadsheets/d/$DH_V3/export?format=csv&gid=$gid" 2>/dev/null || echo '000|timeout|0')
+            code=${out%%|*}; rest=${out#*|}; tg=${rest%%|*}; sz=${rest##*|}
+            printf '   HTTP %s · %ss · %s byte\n' "$code" "$tg" "$sz"
+            GID="$gid" python3 - <<'PY'
+          import csv, os, unicodedata
+          csv.field_size_limit(10**9)
+          def bd(s):
+              s = unicodedata.normalize('NFD', str(s or ''))
+              s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+              return s.replace('đ','d').replace('Đ','D').lower().strip()
+          try: rows = list(csv.reader(open('/tmp/t.csv', encoding='utf-8', errors='ignore')))
+          except Exception as e: print('   khong doc duoc:', e); raise SystemExit
+          hdr = -1
+          for i in range(min(len(rows), 40)):
+              h = [bd(c) for c in rows[i]]
+              if 'order id' in h or 'order_id' in h or 'ma don' in h: hdr = i; break
+              if any(x == 'san' for x in h) and any(x.startswith('doanh thu') for x in h): hdr = i; break
+          print(f'   {len(rows)} dong · dong tieu de: {hdr}', end='')
+          if hdr < 0: print('  -> KHONG phai tab don hang'); raise SystemExit
+          cols = [c.strip() for c in rows[hdr]]
+          def tim(*t):
+              for k in t:
+                  chua = k.startswith('~'); kk = k[1:] if chua else k
+                  for i, c in enumerate(cols):
+                      if (kk in bd(c)) if chua else (bd(c) == kk): return i
+              return -1
+          can = {'Order ID': tim('order id','order_id','ma don'), 'San': tim('san'),
+                 'Doanh thu': tim('doanh thu','~doanh thu'), 'Thanh tien': tim('thanh tien','~thanh tien'),
+                 'Trang thai': tim('trang thai','~trang thai','status'),
+                 'Ngay hoan tat': tim('ngay hoan tat','~ngay hoan tat','~hoan tat'),
+                 'BU': tim('bu','~khoi kd'), 'Ty gia tuan': tim('~ty gia tuan'),
+                 'Loi nhuan': tim('loi nhuan','~loi nhuan')}
+          thieu = [k for k, v in can.items() if v < 0]
+          print(f'  -> TAB DON HANG ({len(cols)} cot)')
+          for k, v in can.items():
+              print(f'      {k:<14} {"cot "+str(v)+" = "+cols[v] if v >= 0 else "KHONG THAY"}')
+          gv = [i for i, c in enumerate(cols) if bd(c) == 'gia von']
+          print(f'      Cot ten "Gia von": {gv}')
+          print(f'      >>> {"DU COT" if not thieu else "THIEU: " + ", ".join(thieu)}')
+          PY
+            echo
+          done < /tmp/gids.txt
