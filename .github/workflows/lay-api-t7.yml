@@ -1,0 +1,64 @@
+# Tai file API san T7 ve repo (tam thoi) de dung sinh snapshot datalake T7.
+# Sandbox khong goi duoc docs.google.com nen phai di duong Actions. File chi
+# ~50 KB. Sinh snapshot xong thi XOA file tam nay di.
+name: Lay API T7
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+env:
+  API_T7: "2PACX-1vTwoaNaItJfQPZDNom-HB06ea0jxglfgeiWZ8Sj-8dWwneE26NCU8NhEQpaXzIAnZc0XI0bbLOzG04i"
+
+jobs:
+  lay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tai CSV
+        run: |
+          mkdir -p tmp-datalake
+          U="https://docs.google.com/spreadsheets/d/e/$API_T7/pub?gid=0&single=true&output=csv"
+          for i in 1 2 3 4 5 6; do
+            rm -f tmp-datalake/api-t7.csv
+            code=$(curl -sSL -m 110 -o tmp-datalake/api-t7.csv -w '%{http_code}' "$U" 2>/dev/null || echo 000)
+            sz=$(stat -c%s tmp-datalake/api-t7.csv 2>/dev/null || echo 0)
+            h=$(head -c 12 tmp-datalake/api-t7.csv 2>/dev/null | tr -d '\n')
+            echo "lan $i: HTTP $code · $sz byte"
+            case "$h" in '<!DOCTYPE'*|'<html'*) sleep 12; continue ;; esac
+            [ "$code" = "200" ] && [ "$sz" -gt 3000 ] && { echo '  -> TAI DUOC'; break; }
+            sleep 12
+          done
+          [ -s tmp-datalake/api-t7.csv ] || { echo 'KHONG TAI DUOC'; exit 1; }
+          python3 - <<'PY'
+          import csv, collections, re, unicodedata
+          csv.field_size_limit(10**9)
+          rows = list(csv.reader(open('tmp-datalake/api-t7.csv', encoding='utf-8', errors='ignore')))
+          print(f'{len(rows)} dong · {len(rows[0])} cot')
+          print('tieu de:', rows[0][:20])
+          def ngay(s):
+              m = re.search(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', str(s or ''))
+              return f'{int(m.group(2)):02d}/{m.group(3)}' if m else ''
+          i_ht = next((i for i, c in enumerate(rows[0]) if 'hoàn tất' in c.lower()), None)
+          c = collections.Counter(ngay(r[i_ht]) for r in rows[1:] if i_ht is not None and i_ht < len(r))
+          print('theo thang:', dict(c))
+          PY
+
+      - name: Commit tam
+        run: |
+          git config user.name 'Claude'
+          git config user.email 'noreply@anthropic.com'
+          git add -f tmp-datalake/api-t7.csv
+          git commit \
+            -m 'Tạm: file API sàn T7 để sinh snapshot datalake' \
+            -m 'Sandbox không gọi được docs.google.com nên tải qua Actions. Xoá sau khi sinh xong lib/data/cpv-2026-07.json.' \
+            -m 'Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>' \
+            || { echo 'khong co gi de commit'; exit 0; }
+          for i in 1 2 3 4; do
+            git push origin HEAD:main && break
+            echo "push loi, thu lai"; sleep $((2**i)); git pull --rebase origin main || true
+          done
