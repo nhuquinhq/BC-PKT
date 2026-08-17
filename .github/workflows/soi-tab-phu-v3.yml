@@ -1,0 +1,53 @@
+# Tab don hang gid=0 cua file V3 la ban xuat THO: co Doanh thu USD nhung
+# KHONG co Thanh tien (VND), Ty gia tuan, Loi nhuan, BU — day la nhung cot
+# ke toan tu dat cong thuc ben file BE cu. Doi sang V3 ma khong tim duoc ty
+# gia thi bot se bao GMV (VND) = 0.
+# Workflow nay do noi dung cac tab NHO de xem ty gia tuan nam o dau.
+name: Soi tab phu V3
+
+on:
+  workflow_dispatch: {}
+
+env:
+  DH_V3: "1AIJYxsS-SKcE-DVFWom0DqQsGJmvIo03JzBViCLJe3M"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Do noi dung cac tab nho
+        run: |
+          for gid in 1847497253 723376432 1732010204 1245992231; do
+            echo "================= gid $gid"
+            rm -f /tmp/t.csv
+            curl -sSL -m 90 -o /tmp/t.csv \
+              "https://docs.google.com/spreadsheets/d/$DH_V3/export?format=csv&gid=$gid" 2>/dev/null || true
+            echo "   $(stat -c%s /tmp/t.csv 2>/dev/null || echo 0) byte"
+            python3 - <<'PY'
+          import csv
+          csv.field_size_limit(10**9)
+          rows = list(csv.reader(open('/tmp/t.csv', encoding='utf-8', errors='ignore')))
+          print(f'   {len(rows)} dong')
+          for i, r in enumerate(rows[:18]):
+              cel = [c.strip() for c in r[:10]]
+              if not any(cel): continue
+              print(f'   {i:>3} | ' + ' | '.join(cel))
+          if len(rows) > 18:
+              print('   ...')
+              for i, r in enumerate(rows[-4:], start=len(rows)-4):
+                  cel = [c.strip() for c in r[:10]]
+                  if any(cel): print(f'   {i:>3} | ' + ' | '.join(cel))
+          PY
+            echo
+          done
+
+      - name: Tim chu "ty gia" trong moi tab
+        run: |
+          for gid in 0 1847497253 723376432 1732010204 1245992231 97984685 209599086; do
+            rm -f /tmp/t.csv
+            curl -sSL -m 120 -o /tmp/t.csv \
+              "https://docs.google.com/spreadsheets/d/$DH_V3/export?format=csv&gid=$gid" 2>/dev/null || true
+            hit=$(head -c 400000 /tmp/t.csv | grep -ic "tỷ giá\|ty gia\|rate" || true)
+            printf 'gid %-12s · %-9s byte · so lan gap "ty gia/rate": %s\n' "$gid" "$(stat -c%s /tmp/t.csv 2>/dev/null || echo 0)" "$hit"
+          done
