@@ -13,7 +13,7 @@
 import Papa from 'papaparse';
 import { spdvOf, teamOf, SAN_BU_MAP } from '@/lib/cpvDims';
 import { nhoDoc, nhoDocFile } from '@/lib/boNho';
-import { tyGiaRe, TY_GIA_CAP_NHAT } from '@/lib/tyGia';
+import { tyGiaRe, tyGiaCo, TY_GIA_CAP_NHAT } from '@/lib/tyGia';
 /* "Datalake" tháng đã chốt sổ: dữ liệu đã gộp sẵn (Ngày × Sàn × SPDV) đóng gói
    tĩnh theo app — không phải đọc lại Google Sheet các tháng cũ ở mỗi lượt xem.
    Sinh file bằng chính API này (xem README trong lib/data nếu cần làm lại). */
@@ -316,18 +316,22 @@ async function docLive({ urls, gids, url2s, gid2s, san2 }) {
       const p = parseOrders(loaded[i].grid);
       if (!mainOkCount) mainMeta = p.meta;
       mainOkCount += 1;
-      /* Nguồn thô không có cột Thành tiền: quy đổi bằng TỶ GIÁ REV theo tuần
-         trong lib/data/ty-gia-tuan.json. Giá vốn của nguồn này cũng là USD
-         nên quy đổi cùng lượt, nếu không Lợi nhuận sẽ là VND trừ USD. */
+      /* Nguồn thô không có cột Thành tiền: quy đổi bằng bảng tỷ giá tuần ở
+         lib/data/ty-gia-tuan.json — cùng cách file BE cũ đặt công thức và
+         cùng cách khối đơn API bên dưới đang làm:
+           Thành tiền = DThu THỰC NHẬN × REV   (không phải doanh thu gộp)
+           Giá vốn    = Giá vốn (USD)  × CO    (giá vốn đi tỷ giá riêng)
+         Lấy nhầm doanh thu gộp thì tỷ giá suy ngược ra vống lên đúng bằng
+         phần phí sàn — đã dính, bot báo 26.073 thay vì 25.282. */
       if (!p.meta.co_thanh_tien) {
         for (const r of p.rows) {
           if (r.sc !== 'ok') continue;
-          const rate = tyGiaRe(r.sortKey);
-          if (!rate) { ngoaiBangTyGia += 1; continue; }
-          r.ty_gia_tuan = rate;
-          r.thanh_tien = r.doanh_thu_usd * rate;
-          r.gia_von = r.gia_von * rate;
-          r.phi_san_vnd = r.phi_san * rate;
+          const re = tyGiaRe(r.sortKey);
+          if (!re) { ngoaiBangTyGia += 1; continue; }
+          r.ty_gia_tuan = re;
+          r.thanh_tien = r.dthu_thuc * re;
+          r.gia_von = r.gia_von * tyGiaCo(r.sortKey);
+          r.phi_san_vnd = r.phi_san * re;
           r.loi_nhuan = r.thanh_tien - r.gia_von;
           quyDoiVnd += 1;
         }
