@@ -29,6 +29,13 @@ const HIST = [histT1, histT2, histT3, histT4, histT5, histT6];
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
+/* Đánh dấu PHIÊN BẢN CÁCH TÍNH, ghép vào khoá bộ nhớ đệm.
+   Vì sao cần: bản gộp được nhớ trên KV tới 6 tiếng, khoá cũ chỉ gồm URL và
+   gid nên sửa công thức xong deploy lên thì trang vẫn trả bản tính theo công
+   thức CŨ cho tới khi hết hạn nhớ — đã dính đúng vụ này khi sửa quy đổi VND.
+   ĐỔI CHUỖI NÀY mỗi khi sửa cách tính tiền, đừng chỉ sửa công thức. */
+const PHIEN_BAN_TINH = 'v2-quydoi-net-re-co';
+
 const norm = (s) =>
   String(s ?? '')
     .toLowerCase()
@@ -550,7 +557,7 @@ export async function GET(request) {
   if (!urls.length) return Response.json({ error: 'Thiếu url' }, { status: 400 });
 
   const thamSo = { urls, gids, url2s, gid2s, san2 };
-  const khoa = `cpv|${urls.join(',')}|${gids.join(',')}|${url2s.join(',')}|${gid2s.join(',')}|${san2}`;
+  const khoa = `cpv|${PHIEN_BAN_TINH}|${urls.join(',')}|${gids.join(',')}|${url2s.join(',')}|${gid2s.join(',')}|${san2}`;
 
   let goi = null;
   let noCostList = null;
