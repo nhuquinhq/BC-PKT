@@ -1,0 +1,39 @@
+# Xem /api/vi dang doc file vi T7 LIVE ra so gi, de doi chieu voi snapshot
+# sap dua vao datalake. Chi doc, khong ghi gi.
+name: Soi vi T7 live
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Goi /api/vi cho rieng thang 7
+        run: |
+          U="https://bc-pkt.vercel.app/api/vi?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vQumf3iUT9n-lh-sNiJ1TeV24RjqRm1Eo6RTMafFsN9g_Hr6qtKZfyjFzb4gBpo5QhTieMSqU4sJORx%2Fpubhtml%3Fgid%3D1106881524%26single%3Dtrue&gid=1106881524&month=7&year=2026"
+          for i in 1 2 3; do
+            curl -sS -m 290 -o /tmp/vi.json -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' "$U" && break
+            echo "thu lai"; sleep 20
+          done
+          python3 - <<'PY'
+          import json, collections
+          d = json.load(open('/tmp/vi.json'))
+          if d.get('error'): print('LOI:', d['error']); raise SystemExit
+          det = [r for r in d.get('detail', []) if r.get('ngay','').endswith('/07/2026')]
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+          s = lambda k: sum(r.get(k) or 0 for r in det)
+          print('meta:', {k: v for k, v in (d.get('meta') or {}).items() if k in ('rows_used','ok','from','to','loi','bo_nho')})
+          print(f'\nT7 LIVE: {len(det)} dong gop · {n(s("so_don"))} dong DT')
+          print(f'  USD      {s("doanh_thu_usd"):,.2f}')
+          print(f'  DT VND   {n(s("thanh_tien"))}')
+          print(f'  Gia von  {n(s("gia_von"))}')
+          print(f'  Loi nhuan{n(s("loi_nhuan"))}')
+          c = collections.Counter(r['spdv'] for r in det)
+          print('\n  spdv:', dict(c))
+          b = collections.Counter(r['bu'] for r in det)
+          print('  bu  :', dict(b))
+          ng = sorted({r['ngay'] for r in det}, key=lambda x: int(x[:2]))
+          print(f'  ngay : {len(ng)} · {ng[0]} -> {ng[-1]}' if ng else '  khong co ngay')
+          PY
