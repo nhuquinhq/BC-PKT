@@ -1,0 +1,175 @@
+# Do toc do tai 2 file nguon MOI cho bot CPV, so voi file BE cu.
+# Do dung duong ma Vercel se di: khong dang nhap, endpoint export?format=csv.
+# Chay 5 luot moi file de biet ty le thanh cong, khong phai chi 1 phat an may.
+name: Do toc do file moi
+
+on:
+  workflow_dispatch: {}
+
+env:
+  # File moi
+  DH_V3: "1AIJYxsS-SKcE-DVFWom0DqQsGJmvIo03JzBViCLJe3M"
+  DH_V3_GID: "1245992231"
+  API_V3: "1MgKdAkn_shglL0xoduuUnqhKTmJDwpCilUnJgwpmAEQ"
+  API_V3_GID: "0"
+  # File cu de doi chieu (ban publish)
+  BE_CU: "2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0"
+
+jobs:
+  do:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Do 5 luot moi nguon
+        run: |
+          # $1 ten · $2 url · $3 so luot
+          do_toc_do() {
+            ten="$1"; url="$2"; luot="${3:-5}"
+            echo "===== $ten"
+            echo "   $url"
+            ok=0
+            for i in $(seq 1 "$luot"); do
+              rm -f /tmp/x.csv
+              out=$(curl -sSL -m 120 -o /tmp/x.csv -w '%{http_code}|%{time_total}|%{size_download}' "$url" 2>/dev/null || echo '000|timeout|0')
+              code=${out%%|*}; rest=${out#*|}; tg=${rest%%|*}; sz=${rest##*|}
+              h=$(head -c 12 /tmp/x.csv 2>/dev/null | tr -d '\n')
+              ghi=""
+              case "$h" in
+                '<!DOCTYPE'*|'<html'*) ghi="TRA VE HTML (khong phai CSV)" ;;
+                *) if [ "$code" = "200" ] && [ "$sz" -gt 5000 ]; then ghi="OK"; ok=$((ok+1)); else ghi="HONG"; fi ;;
+              esac
+              printf '   luot %s: HTTP %-3s · %-8ss · %-9s byte · %s\n' "$i" "$code" "$tg" "$sz" "$ghi"
+              sleep 3
+            done
+            echo "   -> thanh cong $ok/$luot"
+            echo
+          }
+
+          do_toc_do "1. Bao cao don hang V3 (MOI) - export csv" \
+            "https://docs.google.com/spreadsheets/d/$DH_V3/export?format=csv&gid=$DH_V3_GID"
+
+          do_toc_do "2. API T8 V3 (MOI) - export csv" \
+            "https://docs.google.com/spreadsheets/d/$API_V3/export?format=csv&gid=$API_V3_GID"
+
+          do_toc_do "3. File BE T8 CU - ban publish (de doi chieu)" \
+            "https://docs.google.com/spreadsheets/d/e/$BE_CU/pub?gid=0&single=true&output=csv"
+
+      - name: Soi khuon cot file moi
+        run: |
+          lay() {
+            for i in 1 2 3 4 5 6 7 8; do
+              rm -f "$2"
+              code=$(curl -sSL -m 120 -o "$2" -w '%{http_code}' "$1" 2>/dev/null || echo 000)
+              sz=$(stat -c%s "$2" 2>/dev/null || echo 0)
+              h=$(head -c 12 "$2" 2>/dev/null | tr -d '\n')
+              case "$h" in '<!DOCTYPE'*|'<html'*) sleep 10; continue ;; esac
+              [ "$code" = "200" ] && [ "$sz" -gt 5000 ] && return 0
+              sleep 10
+            done
+            return 1
+          }
+          lay "https://docs.google.com/spreadsheets/d/$DH_V3/export?format=csv&gid=$DH_V3_GID" /tmp/dh.csv || echo 'khong lay duoc file don hang'
+          lay "https://docs.google.com/spreadsheets/d/$API_V3/export?format=csv&gid=$API_V3_GID" /tmp/api.csv || echo 'khong lay duoc file api'
+
+          python3 - <<'PY'
+          import csv, os, re, collections, unicodedata
+          csv.field_size_limit(10**9)
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+
+          def bd(s):
+              s = unicodedata.normalize('NFD', str(s or ''))
+              s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+              return s.replace('đ','d').replace('Đ','D').lower().strip()
+
+          def viNum(s):
+              s = str(s or '').strip().replace(' ', '')
+              if not s or s == '-': return 0.0
+              am = s.startswith('-') or (s.startswith('(') and s.endswith(')'))
+              s = s.strip('()-')
+              if ',' in s and '.' in s: s = s.replace('.','').replace(',','.')
+              elif re.search(r',\d{1,2}$', s): s = s.replace('.','').replace(',','.')
+              else: s = re.sub(r'[.,](?=\d{3}\b)', '', s)
+              try: v = float(s)
+              except ValueError: return 0.0
+              return -v if am else v
+
+          def ngayChuan(s):
+              s = str(s or '').strip()
+              m = re.search(r'(\d{4})-(\d{2})-(\d{2})', s)
+              if m: return f'{m.group(3)}/{m.group(2)}/{m.group(1)}'
+              m = re.search(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', s)
+              if m: return f'{int(m.group(1)):02d}/{int(m.group(2)):02d}/{m.group(3)}'
+              return ''
+
+          # Do dong tieu de giong parseOrders cua /api/cpv
+          def timHeader(rows):
+              for i in range(min(len(rows), 40)):
+                  h = [bd(c) for c in rows[i]]
+                  if 'order id' in h or 'order_id' in h or 'ma don' in h: return i
+                  if any(x == 'san' for x in h) and any(x.startswith('doanh thu') for x in h): return i
+              return -1
+
+          def soi(path, ten):
+              if not os.path.exists(path) or os.path.getsize(path) == 0:
+                  print(f'\n##### {ten}: khong co file'); return
+              rows = list(csv.reader(open(path, encoding='utf-8', errors='ignore')))
+              hdr = timHeader(rows)
+              print(f'\n##### {ten}')
+              print(f'  {len(rows)} dong · dong tieu de tim duoc: {hdr}')
+              if hdr < 0:
+                  print('  KHONG TIM DUOC DONG TIEU DE — /api/cpv se bao loi')
+                  print('  5 dong dau:')
+                  for r in rows[:5]: print('   ', r[:12])
+                  return
+              cols = [c.strip() for c in rows[hdr]]
+              print(f'  {len(cols)} cot:')
+              for i, c in enumerate(cols): print(f'    {i:>2}  {c}')
+
+              # Cac cot /api/cpv can
+              def tim(*ten_cot):
+                  for t in ten_cot:
+                      chua = t.startswith('~'); k = t[1:] if chua else t
+                      for i, c in enumerate(cols):
+                          if (k in bd(c)) if chua else (bd(c) == k): return i
+                  return -1
+              can = {
+                  'Order ID': tim('order id', 'order_id', 'ma don'),
+                  'San': tim('san'),
+                  'Doanh thu USD': tim('doanh thu', '~doanh thu'),
+                  'Thanh tien': tim('thanh tien', '~thanh tien'),
+                  'Trang thai': tim('trang thai', '~trang thai', 'status'),
+                  'Ngay hoan tat': tim('ngay hoan tat', '~ngay hoan tat', '~hoan tat'),
+                  'Ngay tao': tim('ngay tao', '~ngay tao'),
+                  'BU': tim('bu', '~khoi kd'),
+                  'Ty gia tuan': tim('~ty gia tuan'),
+              }
+              print('  Cot /api/cpv can:')
+              thieu = []
+              for k, v in can.items():
+                  print(f'    {k:<16} {"cot "+str(v)+" = "+cols[v] if v >= 0 else "KHONG THAY"}')
+                  if v < 0: thieu.append(k)
+              if thieu: print(f'  >>> THIEU: {", ".join(thieu)}')
+
+              # Cot "Gia von" trung ten
+              gv = [i for i, c in enumerate(cols) if bd(c) == 'gia von']
+              if len(gv) > 1: print(f'  Luu y: co {len(gv)} cot ten "Gia von" o vi tri {gv} — route lay cot dung truoc "Loi Nhuan"')
+
+              ht = can['Ngay hoan tat'] if can['Ngay hoan tat'] >= 0 else can['Ngay tao']
+              tt = can['Thanh tien']
+              if ht < 0: return
+              theoNgay = collections.defaultdict(lambda: [0, 0.0])
+              for r in rows[hdr+1:]:
+                  g = lambda i: (r[i] if (0 <= i < len(r)) else '')
+                  d = ngayChuan(g(ht))
+                  if not d: continue
+                  theoNgay[d][0] += 1
+                  if tt >= 0: theoNgay[d][1] += viNum(g(tt))
+              xep = sorted(theoNgay, key=lambda x: (x[6:], x[3:5], x[:2]))
+              print(f'  Co du lieu {len(xep)} ngay · moi nhat {xep[-1] if xep else "(khong co)"}')
+              for k in xep[-8:]:
+                  c, t = theoNgay[k]
+                  print(f'    {k}  {n(c):>6} dong · {n(t):>16} d')
+
+          soi('/tmp/dh.csv', 'Bao cao don hang V3 08/2026')
+          soi('/tmp/api.csv', 'API T8 V3')
+          PY
