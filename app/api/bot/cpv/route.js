@@ -25,7 +25,7 @@
    Gọi tay để thử: /api/bot/cpv?preview=1
    ============================================================ */
 
-import { getReport } from '@/lib/reports';
+import { getReport, BOT_CPV_SHEET } from '@/lib/reports';
 import { GET as docSoLieu } from '@/app/api/cpv/route';
 
 export const dynamic = 'force-dynamic';
@@ -198,8 +198,12 @@ export async function GET(request) {
   /* Số liệu lấy theo cấu hình PKT8, nhưng CHỈ THÁNG ĐANG CHẠY:
      bỏ file các tháng trước (cfg.mains) và datalake (hist) — bot chỉ cần
      hôm nay + lũy kế tháng, đọc ít file thì kịp trong hạn 60s của Vercel. */
-  const cfg = getReport('pkt8')?.sheet;
-  if (!cfg) return Response.json({ error: 'Thiếu cấu hình PKT8' }, { status: 500 });
+  /* Bot đọc nguồn RIÊNG (Báo cáo đơn hàng V3) chứ không dùng chung với
+     PKT8 nữa: file BE cũ Google xuất hụt 5/5 lượt, mỗi lượt treo 120s, nên
+     bot bắn ra số của bản lưu cũ. Nguồn V3 tải trong ~1s. Web vẫn giữ nguồn
+     cũ cho tới khi đối chiếu xong — xem BOT_CPV_SHEET trong lib/reports.js. */
+  const cfg = BOT_CPV_SHEET || getReport('pkt8')?.sheet;
+  if (!cfg) return Response.json({ error: 'Thiếu cấu hình nguồn CPV' }, { status: 500 });
   const qs = new URLSearchParams();
   qs.append('url', cfg.url);
   qs.append('gid', cfg.gid || '0');

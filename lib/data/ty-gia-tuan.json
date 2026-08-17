@@ -1,0 +1,16 @@
+{
+  "nguon": "Cột \"Tỷ giá tuần\" REV Rate của file CPV BE (tab Data) — cột 33.",
+  "ghi_chu": "File CPV BE có HAI cột cùng tên \"Tỷ giá tuần\": cột 32 là CO Rate dùng quy đổi GIÁ VỐN, cột 33 là REV Rate dùng quy đổi DOANH THU. Hai tỷ giá khác nhau, CO thường cao hơn REV khoảng 520 đ. Bảng này chỉ chứa REV vì báo cáo CPV chỉ báo doanh thu. Nguồn đơn hàng mới (Báo cáo đơn hàng V3) là bản xuất thô từ hệ thống, không có cột tỷ giá, nên phải tra ở đây.",
+  "cach_dung": "Mỗi mốc có hiệu lực TỪ ngày `tu` cho tới trước mốc kế tiếp. Ngày sau mốc cuối cùng dùng luôn tỷ giá của mốc cuối. Thêm tuần mới thì chèn một mốc và cập nhật `cap_nhat`.",
+  "cap_nhat": "17/08/2026",
+  "moc": [
+    { "tu": "01/07/2026", "ty_gia": 26019 },
+    { "tu": "08/07/2026", "ty_gia": 26039 },
+    { "tu": "15/07/2026", "ty_gia": 25843 },
+    { "tu": "22/07/2026", "ty_gia": 25705 },
+    { "tu": "29/07/2026", "ty_gia": 25803 },
+    { "tu": "03/08/2026", "ty_gia": 25724 },
+    { "tu": "10/08/2026", "ty_gia": 25549 },
+    { "tu": "17/08/2026", "ty_gia": 25282 }
+  ]
+}

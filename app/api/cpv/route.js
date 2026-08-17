@@ -13,6 +13,7 @@
 import Papa from 'papaparse';
 import { spdvOf, teamOf, SAN_BU_MAP } from '@/lib/cpvDims';
 import { nhoDoc, nhoDocFile } from '@/lib/boNho';
+import { tyGiaRe, TY_GIA_CAP_NHAT } from '@/lib/tyGia';
 /* "Datalake" tháng đã chốt sổ: dữ liệu đã gộp sẵn (Ngày × Sàn × SPDV) đóng gói
    tĩnh theo app — không phải đọc lại Google Sheet các tháng cũ ở mỗi lượt xem.
    Sinh file bằng chính API này (xem README trong lib/data nếu cần làm lại). */
@@ -176,8 +177,10 @@ function parseOrders(grid, { defaultSan = '' } = {}) {
     game: findCol(headers, ['game']),
     san_pham: findCol(headers, ['~san pham']),
     /* File CPV BE 08/2026 có 2 cột "Tỷ giá tuần" (CO Rate · REV Rate) —
-       lấy cột CUỐI (REV Rate) vì dùng để quy đổi DOANH THU USD → VND */
-    ty_gia_co: headers.reduce((acc, h, i) => (h.includes('ty gia tuan') ? i : acc), -1),
+       lấy cột CUỐI (REV Rate) vì dùng để quy đổi DOANH THU USD → VND.
+       Tên trường là ty_gia_re chứ không phải ty_gia_co: CO Rate là tỷ giá
+       GIÁ VỐN, nằm ở cột trước, và KHÔNG dùng ở đây. */
+    ty_gia_re: headers.reduce((acc, h, i) => (h.includes('ty gia tuan') ? i : acc), -1),
   };
   if (col.san < 0 && !defaultSan) throw new Error('Không tìm thấy cột Sàn.');
   if (col.ngay_hoan_tat < 0 && col.ngay_tao < 0) throw new Error('Không tìm thấy cột ngày.');
@@ -214,7 +217,7 @@ function parseOrders(grid, { defaultSan = '' } = {}) {
       loi_nhuan: 0,
     };
     if (sc === 'ok') {
-      rec.ty_gia_tuan = col.ty_gia_co >= 0 ? viNum(r[col.ty_gia_co]) : 0;
+      rec.ty_gia_tuan = col.ty_gia_re >= 0 ? viNum(r[col.ty_gia_re]) : 0;
       const doanhThuUsd = col.doanh_thu_usd >= 0 ? viNum(r[col.doanh_thu_usd]) : 0;
       const phiSan = col.phi_san >= 0 ? viNum(r[col.phi_san]) : 0;
       const dthuThuc = col.dthu_thuc >= 0 ? viNum(r[col.dthu_thuc]) : doanhThuUsd - phiSan;
@@ -230,7 +233,20 @@ function parseOrders(grid, { defaultSan = '' } = {}) {
     }
     rows.push(rec);
   }
-  return { rows, meta: { header_row: headIdx + 1, gia_von_found: col.gia_von >= 0, skipNoDate, skipStatus } };
+  return {
+    rows,
+    meta: {
+      header_row: headIdx + 1,
+      gia_von_found: col.gia_von >= 0,
+      /* Nguồn thô (Báo cáo đơn hàng V3) không có cột Thành tiền lẫn cột tỷ
+         giá — docLive sẽ quy đổi USD → VND bằng bảng tỷ giá tuần trong
+         lib/data. Ghi lại ở đây để bên gọi biết số VND là quy đổi. */
+      co_thanh_tien: col.thanh_tien >= 0,
+      co_ty_gia: col.ty_gia_re >= 0,
+      skipNoDate,
+      skipStatus,
+    },
+  };
 }
 
 function aggregate(rows) {
@@ -292,12 +308,30 @@ async function docLive({ urls, gids, url2s, gid2s, san2 }) {
     )
   );
   let mainOkCount = 0;
+  let quyDoiVnd = 0; /* số đơn phải tự quy đổi USD → VND vì file thiếu cột */
+  let ngoaiBangTyGia = 0; /* đơn có ngày nằm trước mốc đầu của bảng tỷ giá */
   for (let i = 0; i < loaded.length; i++) {
     try {
       if (loaded[i].err) throw loaded[i].err;
       const p = parseOrders(loaded[i].grid);
       if (!mainOkCount) mainMeta = p.meta;
       mainOkCount += 1;
+      /* Nguồn thô không có cột Thành tiền: quy đổi bằng TỶ GIÁ REV theo tuần
+         trong lib/data/ty-gia-tuan.json. Giá vốn của nguồn này cũng là USD
+         nên quy đổi cùng lượt, nếu không Lợi nhuận sẽ là VND trừ USD. */
+      if (!p.meta.co_thanh_tien) {
+        for (const r of p.rows) {
+          if (r.sc !== 'ok') continue;
+          const rate = tyGiaRe(r.sortKey);
+          if (!rate) { ngoaiBangTyGia += 1; continue; }
+          r.ty_gia_tuan = rate;
+          r.thanh_tien = r.doanh_thu_usd * rate;
+          r.gia_von = r.gia_von * rate;
+          r.phi_san_vnd = r.phi_san * rate;
+          r.loi_nhuan = r.thanh_tien - r.gia_von;
+          quyDoiVnd += 1;
+        }
+      }
       mainRows = mainRows.concat(p.rows);
     } catch (e) {
       mainErrors.push(`file ${i + 1}: ${e.message}`);
@@ -454,7 +488,7 @@ async function docLive({ urls, gids, url2s, gid2s, san2 }) {
     nc: r.nguon === 'dh' && r.sc === 'ok' && r.thanh_tien > 0 && !r.gia_von ? 1 : 0,
   }));
 
-  return { all, api_file, dupList, mainMeta, apiMeta, dedup, outOfRange, apiNoCost, mainErrors, sanBu, vetFile };
+  return { all, api_file, dupList, mainMeta, apiMeta, dedup, outOfRange, apiNoCost, mainErrors, sanBu, vetFile, quyDoiVnd, ngoaiBangTyGia };
 }
 
 /* Bản GỌN để cất vào bộ nhớ đệm: đã gộp theo Ngày × Sàn × SPDV nên nhẹ hơn
@@ -484,6 +518,11 @@ function goiGon(kq) {
          trông y hệt số mới. */
       nguon_cu_giay: kq.vetFile?.length ? Math.max(...kq.vetFile.map((v) => v.tuoi_giay || 0)) : 0,
       nguon_loi: kq.vetFile?.map((v) => v.loi).filter(Boolean).join(' · ') || null,
+      /* Số VND là quy đổi từ USD bằng bảng tỷ giá tuần chứ không đọc thẳng
+         từ file — nói ra để đối chiếu lệch với sổ kế toán còn biết đường tra. */
+      quy_doi_vnd: kq.quyDoiVnd || 0,
+      ty_gia_cap_nhat: kq.quyDoiVnd ? TY_GIA_CAP_NHAT : null,
+      ngoai_bang_ty_gia: kq.ngoaiBangTyGia || 0,
     },
   };
 }
