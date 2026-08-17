@@ -23,8 +23,9 @@ import histT3 from '@/lib/data/cpv-2026-03.json';
 import histT4 from '@/lib/data/cpv-2026-04.json';
 import histT5 from '@/lib/data/cpv-2026-05.json';
 import histT6 from '@/lib/data/cpv-2026-06.json';
+import histT7 from '@/lib/data/cpv-2026-07.json';
 
-const HIST = [histT1, histT2, histT3, histT4, histT5, histT6];
+const HIST = [histT1, histT2, histT3, histT4, histT5, histT6, histT7];
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
