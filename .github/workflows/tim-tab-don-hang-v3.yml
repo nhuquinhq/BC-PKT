@@ -1,7 +1,7 @@
 # File "Bao cao don hang V3" co nhieu tab; gid 1245992231 la tab TONG HOP
 # (bang theo ngay, khong co Order ID) nen /api/cpv khong doc duoc.
-# Workflow nay liet ke moi tab kem gid, roi do toc do + soi khuon cot
-# cua tung tab de tim dung tab don hang muc TUNG DON.
+# Lay danh sach tab + gid tu trang /edit (file da chia se cong khai nen tai
+# duoc khong can dang nhap), roi do toc do va soi khuon cot tung tab.
 name: Tim tab don hang V3
 
 on:
@@ -15,36 +15,47 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Liet ke tab va gid
+      - name: Lay danh sach tab va gid
         run: |
-          # Trang htmlview cua file chia se cong khai co chua danh sach tab + gid
-          curl -sSL -m 90 -o /tmp/hv.html "https://docs.google.com/spreadsheets/d/$DH_V3/htmlview"
-          echo "htmlview: $(stat -c%s /tmp/hv.html) byte"
-          python3 - <<'PY' | tee /tmp/tabs.txt
-          import re, html
-          s = open('/tmp/hv.html', encoding='utf-8', errors='ignore').read()
-          # Cac cap (gid, ten tab) nam trong bang menu cuoi trang
-          cap = re.findall(r'#gid=(\d+)[^>]*>([^<]{1,80})</a>', s)
-          seen = set(); ra = []
-          for g, t in cap:
-              t = html.unescape(t).strip()
-              if g in seen or not t: continue
-              seen.add(g); ra.append((g, t))
-          if not ra:
-              # Du phong: doc bien items trong script
-              for g, t in re.findall(r'\{"name":"([^"]+)","gid":"?(\d+)"?', s):
-                  ra.append((t, g))
-          for g, t in ra: print(f'{g}\t{t}')
+          for u in "edit" "htmlview" "preview"; do
+            curl -sSL -m 90 -o /tmp/$u.html "https://docs.google.com/spreadsheets/d/$DH_V3/$u" || true
+            echo "$u: $(stat -c%s /tmp/$u.html 2>/dev/null || echo 0) byte"
+          done
+          python3 - <<'PY' | tee /tmp/gids.txt
+          import re, html, os, json
+          ra, seen = [], set()
+          def them(gid, ten):
+              gid = str(gid)
+              if gid in seen: return
+              seen.add(gid); ra.append((gid, ten))
+          for f in ('/tmp/edit.html', '/tmp/htmlview.html', '/tmp/preview.html'):
+              if not os.path.exists(f): continue
+              s = open(f, encoding='utf-8', errors='ignore').read()
+              # Bootstrap cua Sheets: [null,"Ten tab",...,gid,...] — bat cap ten + gid
+              for ten, gid in re.findall(r'\\"name\\":\\"(.*?)\\",\\"(?:sheetId|gid)\\":(\d+)', s):
+                  them(gid, ten)
+              for ten, gid in re.findall(r'"name":"(.*?)","(?:sheetId|gid)":(\d+)', s):
+                  them(gid, ten)
+              # Kieu cu: menu tab o cuoi trang htmlview
+              for gid, ten in re.findall(r'#gid=(\d+)[^>]*>([^<]{1,80})</a>', s):
+                  them(gid, html.unescape(ten).strip())
+              # Vet vot: moi so dung sau "gid=" hoac \"gid\":
+              for gid in re.findall(r'gid[=\\":]{1,4}(\d{1,12})', s):
+                  them(gid, '(chua ro ten)')
+          for gid, ten in ra:
+              try: ten = ten.encode().decode('unicode_escape')
+              except Exception: pass
+              print(f'{gid}\t{ten}')
+          print(f'--- tong {len(ra)} gid ---')
           PY
 
       - name: Do toc do va soi khuon cot tung tab
         run: |
-          python3 - <<'PY' > /tmp/gids.txt
-          for ln in open('/tmp/tabs.txt', encoding='utf-8'):
-              p = ln.rstrip('\n').split('\t')
-              if len(p) == 2 and p[0].isdigit(): print(p[0], p[1], sep='\t')
-          PY
-          echo "So tab tim duoc: $(wc -l < /tmp/gids.txt)"
+          grep -P '^\d+\t' /tmp/gids.txt | head -40 > /tmp/ds.txt || true
+          # gid=0 gan nhu chac chan la tab dau tien, luon thu du co trong danh sach hay khong
+          grep -qP '^0\t' /tmp/ds.txt || sed -i '1i 0\t(tab dau tien)' /tmp/ds.txt
+          echo "So tab se thu: $(wc -l < /tmp/ds.txt)"
+          echo
           while IFS=$'\t' read -r gid ten; do
             [ -z "$gid" ] && continue
             echo "===== gid $gid · $ten"
@@ -53,8 +64,9 @@ jobs:
               "https://docs.google.com/spreadsheets/d/$DH_V3/export?format=csv&gid=$gid" 2>/dev/null || echo '000|timeout|0')
             code=${out%%|*}; rest=${out#*|}; tg=${rest%%|*}; sz=${rest##*|}
             printf '   HTTP %s · %ss · %s byte\n' "$code" "$tg" "$sz"
-            GID="$gid" python3 - <<'PY'
-          import csv, os, unicodedata
+            if [ "$code" != "200" ]; then echo; continue; fi
+            python3 - <<'PY'
+          import csv, unicodedata
           csv.field_size_limit(10**9)
           def bd(s):
               s = unicodedata.normalize('NFD', str(s or ''))
@@ -68,7 +80,9 @@ jobs:
               if 'order id' in h or 'order_id' in h or 'ma don' in h: hdr = i; break
               if any(x == 'san' for x in h) and any(x.startswith('doanh thu') for x in h): hdr = i; break
           print(f'   {len(rows)} dong · dong tieu de: {hdr}', end='')
-          if hdr < 0: print('  -> KHONG phai tab don hang'); raise SystemExit
+          if hdr < 0:
+              print('  -> KHONG phai tab don hang')
+              raise SystemExit
           cols = [c.strip() for c in rows[hdr]]
           def tim(*t):
               for k in t:
@@ -91,4 +105,4 @@ jobs:
           print(f'      >>> {"DU COT" if not thieu else "THIEU: " + ", ".join(thieu)}')
           PY
             echo
-          done < /tmp/gids.txt
+          done < /tmp/ds.txt
