@@ -174,7 +174,11 @@ function parseOrders(grid, { defaultSan = '' } = {}) {
     dthu_thuc: findCol(headers, ['~thuc nhan', '~doanh thu thuan']),
     gia_von_usd: giaVonIdx[0] ?? -1,
     gia_von: giaVonPick,
-    thanh_tien: findCol(headers, ['thanh tien', '~thanh tien']),
+    /* Cột DOANH THU BẰNG VND. File BE gọi là "Thành tiền", bản Quản lý đơn
+       hàng gọi là "Doanh thu quy đổi" — cùng một thứ. Nhận diện thiếu tên thứ
+       hai thì route tưởng nguồn chưa có VND rồi tự quy đổi lần nữa, mà giá vốn
+       file đó đã là VND nên nhân tỷ giá thêm lượt nữa là sai bét. */
+    thanh_tien: findCol(headers, ['thanh tien', '~thanh tien', '~doanh thu quy doi', '~quy doi']),
     loi_nhuan: findCol(headers, ['loi nhuan', '~loi nhuan']),
     trang_thai: findCol(headers, ['trang thai', '~trang thai', 'status']),
     ngay_hoan_tat: findCol(headers, ['ngay hoan tat', '~ngay hoan tat', '~hoan tat luc', '~ngay hoan thanh', '~completed']),
