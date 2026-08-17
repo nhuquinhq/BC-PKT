@@ -1,6 +1,6 @@
 # Xem /api/vi dang doc file vi T7 LIVE ra so gi, de doi chieu voi snapshot
 # sap dua vao datalake. Chi doc, khong ghi gi.
-name: Soi vi T7 live
+name: Soi vi T7 va T8 live
 
 on:
   workflow_dispatch: {}
@@ -10,9 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Goi /api/vi cho rieng thang 7
+      - name: Goi /api/vi cho tung thang
         run: |
-          U="https://bc-pkt.vercel.app/api/vi?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vQumf3iUT9n-lh-sNiJ1TeV24RjqRm1Eo6RTMafFsN9g_Hr6qtKZfyjFzb4gBpo5QhTieMSqU4sJORx%2Fpubhtml%3Fgid%3D1106881524%26single%3Dtrue&gid=1106881524&month=7&year=2026"
+          T7="https://bc-pkt.vercel.app/api/vi?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vQumf3iUT9n-lh-sNiJ1TeV24RjqRm1Eo6RTMafFsN9g_Hr6qtKZfyjFzb4gBpo5QhTieMSqU4sJORx%2Fpubhtml%3Fgid%3D1106881524%26single%3Dtrue&gid=1106881524&month=7&year=2026"
+          T8="https://bc-pkt.vercel.app/api/vi?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vTmigt_mS16GnHQ5qpx2jxv_0F9irT-jJt6c3KyfUrTn2AgbZVZ4d5Q0fBvoINSmnMJHm5GcDU58ai2%2Fpubhtml%3Fgid%3D1425184209%26single%3Dtrue&gid=1425184209&month=8&year=2026"
+          echo "===== THANG 8 (dang chay) ====="
+          curl -sS -m 290 -o /tmp/vi8.json -w 'HTTP %{http_code} · %{time_total}s\n' "$T8" || true
+          head -c 400 /tmp/vi8.json; echo; echo
+          echo "===== THANG 7 ====="
+          U="$T7"
           for i in 1 2 3; do
             curl -sS -m 290 -o /tmp/vi.json -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' "$U" && break
             echo "thu lai"; sleep 20
