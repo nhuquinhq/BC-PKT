@@ -1,0 +1,133 @@
+# Rut bang TY GIA TUAN tu file BE cu de dua vao datalake. File V3 khong co
+# cot nay, ma bot van can de quy doi USD -> VND cho khop voi so ke toan.
+# File BE dang xuat hut nen thu toi 15 lan, moi lan cach 20s.
+name: Rut ty gia tuan
+
+on:
+  workflow_dispatch: {}
+
+env:
+  BE_T8: "2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0"
+  BE_T7: "2PACX-1vS8v730AMvL4_1VC131-HLHBECPrYMtLmv02TkTtpFuXlQEGtVSPpR1URMQ5sOhB6_LbnATeDwZUk__"
+
+jobs:
+  rut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Tai file BE
+        run: |
+          tai() {
+            for lan in $(seq 1 15); do
+              rm -f "$2"
+              code=$(curl -sSL -m 110 -o "$2" -w '%{http_code}' "$1" 2>/dev/null || echo 000)
+              sz=$(stat -c%s "$2" 2>/dev/null || echo 0)
+              h=$(head -c 12 "$2" 2>/dev/null | tr -d '\n')
+              echo "   lan $lan: HTTP $code · $sz byte"
+              case "$h" in '<!DOCTYPE'*|'<html'*) sleep 20; continue ;; esac
+              [ "$code" = "200" ] && [ "$sz" -gt 100000 ] && { echo '   -> TAI DUOC'; return 0; }
+              sleep 20
+            done
+            return 1
+          }
+          echo '--- BE T8 ---'
+          tai "https://docs.google.com/spreadsheets/d/e/$BE_T8/pub?gid=0&single=true&output=csv" /tmp/t8.csv || echo 'HUT T8'
+          echo '--- BE T7 ---'
+          tai "https://docs.google.com/spreadsheets/d/e/$BE_T7/pub?gid=0&single=true&output=csv" /tmp/t7.csv || echo 'HUT T7'
+
+      - name: Rut ty gia theo ngay
+        run: |
+          python3 - <<'PY'
+          import csv, os, re, collections, unicodedata, json
+          csv.field_size_limit(10**9)
+
+          def bd(s):
+              s = unicodedata.normalize('NFD', str(s or ''))
+              s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+              return s.replace('đ','d').replace('Đ','D').lower().strip()
+
+          def viNum(s):
+              s = str(s or '').strip().replace(' ', '')
+              if not s or s == '-': return 0.0
+              am = s.startswith('-') or (s.startswith('(') and s.endswith(')'))
+              s = s.strip('()-')
+              if ',' in s and '.' in s: s = s.replace('.','').replace(',','.')
+              elif re.search(r',\d{1,2}$', s): s = s.replace('.','').replace(',','.')
+              else: s = re.sub(r'[.,](?=\d{3}\b)', '', s)
+              try: v = float(s)
+              except ValueError: return 0.0
+              return -v if am else v
+
+          def ngayChuan(s):
+              s = str(s or '').strip()
+              m = re.search(r'(\d{4})-(\d{2})-(\d{2})', s)
+              if m: return f'{m.group(3)}/{m.group(2)}/{m.group(1)}'
+              m = re.search(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', s)
+              if m: return f'{int(m.group(1)):02d}/{int(m.group(2)):02d}/{m.group(3)}'
+              return ''
+
+          ra = {}
+          for path, ten in (('/tmp/t7.csv', 'T7'), ('/tmp/t8.csv', 'T8')):
+              if not os.path.exists(path) or os.path.getsize(path) == 0:
+                  print(f'### {ten}: khong co file'); continue
+              rows = list(csv.reader(open(path, encoding='utf-8', errors='ignore')))
+              hdr = -1
+              for i in range(min(len(rows), 40)):
+                  h = [bd(c) for c in rows[i]]
+                  if 'order id' in h or 'ma don' in h: hdr = i; break
+                  if any(x == 'san' for x in h) and any(x.startswith('doanh thu') for x in h): hdr = i; break
+              if hdr < 0: print(f'### {ten}: khong thay dong tieu de'); continue
+              cols = [c.strip() for c in rows[hdr]]
+              # File BE co HAI cot "Ty gia tuan": CO Rate (gia von) va REV Rate
+              # (doanh thu) — hai ty gia KHAC NHAU. CPV chi bao doanh thu nen
+              # dung REV, tuc cot CUOI, dung cach /api/cpv dang chon.
+              ds_tg = [i for i, c in enumerate(cols) if 'ty gia tuan' in bd(c)]
+              print(f'    Cac cot "Ty gia tuan": {ds_tg}')
+              i_tg = ds_tg[-1] if ds_tg else None
+              i_tg_co = ds_tg[0] if len(ds_tg) > 1 else None
+              i_ht = next((i for i, c in enumerate(cols) if 'hoan tat' in bd(c) and 'ngay' in bd(c)), None)
+              i_tt = next((i for i, c in enumerate(cols) if bd(c).startswith('thanh tien')), None)
+              i_net = next((i for i, c in enumerate(cols) if 'thuc nhan' in bd(c)), None)
+              print(f'### {ten}: {len(rows)} dong · tieu de {hdr}')
+              print(f'    -> REV (doanh thu) cot {i_tg} · CO (gia von) cot {i_tg_co}')
+              print(f'    Ngay hoan tat cot {i_ht} · Thanh tien cot {i_tt} · DThu thuc nhan cot {i_net}')
+              if i_tg is None or i_ht is None: continue
+
+              theoNgay = {}
+              theoNgayCo = {}
+              kiemTra = collections.defaultdict(lambda: [0.0, 0.0])
+              for r in rows[hdr+1:]:
+                  g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
+                  d = ngayChuan(g(i_ht))
+                  if not d: continue
+                  tg = viNum(g(i_tg))
+                  if tg > 0 and d not in theoNgay: theoNgay[d] = tg
+                  if i_tg_co is not None:
+                      tgc = viNum(g(i_tg_co))
+                      if tgc > 0 and d not in theoNgayCo: theoNgayCo[d] = tgc
+                  if i_tt is not None and i_net is not None:
+                      kiemTra[d][0] += viNum(g(i_tt)); kiemTra[d][1] += viNum(g(i_net))
+              for d, tg in theoNgay.items(): ra[d] = tg
+              xep = sorted(theoNgay, key=lambda x: (x[6:], x[3:5], x[:2]))
+              print(f'    {len(xep)} ngay co ty gia:')
+              print(f'      {"ngay":<12}{"REV (doanh thu)":>17}{"CO (gia von)":>15}{"Thanhtien/DThuthuc":>21}')
+              for d in xep:
+                  tt, net = kiemTra[d]
+                  suy = tt / net if net else 0
+                  co = theoNgayCo.get(d, 0)
+                  print(f'      {d:<12}{theoNgay[d]:>17,.0f}{co:>15,.0f}{suy:>21,.0f}')
+
+          if ra:
+              xep = sorted(ra, key=lambda x: (x[6:], x[3:5], x[:2]))
+              # Gom cac ngay lien tiep cung ty gia thanh KHOANG (tuan)
+              khoang = []
+              for d in xep:
+                  if khoang and khoang[-1]['ty_gia'] == ra[d]: khoang[-1]['den'] = d
+                  else: khoang.append({'tu': d, 'den': d, 'ty_gia': ra[d]})
+              print('\n===== JSON DE DUA VAO DATALAKE =====')
+              print(json.dumps({'nguon': 'Cot "Ty gia tuan" (REV Rate) file CPV BE',
+                                'cap_nhat': xep[-1],
+                                'tuan': khoang}, ensure_ascii=False, indent=2))
+          else:
+              print('\nKHONG RUT DUOC TY GIA NAO')
+          PY
