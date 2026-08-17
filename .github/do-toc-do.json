@@ -1,0 +1,68 @@
+[
+ {
+  "nhan": "PKT1 Tỷ giá tuần",
+  "ep": "/api/sheet",
+  "qs": "url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vRBzYH7dMHHBU1PhVf368oCNlLhKhGFclc4VuH9nucqShlrk5fxbYtUUBUUAbYXzm7c3nXO6P7Yb9vQ%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0",
+  "bc": "PKT1"
+ },
+ {
+  "nhan": "CPV BE (PKT8·PKT20·team·sàn)",
+  "ep": "/api/cpv",
+  "qs": "url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0&hist=1&url2=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vQvTKIa8hAWjghuGri8nsnk2zFhlHNIKKgGunBFDolf3IyG4lYZ8G9zt6tYrIIxESHQty7cskmUcbIG%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid2=0",
+  "bc": "PKT20 PKT8 PKT9 HQS100 HQS200 HQS400 HQS500 SÀN BE1 SÀN EL1 SÀN EL2 SÀN FP1 SÀN FP2 SÀN G1 SÀN G2 SÀN GB1 SÀN GF1 SÀN GF2 SÀN GO1 SÀN GS1 SÀN GS2 SÀN GV1 SÀN IK1 SÀN KG1 SÀN PO2 SÀN PO3 SÀN PO4 SÀN PO5 SÀN PT1 SÀN U1 SÀN U2 SÀN ZX1 SÀN ZX2 SÀN ZX3"
+ },
+ {
+  "nhan": "Lịch sử ví (PKT6·PKT20·team·sàn)",
+  "ep": "/api/vi",
+  "qs": "url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vTmigt_mS16GnHQ5qpx2jxv_0F9irT-jJt6c3KyfUrTn2AgbZVZ4d5Q0fBvoINSmnMJHm5GcDU58ai2%2Fpubhtml%3Fgid%3D1425184209%26single%3Dtrue&gid=1425184209&month=8&year=2026&hist=1",
+  "bc": "PKT20 PKT6 HQS100 HQS200 HQS400 HQS500 SÀN BE1 SÀN EL1 SÀN EL2 SÀN FP1 SÀN FP2 SÀN G1 SÀN G2 SÀN GB1 SÀN GF1 SÀN GF2 SÀN GO1 SÀN GS1 SÀN GS2 SÀN GV1 SÀN IK1 SÀN KG1 SÀN PO2 SÀN PO3 SÀN PO4 SÀN PO5 SÀN PT1 SÀN U1 SÀN U2 SÀN ZX1 SÀN ZX2 SÀN ZX3"
+ },
+ {
+  "nhan": "QLTT (PKT21·PKT22·PKT20)",
+  "ep": "/api/qltt",
+  "qs": "url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vR2ufGWQkzgBr-F0hibPVNPwfKehx62qEB4EabwaA1du8-J07iZdkKBGrqAGMnDieFVJb7AhvbmqQGx%2Fpubhtml&gid=0&thang=7%2C8&tabs=B%C3%A1n+nick+T7%3A400765897%3BB%C3%A1n+nick+T8%3A1993907780%3BDV+T%E1%BB%B1+%C4%91%E1%BB%99ng+T7%3A155307356%3BDV+T%E1%BB%B1+%C4%91%E1%BB%99ng+T8%3A1292063564%3BDoanh+thu+Minigame+T7%3A1843769043%3BDT+-+GV+DV+Th%E1%BB%A7+c%C3%B4ng+T7%3A0%3BDT+-+GV+DV+Th%E1%BB%A7+c%C3%B4ng+T8%3A251239352%3BGi%C3%A1+v%E1%BB%91n+Minigame+t%E1%BB%B1+%C4%91%E1%BB%99ng+T7%3A1052756758",
+  "bc": "PKT20 PKT21 PKT22"
+ },
+ {
+  "nhan": "Ritokey (PKT12·PKT20)",
+  "ep": "/api/ritokey",
+  "qs": "url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vSkiE47m3g4BL1e6qSEfuyg3uKXqWneiLm_zDBfOsr_hWU4slODT0xE9K1bNJpI9afseGjEQ9PZUtRQ%2Fpubhtml&gid=0&gids=851205159",
+  "bc": "PKT20 PKT12"
+ },
+ {
+  "nhan": "A10GG (PKT13·PKT20)",
+  "ep": "/api/a10gg",
+  "qs": "url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vQvtnyjWuhaqHvTs9rLjzGSDlZKWYww6GROPe3kDW1FBRCFrdLnuYJKXVJslEltOMWy7HpYyOqWRjJG%2Fpubhtml&gid=1620350371&gids=1620350371",
+  "bc": "PKT20 PKT13"
+ },
+ {
+  "nhan": "Charging (PKT14·PKT20)",
+  "ep": "/api/charging",
+  "qs": "url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vRoJlJPjNblPMAmO8vrfmC-JWe_dCY7ub4Joqd0exc6oAMnEpDYrUle8QLuBrenFOFGdFtXfTE7TtAR%2Fpubhtml&gid=894789387&gids=894789387",
+  "bc": "PKT20 PKT14"
+ },
+ {
+  "nhan": "Báo cáo TIỀN (PKT3)",
+  "ep": "/api/tien",
+  "qs": "url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vTLTvWG0zTceE2zZ1-f-8EDouwxfQUWj-LBDj0K4qXsbvOO1mdp2pbt7pqvraPj6gfTnq0oQORAIRWb%2Fpubhtml&gid=0&gids=116298870%2C959678702%2C513088085%2C1068979883%2C731668787%2C2029983632",
+  "bc": "PKT3"
+ },
+ {
+  "nhan": "Đơn chưa có giá vốn (PKT10)",
+  "ep": "/api/cpv",
+  "qs": "url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0&nocost=1",
+  "bc": "PKT10"
+ },
+ {
+  "nhan": "Đơn tạo mới (PKT11)",
+  "ep": "/api/taomoi",
+  "qs": "url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vSUiGboCHbRCVwRjkmSAHw5i262tY1oJ9ihAvo9Z4y-p2dfQhbE8QJar0E4udWCnQkGQq8mfWpQUo7u%2Fpubhtml%3Fgid%3D209599086%26single%3Dtrue&gid=209599086&url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vT6q4Xjo6q-t7OphvaD9bet4Wl4BRC6hOqoXBrtf5O-F8LhIp-whTlw0qHMFuu5hQNJuowmxcJhK-oJ%2Fpubhtml%3Fgid%3D1925426186%26single%3Dtrue&gid=1925426186",
+  "bc": "PKT11"
+ },
+ {
+  "nhan": "Tìm đơn (PKT16)",
+  "ep": "/api/timdon",
+  "qs": "url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid=0&url2=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2Fe%2F2PACX-1vQvTKIa8hAWjghuGri8nsnk2zFhlHNIKKgGunBFDolf3IyG4lYZ8G9zt6tYrIIxESHQty7cskmUcbIG%2Fpubhtml%3Fgid%3D0%26single%3Dtrue&gid2=0",
+  "bc": "PKT15"
+ }
+]

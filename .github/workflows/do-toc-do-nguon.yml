@@ -1,0 +1,89 @@
+# Do TOAN BO nguon con phai goi live, dung dung URL ma trang goi.
+# Danh sach o .github/do-toc-do.json — sinh tu chinh lib/reports.js nen doi
+# nguon trong do thi sinh lai file nay, dung sua tay.
+#
+# Do HAI luot moi nguon:
+#   - luot 1 &moi=1 : bat doc lai Google, do thoi gian THAT
+#   - luot 2 thuong  : do thoi gian nguoi xem gap khi da co ban nho
+name: Do toc do nguon live
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  do:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Do tung nguon
+        run: |
+          echo "Gio VN: $(TZ=Asia/Ho_Chi_Minh date +'%H:%M %d/%m/%Y')"
+          python3 - <<'PY' > /tmp/ds.txt
+          import json
+          for x in json.load(open('.github/do-toc-do.json', encoding='utf-8')):
+              print(f"{x['nhan']}\t{x['ep']}\t{x['qs']}\t{x['bc']}")
+          PY
+          : > /tmp/kq.tsv
+          while IFS=$'\t' read -r nhan ep qs bc; do
+            [ -z "$ep" ] && continue
+            echo "===================== $nhan"
+            echo "   $ep · dùng bởi: $bc"
+            for che in moi nho; do
+              U="https://bc-pkt.vercel.app$ep?$qs"
+              [ "$che" = "moi" ] && U="$U&moi=1"
+              out=$(curl -sS -m 290 -o /tmp/r.json -w '%{http_code}|%{time_total}|%{size_download}' "$U" 2>/dev/null || echo '000|timeout|0')
+              code=${out%%|*}; rest=${out#*|}; tg=${rest%%|*}; sz=${rest##*|}
+              # Tom tat noi dung tra ve
+              tom=$(python3 - "$che" <<'PY'
+          import json, sys
+          try: d = json.load(open('/tmp/r.json'))
+          except Exception: print('khong phai JSON'); raise SystemExit
+          if isinstance(d, dict) and d.get('error'):
+              print('LOI: ' + str(d['error'])[:110]); raise SystemExit
+          m = d.get('meta') or {} if isinstance(d, dict) else {}
+          phan = []
+          for k in ('detail', 'raw', 'rows', 'no_cost_list', 'cpv_ngay', 'don', 'thang'):
+              v = d.get(k) if isinstance(d, dict) else None
+              if isinstance(v, list) and v: phan.append(f'{k}={len(v)}')
+          if m.get('rows_used'): phan.append(f"dòng={m['rows_used']}")
+          if m.get('from'): phan.append(f"{m['from']}→{m.get('to','')}")
+          bn = m.get('bo_nho')
+          if bn: phan.append(f"bản nhớ {bn.get('tuoi_giay')}s")
+          if m.get('main_error'): phan.append('LỖI FILE: ' + str(m['main_error'])[:70])
+          if m.get('nguon_cu_giay'): phan.append(f"nguồn cũ {m['nguon_cu_giay']}s")
+          print(' · '.join(phan) or 'trống')
+          PY
+          )
+              printf '   %-4s HTTP %-3s · %7ss · %9s byte · %s\n' "$che" "$code" "$tg" "$sz" "$tom"
+              printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$nhan" "$che" "$code" "$tg" "$sz" "$tom" >> /tmp/kq.tsv
+            done
+            echo
+          done < /tmp/ds.txt
+
+      - name: Bang tong ket
+        run: |
+          python3 - <<'PY'
+          rows = [l.rstrip('\n').split('\t') for l in open('/tmp/kq.tsv', encoding='utf-8') if l.strip()]
+          g = {}
+          for nhan, che, code, tg, sz, tom in rows:
+              g.setdefault(nhan, {})[che] = (code, tg, sz, tom)
+          print(f'{"NGUỒN":<34}{"đọc mới":>12}{"bản nhớ":>11}   TÌNH TRẠNG')
+          print('-' * 104)
+          cham = []
+          for nhan, v in g.items():
+              m = v.get('moi', ('?', '?', '0', '')); n = v.get('nho', ('?', '?', '0', ''))
+              def s(x):
+                  try: return f'{float(x[1]):.1f}s'
+                  except Exception: return x[1]
+              tt = 'OK' if m[0] == '200' else f'HTTP {m[0]}'
+              if 'LOI' in m[3] or m[0] != '200': tt = (m[3] or tt)[:52]
+              print(f'{nhan[:33]:<34}{s(m):>12}{s(n):>11}   {tt}')
+              try:
+                  if float(m[1]) > 10: cham.append((nhan, float(m[1])))
+              except Exception: pass
+          if cham:
+              print('\nNguồn chậm quá 10s khi đọc mới:')
+              for n, t in sorted(cham, key=lambda x: -x[1]): print(f'   {t:>6.1f}s  {n}')
+          PY
