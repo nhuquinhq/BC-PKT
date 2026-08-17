@@ -205,6 +205,13 @@ export async function GET(request) {
   const cfg = BOT_CPV_SHEET || getReport('pkt8')?.sheet;
   if (!cfg) return Response.json({ error: 'Thiếu cấu hình nguồn CPV' }, { status: 500 });
   const qs = new URLSearchParams();
+  /* moi=1 — BẮT BUỘC đọc lại Google, không nhận bản nhớ.
+     Vì sao: bản gộp được nhớ tới 6 tiếng, nên bot bắn 12h mà lấy đúng số đã
+     tính lúc 10h — đã dính ngày 17/08, tin 12:02 ra y hệt số lúc 10:08
+     ($1.300 · 99 đơn) trong khi file đã lên $1.987 · 156 đơn. Trước đây để
+     bản nhớ vì file BE cũ mất hàng phút mới đọc xong; nguồn V3 chỉ mất ~1
+     giây nên đọc mới mỗi lần bắn là rẻ. */
+  qs.append('moi', '1');
   qs.append('url', cfg.url);
   qs.append('gid', cfg.gid || '0');
   const apis = Array.isArray(cfg.api) ? cfg.api : cfg.api?.url ? [cfg.api] : [];
@@ -223,7 +230,11 @@ export async function GET(request) {
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
     detail = json.detail;
-    nguonCuGiay = json.meta?.nguon_cu_giay || 0;
+    /* Cũ ở HAI tầng, phải lấy tầng già hơn: nguon_cu_giay là tuổi bản nhớ
+       của từng FILE CSV, còn bo_nho.tuoi_giay là tuổi bản GỘP. Bản gộp cũ
+       thì docLive không chạy nên nguon_cu_giay vẫn là 0 của lần tính trước —
+       chỉ nhìn nó thôi là bỏ lọt đúng kiểu cũ vừa dính. */
+    nguonCuGiay = Math.max(json.meta?.nguon_cu_giay || 0, json.meta?.bo_nho?.tuoi_giay || 0);
   } catch (e) {
     await ghiVet(`ĐỌC SỐ LỖI: ${e.message}`);
     /* Đọc hụt thì TRẢ LẠI LƯỢT ngay, đừng ôm khoá 10 phút — chuyến ping kế

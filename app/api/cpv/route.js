@@ -116,7 +116,7 @@ const HAN_CHO = [90000, 90000];
 /* vet: mảng thu thập tình trạng đọc từng file, để GET nói được số đang hiện
    lấy từ bản nhớ bao lâu rồi. Không có nó thì Google hỏng cả buổi mà trang
    vẫn hiện số cũ y như số mới — đúng vụ bot bắn 18h và 23h ra cùng một số. */
-async function loadGrid(url, gid, luot = 2, vet = null) {
+async function loadGrid(url, gid, luot = 2, vet = null, moi = false) {
   const csvUrl = toCsvUrl(url, gid) || url;
   const kq = await nhoDocFile(`cpv-file|${csvUrl}`, async () => {
     let loiCuoi = null;
@@ -137,7 +137,7 @@ async function loadGrid(url, gid, luot = 2, vet = null) {
       }
     }
     throw loiCuoi;
-  });
+  }, { moi });
   if (vet) vet.push({ url: csvUrl, tuoi_giay: Math.round((kq.tuoi || 0) / 1000), loi: kq.loi || null });
   return Papa.parse(kq.val, { header: false, skipEmptyLines: false }).data;
 }
@@ -302,14 +302,14 @@ function aggregate(rows) {
 /* Đọc toàn bộ nguồn LIVE (file BE các tháng đang chạy + file API sàn) rồi
    chuẩn hoá thành danh sách từng đơn. Tách riêng khỏi GET để bọc được bộ
    nhớ đệm — xem lib/boNho.js. */
-async function docLive({ urls, gids, url2s, gid2s, san2 }) {
+async function docLive({ urls, gids, url2s, gid2s, san2, moi = false }) {
   let mainRows = [];
   let mainMeta = {};
   const mainErrors = [];
   const vetFile = [];
   const loaded = await Promise.all(
     urls.map((u, i) =>
-      loadGrid(u, gids[i] || '0', 2, vetFile)
+      loadGrid(u, gids[i] || '0', 2, vetFile, moi)
         .then((grid) => ({ grid }))
         .catch((e) => ({ err: e }))
     )
@@ -381,7 +381,7 @@ async function docLive({ urls, gids, url2s, gid2s, san2 }) {
     const apiErrors = [];
     const apiGrids = await Promise.all(
       url2s.map((u, i) =>
-        loadGrid(u, gid2s[i] || '0', 2, vetFile)
+        loadGrid(u, gid2s[i] || '0', 2, vetFile, moi)
           .then((grid) => ({ grid }))
           .catch((e) => ({ err: e }))
       )
@@ -556,7 +556,7 @@ export async function GET(request) {
   const moi = searchParams.get('moi') === '1';
   if (!urls.length) return Response.json({ error: 'Thiếu url' }, { status: 400 });
 
-  const thamSo = { urls, gids, url2s, gid2s, san2 };
+  const thamSo = { urls, gids, url2s, gid2s, san2, moi };
   const khoa = `cpv|${PHIEN_BAN_TINH}|${urls.join(',')}|${gids.join(',')}|${url2s.join(',')}|${gid2s.join(',')}|${san2}`;
 
   let goi = null;
