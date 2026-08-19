@@ -212,6 +212,10 @@ export async function GET(request) {
      bản nhớ vì file BE cũ mất hàng phút mới đọc xong; nguồn V3 chỉ mất ~1
      giây nên đọc mới mỗi lần bắn là rẻ. */
   qs.append('moi', '1');
+  /* hist=1 — nối thêm các tháng đã chốt sổ trong lib/data để so cùng kỳ tháng
+     trước. Đây là JSON tĩnh nằm sẵn trong bản build, không gọi Google thêm
+     lượt nào nên không làm tin bắn chậm đi. */
+  qs.append('hist', '1');
   qs.append('url', cfg.url);
   qs.append('gid', cfg.gid || '0');
   const apis = Array.isArray(cfg.api) ? cfg.api : cfg.api?.url ? [cfg.api] : [];
@@ -270,6 +274,31 @@ export async function GET(request) {
   /* Tỷ giá USDT/VND đang áp = Thành tiền ÷ DThu thực nhận (tỷ giá tuần trên file BE) */
   const tyGia = netNgay > 0 ? gmvNgay / netNgay : netThang > 0 ? gmvThang / netThang : 0;
 
+  /* ---------- Cùng kỳ THÁNG TRƯỚC ----------
+     So hai mốc, cả hai đều cắt tới ĐÚNG NGÀY hiện tại để công bằng:
+     - cùng ngày: 19/08 so với 19/07
+     - lũy kế:    01→19/08 so với 01→19/07
+     Không so với cả tháng trước vì tháng này mới chạy được một phần.
+     Số tháng trước lấy từ datalake (hist=1), tháng chưa chốt sổ thì không có
+     dữ liệu và phần so sánh tự ẩn đi thay vì hiện số cụt. */
+  const soNgay = Number(ngay.slice(0, 2));
+  const thangNay = Number(thang.slice(0, 2));
+  const namNay = Number(thang.slice(3));
+  const thangTruoc = thangNay === 1 ? 12 : thangNay - 1;
+  const namTruoc = thangNay === 1 ? namNay - 1 : namNay;
+  const nhanThangTruoc = `${String(thangTruoc).padStart(2, '0')}/${namTruoc}`;
+  const cungKy = detail.filter((r) => r.ngay.slice(3) === nhanThangTruoc && Number(r.ngay.slice(0, 2)) <= soNgay);
+  const cungKyNgay = cungKy.filter((r) => Number(r.ngay.slice(0, 2)) === soNgay);
+  const coCungKy = cungKy.length > 0;
+
+  /* Tăng giảm so với mốc cũ. Mốc cũ bằng 0 thì không có % nào có nghĩa. */
+  const bienDong = (moi, cu) => {
+    if (!cu) return '';
+    const pct = ((moi - cu) / cu) * 100;
+    const mui = pct >= 0 ? '🟢 ▲' : '🔴 ▼';
+    return ` ${mui}${Math.abs(pct).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`;
+  };
+
   /* ---------- Tin 1: Báo cáo CPV tổng ---------- */
   const lines = [
     `🤖 <b>Báo cáo CPV theo BE</b> — ${now.gio} ${ngay}`,
@@ -280,11 +309,31 @@ export async function GET(request) {
     `Số đơn: <b>${donNgay.toLocaleString('vi-VN')} đơn</b>`,
   ];
   if (tyGia > 0) lines.push(`💱 Tỷ giá quy đổi: <b>${Math.round(tyGia).toLocaleString('vi-VN')} đ/USDT</b>`);
+  if (coCungKy) {
+    const usdCk = sum(cungKyNgay, 'doanh_thu_usd');
+    const gmvCk = sum(cungKyNgay, 'thanh_tien');
+    const donCk = sum(cungKyNgay, 'so_don');
+    lines.push('');
+    lines.push(`↔️ <b>Cùng ngày ${String(soNgay).padStart(2, '0')}/${String(thangTruoc).padStart(2, '0')}:</b>`);
+    lines.push(`GMV ($): ${fmtUsd(usdCk)}${bienDong(usdNgay, usdCk)}`);
+    lines.push(`GMV (VND): ${fmtVnd(gmvCk)}${bienDong(gmvNgay, gmvCk)}`);
+    lines.push(`Số đơn: ${donCk.toLocaleString('vi-VN')} đơn${bienDong(donNgay, donCk)}`);
+  }
   lines.push('');
   lines.push(`📈 <b>Lũy kế tháng ${thang}:</b>`);
   lines.push(`GMV ($): <b>${fmtUsd(usdThang)}</b>`);
   lines.push(`GMV (VND): <b>${fmtVnd(gmvThang)}</b>`);
   lines.push(`Số đơn: <b>${donThang.toLocaleString('vi-VN')} đơn</b>`);
+  if (coCungKy) {
+    const usdCk = sum(cungKy, 'doanh_thu_usd');
+    const gmvCk = sum(cungKy, 'thanh_tien');
+    const donCk = sum(cungKy, 'so_don');
+    lines.push('');
+    lines.push(`↔️ <b>Cùng kỳ 01–${String(soNgay).padStart(2, '0')}/${String(thangTruoc).padStart(2, '0')}:</b>`);
+    lines.push(`GMV ($): ${fmtUsd(usdCk)}${bienDong(usdThang, usdCk)}`);
+    lines.push(`GMV (VND): ${fmtVnd(gmvCk)}${bienDong(gmvThang, gmvCk)}`);
+    lines.push(`Số đơn: ${donCk.toLocaleString('vi-VN')} đơn${bienDong(donThang, donCk)}`);
+  }
   /* Google xuất file hụt thì lib/boNho.js trả bản cũ tới 6 tiếng. Không nói ra
      thì tin 18h và tin 23h ra y hệt nhau mà tưởng là hôm nay không bán được gì.
      Ngưỡng 15 phút: dưới mức đó là nhịp đọc bình thường, không đáng báo. */
@@ -304,17 +353,38 @@ export async function GET(request) {
   const gmvTheoNgay = dayKeys.map((d) => Math.round(byDay.get(d) / 1e6));
   let luyKe = 0;
   const luyKeTheoNgay = gmvTheoNgay.map((v) => (luyKe += v));
+
+  /* Cột GMV tháng trước xếp CÙNG SỐ NGÀY để nhìn là thấy ngày nào hụt.
+     Gióng theo số ngày trong tháng chứ không theo thứ tự phần tử — tháng
+     trước dài ngắn khác nhau, gióng nhầm là lệch cả biểu đồ. */
+  const byDayTruoc = new Map();
+  for (const r of detail) {
+    if (r.ngay.slice(3) !== nhanThangTruoc) continue;
+    const d = Number(r.ngay.slice(0, 2));
+    byDayTruoc.set(d, (byDayTruoc.get(d) || 0) + (r.thanh_tien || 0));
+  }
+  const gmvTruocTheoNgay = dayKeys.map((d) => Math.round((byDayTruoc.get(Number(d.slice(0, 2))) || 0) / 1e6));
+
   const chart1Cfg = {
     type: 'bar',
     data: {
       labels: dayKeys.map((d) => d.slice(0, 5)),
       datasets: [
-        { label: 'GMV ngày (triệu đ)', data: gmvTheoNgay, backgroundColor: '#189BD8', yAxisID: 'A' },
+        { label: `GMV ngày ${thang} (triệu đ)`, data: gmvTheoNgay, backgroundColor: '#189BD8', yAxisID: 'A' },
+        ...(coCungKy
+          ? [{ label: `GMV ngày ${nhanThangTruoc} (triệu đ)`, data: gmvTruocTheoNgay, backgroundColor: '#C8D6E5', yAxisID: 'A' }]
+          : []),
         { type: 'line', label: 'Lũy kế (triệu đ)', data: luyKeTheoNgay, borderColor: '#00A651', pointBackgroundColor: '#00A651', fill: false, lineTension: 0, yAxisID: 'B' },
       ],
     },
     options: {
-      title: { display: true, text: `GMV theo ngày & lũy kế — tháng ${thang} (triệu đ)`, fontSize: 16 },
+      title: {
+        display: true,
+        text: coCungKy
+          ? `GMV theo ngày — tháng ${thang} so tháng ${nhanThangTruoc} (triệu đ)`
+          : `GMV theo ngày & lũy kế — tháng ${thang} (triệu đ)`,
+        fontSize: 16,
+      },
       legend: { display: true, position: 'bottom' },
       scales: {
         yAxes: [
