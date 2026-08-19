@@ -291,6 +291,29 @@ export async function GET(request) {
   const cungKyNgay = cungKy.filter((r) => Number(r.ngay.slice(0, 2)) === soNgay);
   const coCungKy = cungKy.length > 0;
 
+  /* ---------- Trung bình ngày & dự tính cả tháng ----------
+     BỎ ngày hôm nay ra khỏi trung bình: lúc bot bắn thì hôm nay chưa bán
+     xong, gộp vào là kéo trung bình xuống và dự tính hụt theo. Lấy trung
+     bình của các ngày ĐÃ TRỌN VẸN rồi nhân số ngày trong tháng. */
+  const ngayTronVen = [...new Set(trongThang.map((r) => r.ngay))].filter((d) => Number(d.slice(0, 2)) < soNgay);
+  const gmvTronVen = sum(trongThang.filter((r) => Number(r.ngay.slice(0, 2)) < soNgay), 'thanh_tien');
+  const usdTronVen = sum(trongThang.filter((r) => Number(r.ngay.slice(0, 2)) < soNgay), 'doanh_thu_usd');
+  const donTronVen = sum(trongThang.filter((r) => Number(r.ngay.slice(0, 2)) < soNgay), 'so_don');
+  const soNgayTron = ngayTronVen.length;
+  const soNgayTrongThang = new Date(Date.UTC(namNay, thangNay, 0)).getUTCDate();
+  const tbGmv = soNgayTron ? gmvTronVen / soNgayTron : 0;
+  const tbUsd = soNgayTron ? usdTronVen / soNgayTron : 0;
+  const tbDon = soNgayTron ? donTronVen / soNgayTron : 0;
+  const duTinhGmv = tbGmv * soNgayTrongThang;
+  const duTinhUsd = tbUsd * soNgayTrongThang;
+  const duTinhDon = tbDon * soNgayTrongThang;
+
+  /* Cả tháng trước để đối chiếu dự tính — chỉ có khi tháng đó đã chốt sổ */
+  const caThangTruoc = detail.filter((r) => r.ngay.slice(3) === nhanThangTruoc);
+  const gmvCaThangTruoc = sum(caThangTruoc, 'thanh_tien');
+  const usdCaThangTruoc = sum(caThangTruoc, 'doanh_thu_usd');
+  const donCaThangTruoc = sum(caThangTruoc, 'so_don');
+
   /* Tăng giảm so với mốc cũ. Mốc cũ bằng 0 thì không có % nào có nghĩa. */
   const bienDong = (moi, cu) => {
     if (!cu) return '';
@@ -334,6 +357,19 @@ export async function GET(request) {
     lines.push(`GMV (VND): ${fmtVnd(gmvCk)}${bienDong(gmvThang, gmvCk)}`);
     lines.push(`Số đơn: ${donCk.toLocaleString('vi-VN')} đơn${bienDong(donThang, donCk)}`);
   }
+  /* Dự tính = trung bình ngày × số ngày trong tháng. Cần ít nhất một ngày
+     trọn vẹn, nếu không thì chưa có gì để suy ra. */
+  if (soNgayTron > 0) {
+    lines.push('');
+    lines.push(`📊 <b>TB ngày (${soNgayTron} ngày đã xong):</b>`);
+    lines.push(`${fmtUsd(tbUsd)} · ${fmtVnd(tbGmv)} · ${Math.round(tbDon).toLocaleString('vi-VN')} đơn`);
+    lines.push('');
+    lines.push(`🔮 <b>Dự tính cả tháng ${thang} (${soNgayTrongThang} ngày):</b>`);
+    lines.push(`GMV ($): <b>${fmtUsd(duTinhUsd)}</b>${gmvCaThangTruoc ? bienDong(duTinhUsd, usdCaThangTruoc) : ''}`);
+    lines.push(`GMV (VND): <b>${fmtVnd(duTinhGmv)}</b>${gmvCaThangTruoc ? bienDong(duTinhGmv, gmvCaThangTruoc) : ''}`);
+    lines.push(`Số đơn: <b>${Math.round(duTinhDon).toLocaleString('vi-VN')} đơn</b>${donCaThangTruoc ? bienDong(duTinhDon, donCaThangTruoc) : ''}`);
+    if (gmvCaThangTruoc) lines.push(`<i>(so với cả tháng ${nhanThangTruoc}: ${fmtVnd(gmvCaThangTruoc)})</i>`);
+  }
   /* Google xuất file hụt thì lib/boNho.js trả bản cũ tới 6 tiếng. Không nói ra
      thì tin 18h và tin 23h ra y hệt nhau mà tưởng là hôm nay không bán được gì.
      Ngưỡng 15 phút: dưới mức đó là nhịp đọc bình thường, không đáng báo. */
@@ -346,13 +382,17 @@ export async function GET(request) {
   lines.push(`🔗 bc-pkt.vercel.app/bao-cao/pkt8`);
   const text1 = lines.join('\n');
 
-  /* Ảnh 1: GMV theo ngày (cột) + đường lũy kế trong tháng (triệu đ) */
+  /* Ảnh 1: GMV theo ngày (cột) + mức TRUNG BÌNH NGÀY (đường ngang).
+     Trước đây vẽ đường lũy kế, nhưng lũy kế thì lúc nào cũng đi lên nên
+     không nói được ngày nào tốt ngày nào tệ. Đường trung bình nằm ngang,
+     cột nào vượt là ngày trên mức, cột nào hụt là dưới — và chính mức đó
+     nhân số ngày trong tháng ra con số dự tính ghi trong tin. */
   const byDay = new Map();
   for (const r of trongThang) byDay.set(r.ngay, (byDay.get(r.ngay) || 0) + (r.thanh_tien || 0));
   const dayKeys = [...byDay.keys()].sort(); /* cùng 1 tháng nên so chuỗi dd/mm/yyyy là đúng thứ tự */
   const gmvTheoNgay = dayKeys.map((d) => Math.round(byDay.get(d) / 1e6));
-  let luyKe = 0;
-  const luyKeTheoNgay = gmvTheoNgay.map((v) => (luyKe += v));
+  const tbTrieu = Math.round(tbGmv / 1e6);
+  const duongTb = dayKeys.map(() => tbTrieu);
 
   /* Cột GMV tháng trước xếp CÙNG SỐ NGÀY để nhìn là thấy ngày nào hụt.
      Gióng theo số ngày trong tháng chứ không theo thứ tự phần tử — tháng
@@ -374,7 +414,19 @@ export async function GET(request) {
         ...(coCungKy
           ? [{ label: `GMV ngày ${nhanThangTruoc} (triệu đ)`, data: gmvTruocTheoNgay, backgroundColor: '#C8D6E5', yAxisID: 'A' }]
           : []),
-        { type: 'line', label: 'Lũy kế (triệu đ)', data: luyKeTheoNgay, borderColor: '#00A651', pointBackgroundColor: '#00A651', fill: false, lineTension: 0, yAxisID: 'B' },
+        ...(soNgayTron
+          ? [{
+              type: 'line',
+              label: `TB ngày ${tbTrieu} tr → dự tính tháng ${Math.round(duTinhGmv / 1e6).toLocaleString('vi-VN')} tr`,
+              data: duongTb,
+              borderColor: '#00A651',
+              borderDash: [6, 4],
+              pointRadius: 0,
+              fill: false,
+              lineTension: 0,
+              yAxisID: 'A',
+            }]
+          : []),
       ],
     },
     options: {
@@ -382,16 +434,13 @@ export async function GET(request) {
         display: true,
         text: coCungKy
           ? `GMV theo ngày — tháng ${thang} so tháng ${nhanThangTruoc} (triệu đ)`
-          : `GMV theo ngày & lũy kế — tháng ${thang} (triệu đ)`,
+          : `GMV theo ngày — tháng ${thang} (triệu đ)`,
         fontSize: 16,
       },
       legend: { display: true, position: 'bottom' },
-      scales: {
-        yAxes: [
-          { id: 'A', position: 'left', ticks: { beginAtZero: true } },
-          { id: 'B', position: 'right', ticks: { beginAtZero: true }, gridLines: { drawOnChartArea: false } },
-        ],
-      },
+      /* Một trục là đủ: cột và đường trung bình cùng đơn vị triệu đ. Trục
+         phải trước đây chỉ để đỡ đường lũy kế, giữ lại chỉ tổ rối mắt. */
+      scales: { yAxes: [{ id: 'A', position: 'left', ticks: { beginAtZero: true } }] },
     },
   };
 
