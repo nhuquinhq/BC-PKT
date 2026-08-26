@@ -102,42 +102,47 @@ const statusClass = (raw) => {
   return 'other';
 };
 
-/* Google hay trả 400/500 hoặc treo khi xuất CSV file lớn.
+/* Google xuất CSV file lớn theo kiểu ĐƯỢC ĂN CẢ NGÃ VỀ KHÔNG, và may rủi
+   theo từng lượt chứ không phải hỏng hẳn.
 
-   Hạn chờ 90s và CHỈ thử lại khi lỗi là tạm thời. Đo ngày 12/08 cho thấy
-   file nào Google xuất được thì xuất rất nhanh (BE T7: 9,6 MB trong 4,4s),
-   còn file nào hỏng thì hỏng hẳn — BE T8 chạy đủ 240s rồi trả HTTP 400,
-   lượt sau trả 410 ngay. Đợi hết giờ thêm lượt nữa chỉ tổ treo trang, nên
-   gặp hết giờ là dừng luôn; kết hợp với việc nhớ lỗi ở lib/boNho.js thì
-   mỗi 5 phút chỉ đúng một lượt phải trả giá. */
-const HAN_CHO = [90000, 90000];
+   Đo file BE T8 ngày 26/08, 5 lượt liên tiếp: 0,70s · HTTP 500 · HTTP 500 ·
+   0,71s · 11,5s — tức 3/5 lượt được, và lượt nào được thì trả đủ 8,2 MB rất
+   nhanh. Trước đó ngày 17/08 đo 0/5 nên tôi từng kết luận file hỏng hẳn;
+   thực ra là hên xui theo lượt.
+
+   Vì vậy: THỬ NHIỀU LƯỢT, hạn chờ ngắn ở lượt đầu rồi nới dần. Với tỉ lệ
+   ~60% mỗi lượt thì 4 lượt trượt hết chỉ còn ~2,5%. Và KHÔNG bỏ cuộc khi
+   hết giờ — hết giờ cũng chỉ là một lượt trượt như HTTP 500. */
+const HAN_CHO = [25000, 25000, 40000, 60000];
 /* Có nhớ theo từng file: PKT8, PKT20, các trang team và trang sàn đều đọc
    đúng những file này, chưa kể PKT10/PKT15 cần dữ liệu từng đơn. Nhớ ở đây
    thì cả nhóm dùng chung một lượt tải — xem lib/boNho.js. */
 /* vet: mảng thu thập tình trạng đọc từng file, để GET nói được số đang hiện
    lấy từ bản nhớ bao lâu rồi. Không có nó thì Google hỏng cả buổi mà trang
    vẫn hiện số cũ y như số mới — đúng vụ bot bắn 18h và 23h ra cùng một số. */
-async function loadGrid(url, gid, luot = 2, vet = null, moi = false) {
+async function loadGrid(url, gid, luot = HAN_CHO.length, vet = null, moi = false) {
   const csvUrl = toCsvUrl(url, gid) || url;
   const kq = await nhoDocFile(`cpv-file|${csvUrl}`, async () => {
-    let loiCuoi = null;
+    const daTruot = [];
     for (let i = 0; i < luot; i++) {
-      if (i) await new Promise((ok) => setTimeout(ok, i * 2000));
+      if (i) await new Promise((ok) => setTimeout(ok, 1500));
       const han = HAN_CHO[Math.min(i, HAN_CHO.length - 1)];
       try {
         const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(han) });
-        if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
-        if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.');
+        /* HTTP 401 kèm trang HTML = file chưa mở quyền "ai có link", không
+           phải lỗi tạm thời — thử lại bao nhiêu lượt cũng vậy, dừng luôn. */
+        if (text.trim().startsWith('<')) {
+          throw Object.assign(new Error('Google trả về trang HTML thay vì CSV — file chưa mở quyền xem cho người có link, hoặc sai GID.'), { batDau: true });
+        }
         return text;
       } catch (e) {
-        if (e.name === 'TimeoutError') {
-          throw new Error(`Google không xuất nổi file này trong ${han / 1000}s — nhiều khả năng phải xuất bản lại hoặc làm nhẹ tab`);
-        }
-        loiCuoi = e;
+        if (e.batDau) throw e;
+        daTruot.push(e.name === 'TimeoutError' ? `quá ${han / 1000}s` : e.message);
       }
     }
-    throw loiCuoi;
+    throw new Error(`Google không xuất được file sau ${luot} lượt (${daTruot.join(' · ')})`);
   }, { moi });
   if (vet) vet.push({ url: csvUrl, tuoi_giay: Math.round((kq.tuoi || 0) / 1000), loi: kq.loi || null });
   return Papa.parse(kq.val, { header: false, skipEmptyLines: false }).data;
@@ -353,11 +358,13 @@ async function docLive({ urls, gids, url2s, gid2s, san2, moi = false }) {
       mainErrors.push(`file ${i + 1}: ${e.message}`);
     }
   }
-  /* Chỉ chặn khi KHÔNG đọc được file nào; 1 file lỗi (vd file tháng mới
-     chưa có dữ liệu) thì cảnh báo vàng và vẫn chạy các file còn lại */
-  if (!mainOkCount) {
-    throw new Error(`File tổng hợp: ${mainErrors.join(' · ')}`);
-  }
+  /* KHÔNG đọc được file nào thì vẫn CHẠY TIẾP với danh sách rỗng, để GET còn
+     nối được các tháng đã chốt trong datalake. Trước đây chỗ này ném lỗi, nên
+     một file Google hụt là xoá trắng cả trang — kể cả 7 tháng nằm sẵn trong
+     repo, đọc không tốn gì. Người xem thấy màn hình toàn dấu gạch trong khi
+     máy đang có đủ số lịch sử. Lỗi vẫn đi ra meta.main_error để hiện cảnh báo
+     vàng; GET tự quyết chặn hay không tuỳ có datalake hay không. */
+  if (!mainOkCount) mainErrors.unshift('KHÔNG đọc được file tháng đang chạy');
 
   /* File API từ sàn (chỉ G1/G2): file BE ƯU TIÊN vì đã đối soát;
      API chỉ BỔ SUNG những đơn file BE còn thiếu (so theo Order ID, kể cả
@@ -654,6 +661,15 @@ export async function GET(request) {
       histHuy += h.counts?.huy || 0;
     }
   }
+  /* Không đọc được tháng đang chạy VÀ cũng không có tháng nào trong datalake
+     thì mới thật sự không có gì để hiện — lúc đó mới báo lỗi. Còn nếu có
+     datalake thì trả số lịch sử kèm main_error, trang hiện cảnh báo vàng
+     nhưng vẫn xem được các tháng đã chốt. */
+  if (!detail.length) {
+    const loi = goi.meta?.main_error || 'Không đọc được dữ liệu đơn hàng';
+    return Response.json({ error: loi }, { status: 502 });
+  }
+
   const dates = detail.map((x) => x.ngay);
 
   /* Đối soát các tháng đã chốt: api_file + danh sách trùng lấy từ datalake */
