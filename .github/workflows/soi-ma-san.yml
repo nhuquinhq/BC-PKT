@@ -1,0 +1,49 @@
+# Liet ke MOI ma san dang co trong du lieu thang dang chay, danh dau ma nao
+# chua duoc gan BU trong lib/data/san-bu.json. Dung khi co san moi phat sinh.
+name: Soi ma san chua gan BU
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Doc du lieu thang dang chay
+        run: |
+          Q="url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2F1AIJYxsS-SKcE-DVFWom0DqQsGJmvIo03JzBViCLJe3M%2Fedit%3Fgid%3D0&gid=0&url2=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2F1MgKdAkn_shglL0xoduuUnqhKTmJDwpCilUnJgwpmAEQ%2Fedit%3Fgid%3D0&gid2=0&moi=1&hist=1"
+          for i in 1 2 3; do
+            curl -sS -m 290 -o /tmp/r.json -w "lan $i: HTTP %{http_code} · %{time_total}s\n" "https://bc-pkt.vercel.app/api/cpv?$Q" && break
+            sleep 20
+          done
+          python3 - <<'PY'
+          import json, collections
+          d = json.load(open('/tmp/r.json'))
+          if d.get('error'): print('LOI:', d['error']); raise SystemExit
+          bu = json.load(open('lib/data/san-bu.json', encoding='utf-8'))
+          biet = {r['ma'].upper(): r for r in bu['san']}
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+
+          def bang(rows, ten):
+              don = collections.Counter(); tien = collections.defaultdict(float); ngay = collections.defaultdict(set)
+              for r in rows:
+                  don[r['san']] += r.get('so_don') or 0
+                  tien[r['san']] += r.get('thanh_tien') or 0
+                  ngay[r['san']].add(r['ngay'])
+              print(f'\n===== {ten} — {len(don)} mã sàn')
+              print(f"{'Mã':<8}{'BU':<9}{'Số đơn':>9}{'GMV':>18}{'Ngày':>6}  Tên sàn")
+              for s in sorted(don, key=lambda x: -tien[x]):
+                  r = biet.get(s.upper())
+                  print(f"{s:<8}{(r['bu'] if r else 'CHUA CO'):<9}{n(don[s]):>9}{n(tien[s]):>18}{len(ngay[s]):>6}  {r['ten'] if r else '—'}")
+              return [s for s in don if s.upper() not in biet]
+
+          det = d['detail']
+          thang = sorted({r['ngay'][3:] for r in det})
+          la8 = bang([r for r in det if r['ngay'].endswith(thang[-1])], f'THÁNG {thang[-1]} (đang chạy)')
+          laAll = bang(det, f'TOÀN BỘ {thang[0]} → {thang[-1]}')
+          la = sorted(set(la8) | set(laAll))
+          print('\n' + ('MÃ CHƯA GẮN BU: ' + ', '.join(la) if la else 'Mọi mã sàn đều đã có BU'))
+          PY
