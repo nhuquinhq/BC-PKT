@@ -1,0 +1,64 @@
+# File CPV BE 08/2026 co HAI duong xuat CSV:
+#   A. ban PUBLISH  /d/e/<pubid>/pub?gid=..&single=true&output=csv   <- dang dung, HONG
+#   B. link FILE    /d/<fileid>/export?format=csv&gid=..             <- chua thu
+# Hai duong nay chay qua backend khac nhau nen mot duong hong khong co nghia
+# duong kia hong. Do 5 luot moi duong de biet co doi duoc khong.
+name: Do BE T8 hai duong xuat
+
+on:
+  workflow_dispatch: {}
+
+env:
+  FILE_ID: "19dGSq5_jl8e2X3QrmVJQuK5UKbYThces8jjC8hRxlbE"
+  PUB_ID: "2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0"
+
+jobs:
+  do:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Do 5 luot moi duong
+        run: |
+          do_toc_do() {
+            ten="$1"; url="$2"
+            echo "===== $ten"
+            ok=0
+            for i in 1 2 3 4 5; do
+              rm -f /tmp/x.csv
+              out=$(curl -sSL -m 120 -o /tmp/x.csv -w '%{http_code}|%{time_total}|%{size_download}' "$url" 2>/dev/null || echo '000|timeout|0')
+              code=${out%%|*}; rest=${out#*|}; tg=${rest%%|*}; sz=${rest##*|}
+              h=$(head -c 12 /tmp/x.csv 2>/dev/null | tr -d '\n')
+              ghi=HONG
+              case "$h" in
+                '<!DOCTYPE'*|'<html'*) ghi='TRA VE HTML (can dang nhap / chua mo quyen)' ;;
+                *) if [ "$code" = "200" ] && [ "$sz" -gt 100000 ]; then ghi=OK; ok=$((ok+1)); fi ;;
+              esac
+              printf '   luot %s: HTTP %-3s · %-9ss · %-10s byte · %s\n' "$i" "$code" "$tg" "$sz" "$ghi"
+              sleep 4
+            done
+            echo "   -> thanh cong $ok/5"
+            if [ "$ok" -gt 0 ]; then
+              echo "   --- khuon file doc duoc ---"
+              python3 - <<'PY'
+          import csv
+          csv.field_size_limit(10**9)
+          rows = list(csv.reader(open('/tmp/x.csv', encoding='utf-8', errors='ignore')))
+          print(f'   {len(rows)} dong')
+          hdr = next((i for i, r in enumerate(rows[:40]) if any(str(c).strip().lower() == 'order id' for c in r)), None)
+          if hdr is None:
+              print('   khong thay dong tieu de'); raise SystemExit
+          cols = [c.strip() for c in rows[hdr]]
+          print(f'   dong tieu de {hdr} · {len(cols)} cot')
+          for k in ('Order ID', 'Sàn', 'Doanh thu', 'Thành tiền', 'Ngày hoàn tất', 'Giá vốn', 'Tỷ giá tuần', 'BU'):
+              v = [i for i, c in enumerate(cols) if k.lower() in c.lower()]
+              print(f'      {k:<16} cot {v if v else "KHONG THAY"}')
+          PY
+            fi
+            echo
+          }
+
+          do_toc_do "A. Ban PUBLISH (dang dung tren web)" \
+            "https://docs.google.com/spreadsheets/d/e/$PUB_ID/pub?gid=0&single=true&output=csv"
+
+          do_toc_do "B. Link FILE - export truc tiep" \
+            "https://docs.google.com/spreadsheets/d/$FILE_ID/export?format=csv&gid=0"
