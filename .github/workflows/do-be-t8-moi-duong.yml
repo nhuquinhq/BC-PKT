@@ -1,0 +1,80 @@
+# File BE T8 la nguon DUY NHAT co du gia von de lam bao cao CPV, nhung ca hai
+# duong xuat CSV deu treo 120s. Google con duong thu ba: gviz/tq — chay qua
+# backend KHAC, va quan trong hon la cho SELECT rieng vai cot thay vi ca 42
+# cot, giam manh khoi luong phai xuat.
+#
+# Thu lan luot, moi kieu 3 luot.
+name: Do BE T8 - moi duong xuat
+
+on:
+  workflow_dispatch: {}
+
+env:
+  FILE_ID: "19dGSq5_jl8e2X3QrmVJQuK5UKbYThces8jjC8hRxlbE"
+  PUB_ID: "2PACX-1vR4aNo9LBJ34PRByMwVyyvTxLKcFkh5qg4LNV1WkE-U_LF6zyNDNdNAmcovZrRzT4CdR-NQk8Y1D5O0"
+
+jobs:
+  do:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Thu tung kieu xuat
+        run: |
+          thu() {
+            ten="$1"; url="$2"; luot="${3:-3}"
+            echo "===== $ten"
+            ok=0
+            for i in $(seq 1 "$luot"); do
+              rm -f /tmp/x.csv
+              out=$(curl -sSL -m 100 -o /tmp/x.csv -w '%{http_code}|%{time_total}|%{size_download}' "$url" 2>/dev/null || echo '000|timeout|0')
+              code=${out%%|*}; rest=${out#*|}; tg=${rest%%|*}; sz=${rest##*|}
+              h=$(head -c 14 /tmp/x.csv 2>/dev/null | tr -d '\n')
+              ghi=HONG
+              case "$h" in
+                '<!DOCTYPE'*|'<html'*) ghi='HTML (chan quyen)' ;;
+                *) if [ "$code" = "200" ] && [ "$sz" -gt 20000 ]; then ghi=OK; ok=$((ok+1)); fi ;;
+              esac
+              printf '   luot %s: HTTP %-3s · %-9ss · %-10s byte · %s\n' "$i" "$code" "$tg" "$sz" "$ghi"
+              sleep 3
+            done
+            echo "   -> $ok/$luot"
+            [ "$ok" -gt 0 ] && { echo "   dong: $(wc -l < /tmp/x.csv) · 200 ky tu dau:"; head -c 200 /tmp/x.csv | tr '\n' ' '; echo; }
+            echo
+          }
+
+          G="https://docs.google.com/spreadsheets/d/$FILE_ID/gviz/tq"
+
+          thu "1. gviz - ca bang (khac backend voi /export)" \
+            "$G?tqx=out:csv&gid=0"
+
+          # Chi lay cac cot bao cao CPV thuc su dung. File 42 cot, lay 14 cot.
+          # B OrderID · C San · D Game · E SanPham · H DoanhThu · I PhiSan
+          # J ThucNhan · P NgayTao · Q NgayHoanTat · R DichVu · S TrangThai
+          # AG TyGiaCO · AH TyGiaREV · AI ThanhTien · AN GiaVon · AO LoiNhuan
+          SEL="select B,C,D,E,H,I,J,P,Q,R,S,AG,AH,AI,AN,AO"
+          thu "2. gviz - chi 16 cot can dung" \
+            "$G?tqx=out:csv&gid=0&tq=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$SEL")"
+
+          # Chi lay dong tu ngay 20 tro di — dung khi da chot phan dau thang
+          SEL2="select B,C,H,I,J,Q,S,AH,AI,AN limit 2000"
+          thu "3. gviz - 10 cot, gioi han 2000 dong" \
+            "$G?tqx=out:csv&gid=0&tq=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$SEL2")"
+
+      - name: Doi chieu - file V3 co cot gia von khong
+        run: |
+          curl -sSL -m 100 -o /tmp/v3.csv \
+            "https://docs.google.com/spreadsheets/d/1AIJYxsS-SKcE-DVFWom0DqQsGJmvIo03JzBViCLJe3M/export?format=csv&gid=0" || true
+          echo "V3: $(stat -c%s /tmp/v3.csv 2>/dev/null || echo 0) byte"
+          python3 - <<'PY'
+          import csv
+          csv.field_size_limit(10**9)
+          try: rows = list(csv.reader(open('/tmp/v3.csv', encoding='utf-8', errors='ignore')))
+          except Exception as e: print('khong doc duoc:', e); raise SystemExit
+          if not rows: print('rong'); raise SystemExit
+          cols = [c.strip() for c in rows[0]]
+          gv = [i for i, c in enumerate(cols) if 'giá vốn' in c.lower() or 'gia von' in c.lower()]
+          print(f'{len(rows)} dong · cot ten "Gia von": {gv}')
+          for i in gv:
+              co = sum(1 for r in rows[1:] if i < len(r) and str(r[i]).strip() not in ('', '0'))
+              print(f'   cot {i} "{cols[i]}": {co}/{len(rows)-1} dong CO SO')
+          PY
