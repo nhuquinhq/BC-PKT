@@ -216,12 +216,22 @@ export async function GET(request) {
      trước. Đây là JSON tĩnh nằm sẵn trong bản build, không gọi Google thêm
      lượt nào nên không làm tin bắn chậm đi. */
   qs.append('hist', '1');
+  /* Đọc file tháng ĐANG CHẠY, cộng các file tháng trước còn khai trong mains.
+     Vì sao cần tháng trước: khối "so cùng kỳ" lấy số tháng trước từ datalake,
+     mà tháng vừa qua thì CHƯA chốt sổ nên chưa có trong đó — phải đọc live
+     thì mùng 1 tháng mới bot mới có cái để so. Chốt sổ xong thì bỏ khỏi mains. */
   qs.append('url', cfg.url);
   qs.append('gid', cfg.gid || '0');
+  for (const m of cfg.mains || []) {
+    if (!m?.url) continue;
+    qs.append('url', m.url);
+    qs.append('gid', m.gid || '0');
+  }
   const apis = Array.isArray(cfg.api) ? cfg.api : cfg.api?.url ? [cfg.api] : [];
-  if (apis[0]) {
-    qs.append('url2', apis[0].url);
-    qs.append('gid2', apis[0].gid || '0');
+  for (const a of apis) {
+    if (!a?.url) continue;
+    qs.append('url2', a.url);
+    qs.append('gid2', a.gid || '0');
   }
 
   /* Gọi thẳng hàm xử lý của /api/cpv (không đi qua HTTP) — tự gọi lại
