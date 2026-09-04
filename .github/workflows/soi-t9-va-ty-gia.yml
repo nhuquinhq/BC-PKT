@@ -1,0 +1,90 @@
+# Hai viec:
+#  1. Tim vi sao luy ke thang 9 bi bom len ~1000 lan (bot bao 4,09 trieu USD
+#     cho 2.097 don, trong khi hom nay 2.196 USD cho 130 don).
+#  2. Soi tab ty gia gid 1739295342 de doc truc tiep thay cho bang tinh trong repo.
+name: Soi T9 va bang ty gia
+
+on:
+  workflow_dispatch: {}
+
+env:
+  V3_T9: "10EBQ6uFLK_wlfzbxw1KQIxu3QZYpWGrO4u35bFcL2yA"
+  API_T9: "1GpOFicbNTmkxCCe9488516LPx31ryZTAVwS9hSxEL7U"
+  TG_FILE: "1tMLW_mB8U08CQvE-lPBoLYAbjjs2Cc78t5bLHWTsK48"
+  TG_GID: "1739295342"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: 1. Soi file don hang T9 - tim dong bat thuong
+        run: |
+          for f in "$V3_T9:/tmp/dh.csv" "$API_T9:/tmp/api.csv"; do
+            id="${f%%:*}"; out="${f##*:}"
+            curl -sSL -m 120 -o "$out" "https://docs.google.com/spreadsheets/d/$id/export?format=csv&gid=0" || true
+            echo "$out: $(stat -c%s "$out" 2>/dev/null || echo 0) byte"
+          done
+          python3 - <<'PY'
+          import csv, re, collections, unicodedata
+          csv.field_size_limit(10**9)
+          def bd(s):
+              s = unicodedata.normalize('NFD', str(s or ''))
+              return ''.join(c for c in s if unicodedata.category(c) != 'Mn').replace('đ','d').lower().strip()
+          def viNum(s):
+              s = str(s or '').strip().replace(' ', '')
+              if not s: return 0.0
+              if ',' in s: s = s.replace('.', '').replace(',', '.')
+              elif re.fullmatch(r'-?\d{1,3}(\.\d{3})+', s): s = s.replace('.', '')
+              try: return float(s)
+              except ValueError: return 0.0
+          def ngay(s):
+              m = re.search(r'(\d{4})-(\d{2})-(\d{2})', str(s or ''))
+              if m: return f'{m.group(3)}/{m.group(2)}/{m.group(1)}'
+              m = re.search(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', str(s or ''))
+              return f'{int(m.group(1)):02d}/{int(m.group(2)):02d}/{m.group(3)}' if m else ''
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+
+          for path, ten in (('/tmp/dh.csv', 'DON HANG V3 T9'), ('/tmp/api.csv', 'API T9')):
+              rows = list(csv.reader(open(path, encoding='utf-8', errors='ignore')))
+              if not rows: print(f'\n### {ten}: rong'); continue
+              cols = [c.strip() for c in rows[0]]
+              i_usd = next((i for i,c in enumerate(cols) if bd(c) == 'doanh thu'), None)
+              i_ht  = next((i for i,c in enumerate(cols) if 'hoan tat' in bd(c)), None)
+              i_id  = next((i for i,c in enumerate(cols) if bd(c) == 'order id'), None)
+              i_san = next((i for i,c in enumerate(cols) if bd(c) == 'san'), None)
+              print(f'\n### {ten} — {len(rows)} dong · {len(cols)} cot')
+              theo = collections.defaultdict(lambda: [0, 0.0])
+              lon = []
+              for k, r in enumerate(rows[1:], start=2):
+                  g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
+                  u = viNum(g(i_usd)); d = ngay(g(i_ht))
+                  if d: theo[d][0] += 1; theo[d][1] += u
+                  if u > 5000: lon.append((k, d, u, str(g(i_id))[:24], str(g(i_san))[:6], str(g(i_usd))[:22]))
+              for d in sorted(theo, key=lambda x: x[:2]):
+                  c, u = theo[d]
+                  print(f'   {d}  {c:>5} dong · ${u:>16,.0f}')
+              print(f'   >>> {len(lon)} DONG co Doanh thu > $5.000:')
+              for k, d, u, oid, san, raw in lon[:15]:
+                  print(f'      dong {k:>5} · {d} · {san:<6} · ${u:>15,.0f} · o goc "{raw}" · id {oid}')
+          PY
+
+      - name: 2. Soi tab ty gia
+        run: |
+          curl -sSL -m 120 -o /tmp/tg.csv \
+            "https://docs.google.com/spreadsheets/d/$TG_FILE/export?format=csv&gid=$TG_GID" || true
+          echo "$(stat -c%s /tmp/tg.csv 2>/dev/null || echo 0) byte"
+          python3 - <<'PY'
+          import csv
+          csv.field_size_limit(10**9)
+          rows = list(csv.reader(open('/tmp/tg.csv', encoding='utf-8', errors='ignore')))
+          print(f'{len(rows)} dong')
+          for i, r in enumerate(rows[:35]):
+              cel = [str(c).strip()[:20] for c in r[:10]]
+              if any(cel): print(f'  {i:>3} | ' + ' | '.join(cel))
+          if len(rows) > 35:
+              print('  ...')
+              for i, r in enumerate(rows[-6:], start=len(rows)-6):
+                  cel = [str(c).strip()[:20] for c in r[:10]]
+                  if any(cel): print(f'  {i:>3} | ' + ' | '.join(cel))
+          PY
