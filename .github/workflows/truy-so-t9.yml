@@ -1,0 +1,56 @@
+# File nguon T9 sach (4 ngay ~42k USD) nhung bot bao 4,09 trieu USD.
+# Goi /api/cpv DUNG bo tham so bot dung, roi boc tung lop de tim cho bom so.
+name: Truy so T9 sai
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  truy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Goi /api/cpv dung bo tham so cua bot
+        run: |
+          E() { python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=''))" "$1"; }
+          T9=$(E "https://docs.google.com/spreadsheets/d/10EBQ6uFLK_wlfzbxw1KQIxu3QZYpWGrO4u35bFcL2yA/edit?gid=0")
+          T8=$(E "https://docs.google.com/spreadsheets/d/1AIJYxsS-SKcE-DVFWom0DqQsGJmvIo03JzBViCLJe3M/edit?gid=0")
+          A9=$(E "https://docs.google.com/spreadsheets/d/1GpOFicbNTmkxCCe9488516LPx31ryZTAVwS9hSxEL7U/edit?gid=0")
+          A8=$(E "https://docs.google.com/spreadsheets/d/1MgKdAkn_shglL0xoduuUnqhKTmJDwpCilUnJgwpmAEQ/edit?gid=0")
+          Q="moi=1&hist=1&url=$T9&gid=0&url=$T8&gid=0&url2=$A9&gid2=0&url2=$A8&gid2=0"
+          curl -sS -m 290 -o /tmp/r.json -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' \
+            "https://bc-pkt.vercel.app/api/cpv?$Q"
+          python3 - <<'PY'
+          import json, collections
+          d = json.load(open('/tmp/r.json'))
+          if d.get('error'): print('LOI:', d['error']); raise SystemExit
+          m = d.get('meta') or {}
+          print('meta:', {k: m.get(k) for k in
+                ('rows_used','main_used','api_used','main_files','main_error','api_error',
+                 'co_thanh_tien','co_ty_gia','quy_doi_vnd','ngoai_bang_ty_gia','dedup_removed',
+                 'api_out_of_range','from','to','header_row')})
+          det = d['detail']
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+          print(f'\n{len(det)} dong gop')
+
+          # Gop theo THANG de xem thang nao bi bom
+          th = collections.defaultdict(lambda: [0, 0.0, 0.0])
+          for r in det:
+              k = r['ngay'][3:]
+              th[k][0] += r.get('so_don') or 0
+              th[k][1] += r.get('doanh_thu_usd') or 0
+              th[k][2] += r.get('thanh_tien') or 0
+          print(f"\n{'THANG':<10}{'don':>9}{'USD':>16}{'VND':>20}{'USD/don':>10}")
+          for k in sorted(th, key=lambda x: (x[3:], x[:2])):
+              c, u, v = th[k]
+              print(f'{k:<10}{n(c):>9}{u:>16,.0f}{n(v):>20}{(u/c if c else 0):>10,.1f}')
+
+          # Trong thang 9: dong nao gop bi bom
+          t9 = [r for r in det if r['ngay'].endswith('/09/2026')]
+          t9.sort(key=lambda r: -(r.get('doanh_thu_usd') or 0))
+          print(f'\n10 DONG GOP LON NHAT thang 9 (tong {len(t9)} dong):')
+          print(f"{'ngay':<12}{'san':<7}{'spdv':<18}{'nguon':<6}{'don':>7}{'USD':>15}{'VND':>18}")
+          for r in t9[:10]:
+              print(f"{r['ngay']:<12}{r['san']:<7}{str(r['spdv'])[:16]:<18}{r.get('nguon',''):<6}"
+                    f"{n(r.get('so_don') or 0):>7}{(r.get('doanh_thu_usd') or 0):>15,.0f}{n(r.get('thanh_tien') or 0):>18}")
+          PY
