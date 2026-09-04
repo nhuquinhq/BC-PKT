@@ -1,0 +1,74 @@
+# Tab ty gia trai NGANG theo tuan: moi tuan mot khoi cot. Lan truoc chi in 9
+# cot dau nen chi thay tuan 18. Lan nay quet HET chieu ngang, bam theo dong
+# YEAR/MONTH/WEEK/DAYS de biet cot nao thuoc tuan nao, roi doc REV Rate va
+# CO Rate cua tung tuan.
+name: Doc bang ty gia tuan
+
+on:
+  workflow_dispatch: {}
+
+env:
+  FILE_ID: "1tMLW_mB8U08CQvE-lPBoLYAbjjs2Cc78t5bLHWTsK48"
+  GID: "1739295342"
+
+jobs:
+  doc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Tai va boc bang
+        run: |
+          for i in 1 2 3; do
+            curl -sSL -m 90 -o /tmp/tg.csv \
+              "https://docs.google.com/spreadsheets/d/$FILE_ID/gviz/tq?tqx=out:csv&gid=$GID" && break
+            sleep 10
+          done
+          echo "$(stat -c%s /tmp/tg.csv) byte"
+          python3 - <<'PY'
+          import csv, re, unicodedata
+          csv.field_size_limit(10**9)
+          rows = list(csv.reader(open('/tmp/tg.csv', encoding='utf-8', errors='ignore')))
+          w = max(len(r) for r in rows)
+          print(f'{len(rows)} dong · {w} cot\n')
+
+          def bd(s):
+              s = unicodedata.normalize('NFD', str(s or ''))
+              return ''.join(c for c in s if unicodedata.category(c) != 'Mn').lower().strip()
+          def nhan(r):
+              return ' / '.join(str(c).strip() for c in r[:4] if str(c).strip())
+
+          # Tim cac dong moc
+          idx = {}
+          for i, r in enumerate(rows):
+              k = bd(nhan(r))
+              for ten in ('year', 'month', 'week', 'days'):
+                  if k == ten and ten not in idx: idx[ten] = i
+              if 'rev rate' in k and 'rev' not in idx: idx['rev'] = i
+              if 'co rate' in k and 'co' not in idx: idx['co'] = i
+          print('Dong moc:', idx, '\n')
+
+          def o(i, j):
+              r = rows[i] if i is not None and i < len(rows) else []
+              return str(r[j]).strip() if j < len(r) else ''
+
+          # Quet ngang: cot nao co WEEK thi la mot tuan
+          print(f"{'cot':>4} {'nam':>5} {'thang':>6} {'tuan':>5} {'ngay dau':>10} {'REV':>10} {'CO':>10}")
+          co_du_lieu = 0
+          for j in range(2, w):
+              wk = o(idx.get('week'), j)
+              if not re.fullmatch(r'\d{1,2}', wk): continue
+              nam = o(idx.get('year'), j); thg = o(idx.get('month'), j)
+              ngay = o(idx.get('days'), j)
+              rev = o(idx.get('rev'), j); co = o(idx.get('co'), j)
+              if rev or co: co_du_lieu += 1
+              print(f'{j:>4} {nam:>5} {thg:>6} {wk:>5} {ngay:>10} {rev:>10} {co:>10}')
+          print(f'\n{co_du_lieu} tuan co so REV/CO')
+
+          # Neu khong bam duoc theo moc thi in tho vai dong quanh REV/CO
+          if not co_du_lieu:
+              print('\n--- IN THO de xem cau truc ---')
+              for i, r in enumerate(rows):
+                  cel = [str(c).strip() for c in r]
+                  if any(cel):
+                      print(f'{i:>3} | ' + ' | '.join(cel[:26]))
+          PY
