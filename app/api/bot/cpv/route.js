@@ -284,6 +284,50 @@ export async function GET(request) {
   /* Tỷ giá USDT/VND đang áp = Thành tiền ÷ DThu thực nhận (tỷ giá tuần trên file BE) */
   const tyGia = netNgay > 0 ? gmvNgay / netNgay : netThang > 0 ? gmvThang / netThang : 0;
 
+  /* ---------- CHỐT KIỂM TRA TRƯỚC KHI BẮN ----------
+     Ngày 04/09 bot bắn ra lũy kế 4,09 triệu USD cho 2.097 đơn — tức 1.952
+     USD/đơn, trong khi mọi tháng đều quanh 9–16 USD/đơn. File nguồn đọc lại
+     thì sạch, nên đó là một lượt đọc hỏng nhất thời (file do máy ghi đè toàn
+     bộ, đọc trúng lúc đang ghi thì có thể ra bản dở dang hoặc lặp dòng).
+
+     Số vô lý bắn thẳng ra box cho cả phòng đọc là chuyện không được phép xảy
+     ra. Nên so đơn giá bình quân tháng này với các tháng đã có: lệch quá 5
+     lần thì KHÔNG gửi, trả lại lượt để chuyến ping sau đọc lại. Thà chậm một
+     nhịp còn hơn bắn số sai. */
+  const donGiaThang = (rows) => {
+    const d = sum(rows, 'so_don');
+    return d > 0 ? sum(rows, 'doanh_thu_usd') / d : 0;
+  };
+  const theoThang = new Map();
+  for (const r of detail) {
+    const k = r.ngay.slice(3);
+    if (k === thang) continue;
+    if (!theoThang.has(k)) theoThang.set(k, []);
+    theoThang.get(k).push(r);
+  }
+  const nenCo = [...theoThang.values()].map(donGiaThang).filter((x) => x > 0).sort((a, b) => a - b);
+  const donGiaNay = donGiaThang(trongThang);
+  if (nenCo.length >= 3 && donGiaNay > 0) {
+    const giua = nenCo[Math.floor(nenCo.length / 2)];
+    const lech = donGiaNay / giua;
+    if (lech > 5 || lech < 0.2) {
+      const msg =
+        `Số bất thường, không gửi: tháng ${thang} đang là ${donGiaNay.toFixed(1)} USD/đơn, ` +
+        `trong khi các tháng trước quanh ${giua.toFixed(1)} USD/đơn (lệch ${lech.toFixed(1)} lần). ` +
+        `Nhiều khả năng đọc trúng lúc file đang được ghi lại.`;
+      await ghiVet(`CHẶN: ${msg}`);
+      if (autoKv) {
+        await fetch(autoKv.url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${autoKv.token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(['DEL', autoKv.key]),
+          cache: 'no-store',
+        }).catch(() => {});
+      }
+      return Response.json({ sent: false, chan: msg }, { status: 502 });
+    }
+  }
+
   /* ---------- Cùng kỳ THÁNG TRƯỚC ----------
      So hai mốc, cả hai đều cắt tới ĐÚNG NGÀY hiện tại để công bằng:
      - cùng ngày: 19/08 so với 19/07
