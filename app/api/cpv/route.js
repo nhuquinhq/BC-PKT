@@ -13,7 +13,7 @@
 import Papa from 'papaparse';
 import { spdvOf, teamOf, SAN_BU_MAP } from '@/lib/cpvDims';
 import { nhoDoc, nhoDocFile } from '@/lib/boNho';
-import { tyGiaRe, tyGiaCo, TY_GIA_CAP_NHAT } from '@/lib/tyGia';
+import { boTyGia, TY_GIA_CAP_NHAT } from '@/lib/tyGia';
 /* "Datalake" tháng đã chốt sổ: dữ liệu đã gộp sẵn (Ngày × Sàn × SPDV) đóng gói
    tĩnh theo app — không phải đọc lại Google Sheet các tháng cũ ở mỗi lượt xem.
    Sinh file bằng chính API này (xem README trong lib/data nếu cần làm lại). */
@@ -35,7 +35,7 @@ export const maxDuration = 300;
    gid nên sửa công thức xong deploy lên thì trang vẫn trả bản tính theo công
    thức CŨ cho tới khi hết hạn nhớ — đã dính đúng vụ này khi sửa quy đổi VND.
    ĐỔI CHUỖI NÀY mỗi khi sửa cách tính tiền, đừng chỉ sửa công thức. */
-const PHIEN_BAN_TINH = 'v2-quydoi-net-re-co';
+const PHIEN_BAN_TINH = 'v3-tygia-doc-song';
 
 const norm = (s) =>
   String(s ?? '')
@@ -313,6 +313,8 @@ function aggregate(rows) {
    chuẩn hoá thành danh sách từng đơn. Tách riêng khỏi GET để bọc được bộ
    nhớ đệm — xem lib/boNho.js. */
 async function docLive({ urls, gids, url2s, gid2s, san2, moi = false }) {
+  /* Đọc bảng tỷ giá MỘT lần cho cả lượt, dùng chung cho mọi dòng đơn. */
+  const tg = await boTyGia();
   let mainRows = [];
   let mainMeta = {};
   const mainErrors = [];
@@ -333,8 +335,9 @@ async function docLive({ urls, gids, url2s, gid2s, san2, moi = false }) {
       const p = parseOrders(loaded[i].grid);
       if (!mainOkCount) mainMeta = p.meta;
       mainOkCount += 1;
-      /* Nguồn thô không có cột Thành tiền: quy đổi bằng bảng tỷ giá tuần ở
-         lib/data/ty-gia-tuan.json — cùng cách file BE cũ đặt công thức và
+      /* Nguồn thô không có cột Thành tiền: quy đổi bằng bảng tỷ giá tuần đọc
+         thẳng từ file HQS - BẢNG TỶ GIÁ HÀNG TUẦN — cùng cách file BE cũ đặt
+         công thức và
          cùng cách khối đơn API bên dưới đang làm:
            Thành tiền = DThu THỰC NHẬN × REV   (không phải doanh thu gộp)
            Giá vốn    = Giá vốn (USD)  × CO    (giá vốn đi tỷ giá riêng)
@@ -343,11 +346,11 @@ async function docLive({ urls, gids, url2s, gid2s, san2, moi = false }) {
       if (!p.meta.co_thanh_tien) {
         for (const r of p.rows) {
           if (r.sc !== 'ok') continue;
-          const re = tyGiaRe(r.sortKey);
+          const re = tg.re(r.sortKey);
           if (!re) { ngoaiBangTyGia += 1; continue; }
           r.ty_gia_tuan = re;
           r.thanh_tien = r.dthu_thuc * re;
-          r.gia_von = r.gia_von * tyGiaCo(r.sortKey);
+          r.gia_von = r.gia_von * tg.co(r.sortKey);
           r.phi_san_vnd = r.phi_san * re;
           r.loi_nhuan = r.thanh_tien - r.gia_von;
           quyDoiVnd += 1;
@@ -511,7 +514,7 @@ async function docLive({ urls, gids, url2s, gid2s, san2, moi = false }) {
     nc: r.nguon === 'dh' && r.sc === 'ok' && r.thanh_tien > 0 && !r.gia_von ? 1 : 0,
   }));
 
-  return { all, api_file, dupList, mainMeta, apiMeta, dedup, outOfRange, apiNoCost, mainErrors, sanBu, vetFile, quyDoiVnd, ngoaiBangTyGia };
+  return { all, api_file, dupList, mainMeta, apiMeta, dedup, outOfRange, apiNoCost, mainErrors, sanBu, vetFile, quyDoiVnd, ngoaiBangTyGia, tyGiaMeta: { so_tuan: tg.soTuan, moi_nhat: tg.moiNhat, doc_tu_file: tg.tuFile } };
 }
 
 /* Bản GỌN để cất vào bộ nhớ đệm: đã gộp theo Ngày × Sàn × SPDV nên nhẹ hơn
@@ -545,6 +548,7 @@ function goiGon(kq) {
          từ file — nói ra để đối chiếu lệch với sổ kế toán còn biết đường tra. */
       quy_doi_vnd: kq.quyDoiVnd || 0,
       ty_gia_cap_nhat: kq.quyDoiVnd ? TY_GIA_CAP_NHAT : null,
+      ty_gia: kq.tyGiaMeta || null,
       ngoai_bang_ty_gia: kq.ngoaiBangTyGia || 0,
     },
   };

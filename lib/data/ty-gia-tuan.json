@@ -1,17 +1,27 @@
 {
-  "nguon": "Hai cột \"Tỷ giá tuần\" của file CPV BE (tab Data): cột 32 = CO Rate, cột 33 = REV Rate.",
-  "ghi_chu": "REV dùng quy đổi DOANH THU, CO dùng quy đổi GIÁ VỐN — hai tỷ giá khác nhau, CO cao hơn REV khoảng 520 đ. Nguồn đơn hàng mới (Báo cáo đơn hàng V3) là bản xuất thô từ hệ thống, không có cột tỷ giá lẫn cột Thành tiền VND, nên phải tra ở đây.",
+  "nguon": "Tab tỷ giá tuần (gid 1739295342) của file HQS - BẢNG TỶ GIÁ HÀNG TUẦN — dòng 'REV Rate' và 'CO Rate' trong khối ER2 USDT/VND.",
+  "ghi_chu": "REV dùng quy đổi DOANH THU, CO dùng quy đổi GIÁ VỐN — hai tỷ giá khác nhau, CO cao hơn REV khoảng 520 đ. Nguồn đơn hàng V3 là bản xuất thô từ hệ thống, không có cột tỷ giá lẫn cột Thành tiền VND, nên phải tra ở đây.",
   "cong_thuc": "Thành tiền (GMV VND) = DThu thực nhận (USD) × REV — KHÔNG phải Doanh thu gộp × REV. Đã đối chiếu trên file BE tháng 7 và 8: tỷ số Thành tiền ÷ DThu thực nhận bằng đúng REV từng ngày. Giá vốn VND = Giá vốn (USD) × CO.",
-  "cach_dung": "Mỗi mốc có hiệu lực TỪ ngày `tu` cho tới trước mốc kế tiếp. Ngày sau mốc cuối cùng dùng luôn tỷ giá của mốc cuối. Thêm tuần mới thì chèn một mốc và cập nhật `cap_nhat`.",
-  "cap_nhat": "17/08/2026",
+  "cach_dung": "Mỗi mốc là NGÀY ĐẦU TUẦN, có hiệu lực tới trước mốc kế tiếp. Ngày sau mốc cuối dùng luôn tỷ giá mốc cuối. Bảng này là bản dự phòng — /api/cpv ưu tiên đọc thẳng tab tỷ giá, hụt mới lùi về đây.",
+  "cap_nhat": "04/09/2026",
   "moc": [
-    { "tu": "01/07/2026", "re": 26019, "co": 26550 },
-    { "tu": "08/07/2026", "re": 26039, "co": 26570 },
-    { "tu": "15/07/2026", "re": 25843, "co": 26370 },
-    { "tu": "22/07/2026", "re": 25705, "co": 26230 },
-    { "tu": "29/07/2026", "re": 25803, "co": 26330 },
+    { "tu": "04/05/2026", "re": 26068, "co": 26600 },
+    { "tu": "11/05/2026", "re": 25872, "co": 26400 },
+    { "tu": "18/05/2026", "re": 25872, "co": 26400 },
+    { "tu": "25/05/2026", "re": 25970, "co": 26500 },
+    { "tu": "01/06/2026", "re": 25974, "co": 26504 },
+    { "tu": "08/06/2026", "re": 25823, "co": 26350 },
+    { "tu": "15/06/2026", "re": 25715, "co": 26240 },
+    { "tu": "22/06/2026", "re": 25715, "co": 26240 },
+    { "tu": "29/06/2026", "re": 26019, "co": 26550 },
+    { "tu": "06/07/2026", "re": 26039, "co": 26570 },
+    { "tu": "13/07/2026", "re": 25843, "co": 26370 },
+    { "tu": "20/07/2026", "re": 25705, "co": 26230 },
+    { "tu": "27/07/2026", "re": 25803, "co": 26330 },
     { "tu": "03/08/2026", "re": 25724, "co": 26249 },
     { "tu": "10/08/2026", "re": 25549, "co": 26070 },
-    { "tu": "17/08/2026", "re": 25282, "co": 25798 }
+    { "tu": "17/08/2026", "re": 25282, "co": 25798 },
+    { "tu": "24/08/2026", "re": 25297, "co": 25814 },
+    { "tu": "31/08/2026", "re": 25286, "co": 25803 }
   ]
 }
