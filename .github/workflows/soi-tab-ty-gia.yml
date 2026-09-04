@@ -1,0 +1,66 @@
+# Tab ty gia gid 1739295342 doc bang /export thi ra trang dang nhap, du Drive
+# bao quyen da la "anyone reader". Nhung PKT1 van doc duoc file nay qua LINK
+# XUAT BAN. Thu du moi duong de tim duong nao vao duoc tab do.
+name: Soi tab ty gia
+
+on:
+  workflow_dispatch: {}
+
+env:
+  FILE_ID: "1tMLW_mB8U08CQvE-lPBoLYAbjjs2Cc78t5bLHWTsK48"
+  PUB_ID: "2PACX-1vRBzYH7dMHHBU1PhVf368oCNlLhKhGFclc4VuH9nucqShlrk5fxbYtUUBUUAbYXzm7c3nXO6P7Yb9vQ"
+  GID: "1739295342"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Thu tung duong
+        run: |
+          thu() {
+            ten="$1"; url="$2"
+            rm -f /tmp/x.csv
+            out=$(curl -sSL -m 90 -o /tmp/x.csv -w '%{http_code}|%{time_total}|%{size_download}' "$url" 2>/dev/null || echo '000|timeout|0')
+            code=${out%%|*}; rest=${out#*|}; tg=${rest%%|*}; sz=${rest##*|}
+            h=$(head -c 14 /tmp/x.csv 2>/dev/null | tr -d '\n')
+            ghi=OK
+            case "$h" in '<!DOCTYPE'*|'<html'*) ghi='TRANG DANG NHAP' ;; esac
+            [ "$code" = "200" ] || ghi="HTTP $code"
+            printf '%-46s HTTP %-3s · %-8ss · %-8s byte · %s\n' "$ten" "$code" "$tg" "$sz" "$ghi"
+            if [ "$ghi" = "OK" ]; then
+              cp /tmp/x.csv "/tmp/ok-$(echo "$ten" | tr -cd 'A-Za-z0-9').csv"
+              echo "      120 ky tu dau: $(head -c 120 /tmp/x.csv | tr '\n' ' ')"
+            fi
+          }
+
+          echo "--- Tab TY GIA can lay (gid $GID) ---"
+          thu "A. export csv"        "https://docs.google.com/spreadsheets/d/$FILE_ID/export?format=csv&gid=$GID"
+          thu "B. gviz csv"          "https://docs.google.com/spreadsheets/d/$FILE_ID/gviz/tq?tqx=out:csv&gid=$GID"
+          thu "C. PUBLISH pub csv"   "https://docs.google.com/spreadsheets/d/e/$PUB_ID/pub?gid=$GID&single=true&output=csv"
+          echo
+          echo "--- Doi chung: tab WEEKLY RATE (gid 0) PKT1 dang doc ---"
+          thu "D. export csv gid 0"  "https://docs.google.com/spreadsheets/d/$FILE_ID/export?format=csv&gid=0"
+          thu "E. PUBLISH gid 0"     "https://docs.google.com/spreadsheets/d/e/$PUB_ID/pub?gid=0&single=true&output=csv"
+
+      - name: In noi dung tab lay duoc
+        run: |
+          for f in /tmp/ok-*.csv; do
+            [ -e "$f" ] || continue
+            echo "===== $f"
+            python3 - "$f" <<'PY'
+          import csv, sys
+          csv.field_size_limit(10**9)
+          rows = list(csv.reader(open(sys.argv[1], encoding='utf-8', errors='ignore')))
+          print(f'{len(rows)} dong')
+          for i, r in enumerate(rows[:30]):
+              cel = [str(c).strip()[:18] for c in r[:9]]
+              if any(cel): print(f'  {i:>3} | ' + ' | '.join(cel))
+          if len(rows) > 30:
+              print('  ...')
+              for i, r in enumerate(rows[-8:], start=len(rows)-8):
+                  cel = [str(c).strip()[:18] for c in r[:9]]
+                  if any(cel): print(f'  {i:>3} | ' + ' | '.join(cel))
+          PY
+            echo
+          done
