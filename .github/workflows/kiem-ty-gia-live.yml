@@ -1,0 +1,54 @@
+# Goi thang ban da trien khai de xem ty gia da an ra chua.
+# Doi nguon ty gia ma sai la sai TIEN, nen phai goi that chu khong tin build.
+name: Kiem ty gia tren ban chay
+
+on:
+  workflow_dispatch: {}
+
+env:
+  GOC: "https://bc-pkt.vercel.app"
+
+jobs:
+  kiem:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: /api/sheet — duong PKT1 dung
+        run: |
+          PUB="https://docs.google.com/spreadsheets/d/e/2PACX-1vRBzYH7dMHHBU1PhVf368oCNlLhKhGFclc4VuH9nucqShlrk5fxbYtUUBUUAbYXzm7c3nXO6P7Yb9vQ/pubhtml?gid=1739295342&single=true"
+          GVIZ="https://docs.google.com/spreadsheets/d/1tMLW_mB8U08CQvE-lPBoLYAbjjs2Cc78t5bLHWTsK48/gviz/tq?tqx=out:csv&gid=1739295342&headers=0"
+          echo "--- ca hai duong"
+          curl -sS -m 120 -G "$GOC/api/sheet" \
+            --data-urlencode "url=$PUB" --data-urlencode "url=$GVIZ" \
+            --data-urlencode 'gid=1739295342' --data-urlencode 'raw=1' \
+            -o /tmp/s.json -w 'HTTP %{http_code} · %{size_download} byte\n'
+          node -e '
+          const j=require("/tmp/s.json");
+          if(j.error){console.log("LOI:",j.error);process.exit(1)}
+          console.log("  duong dung:",j.csvUrl);
+          console.log("  "+j.count+" dong");
+          '
+          echo "--- chi duong gviz (thu duong du phong dung mot minh)"
+          curl -sS -m 120 -G "$GOC/api/sheet" \
+            --data-urlencode "url=$GVIZ" --data-urlencode 'raw=1' \
+            -o /tmp/s2.json -w 'HTTP %{http_code} · %{size_download} byte\n'
+          node -e '
+          const j=require("/tmp/s2.json");
+          if(j.error){console.log("LOI:",j.error);process.exit(1)}
+          console.log("  duong dung:",j.csvUrl);
+          console.log("  "+j.count+" dong");
+          '
+
+      - name: /api/cpv — ty gia dang doc tu dau
+        run: |
+          BE="https://docs.google.com/spreadsheets/d/e/2PACX-1vS0Tldb2hmR8TxnYC_un9q0tpgpm3RCyN3O7oJimo17gP4EpagCRwEPwpqMr2BjdZtXeRVOcthy23PX/pubhtml?gid=0&single=true"
+          curl -sS -m 280 -G "$GOC/api/cpv" \
+            --data-urlencode "url=$BE" --data-urlencode 'gid=0' \
+            --data-urlencode 'hist=1' --data-urlencode 'moi=1' \
+            -o /tmp/c.json -w 'HTTP %{http_code}\n'
+          node -e '
+          const j=require("/tmp/c.json");
+          if(j.error){console.log("LOI:",j.error);process.exit(1)}
+          console.log("  ty_gia:",JSON.stringify(j.meta.ty_gia));
+          console.log("  ngoai_bang_ty_gia:",j.meta.ngoai_bang_ty_gia,"· quy_doi_vnd:",j.meta.quy_doi_vnd);
+          '
