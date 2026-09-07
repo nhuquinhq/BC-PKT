@@ -1,63 +1,53 @@
 # Do toc do va soi khuon cot cac nguon truoc khi dau vao cau hinh — da vai lan
 # dinh chuyen doi nguon xong moi phat hien file doi ten cot.
 #
-# Da chot qua bon luot truoc (07/09):
+# Da chot qua nam luot truoc (07/09):
 #   BE T9 (publish, gid 0): 1,54s va 19,9s. 37.425 dong, tieu de dong 4, 48 cot.
 #     [36] REV, [35] CO, [42] gia von VND (ngay truoc [43] Loi Nhuan) — dung
-#     nhu /api/cpv dang gia dinh, khong phai sua route. DA DAU VAO CAU HINH.
-#   BE T8 (publish, gid 0): 0/5 luot, 307 rong sau 110s. Ngay 26/08 con 3/5
-#     trong 0,70s — tuc vua hong han. DA BO KHOI mains.
-#   Vi T9: publish 0/2, export 0/3, gviz 1/5 va 1/6 (38–44s). gviz mac dinh lam
-#     mat ten cot kieu so; headers=5 thi giu duoc nhung ten bi dan lien voi dong
-#     tong ("29.688,69 So Tien"). Ti le 1/5 la qua thap de doc live.
+#     nhu /api/cpv dang gia dinh. DA DAU VAO CAU HINH.
+#   BE T8: publish 0/5, gviz cung hong. Khong con duong nao xuat duoc — muon co
+#     lai so T8 thi phai xuat ban lai file hoac tai ve day vao datalake.
+#   Vi T9: publish 0/2, export 0/3, gviz 1/5 va 1/6 (38–44s). Qua thap de doc
+#     live — chuyen sang chup anh dinh ky, xem .github/workflows/chup-vi.yml.
+#   File API san dang dung: 352 dong, TOAN BO la 08/2026, khong co cot Thanh
+#     tien (la ban tho, /api/cpv tu quy doi). Tuc T9 dang thieu phan don tu
+#     dong — T7 phan nay la 781.906.237 d tren tong 8.524.646.772 d, khoang 9%.
 #
-# Luot nay tra loi hai cau con lai truoc khi chon kien truc cho vi T9 va T8:
-#   1. BE T8 co ra duoc bang duong gviz khong (duong publish da chet)?
-#   2. File API san dang dung (CPV_API_T8_URL) da co du lieu T9 chua, hay chi
-#      den het T8? Neu chi den T8 thi bao cao T9 tren web se thieu phan don tu
-#      dong — T7 phan nay la 781.906.237 d tren tong 8.524.646.772 d, khoang 9%.
+# Luot nay: soi file "Don hang tu dong T9" (ban V3 bot dang dung) xem co dung
+# khuon de thay cho file API san khong. Diem phai kiem: co cot Gia von khong.
+# Chi co GMV ma khong co gia von thi dap vao web se thanh loi nhuan ao.
 name: Soi nguon T9
 
 on:
   workflow_dispatch: {}
 
 env:
-  BE_T8_ID: "19dGSq5rXMBqOxWQBDBLVJhb5HRfLQ1DdC1cSjLpxOFk"
-  API_PUB: "2PACX-1vQvTKIa8hAWjghuGri8nsnk2zFhlHNIKKgGunBFDolf3IyG4lYZ8G9zt6tYrIIxESHQty7cskmUcbIG"
+  AUTO_T9_ID: "1GpOFicbNTmkxCCe9488516LPx31ryZTAVwS9hSxEL7U"
+  AUTO_T8_ID: "1MgKdAkn_shglL0xoduuUnqhKTmJDwpCilUnJgwpmAEQ"
 
 jobs:
   soi:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 30
     steps:
-      - name: BE T8 qua gviz
+      - name: Tai hai file don hang tu dong
         run: |
-          G="https://docs.google.com/spreadsheets/d/$BE_T8_ID/gviz/tq?tqx=out:csv&gid=0&headers=5"
-          ok=0
-          for i in 1 2 3 4 5 6; do
-            rm -f /tmp/be8.csv
-            r=$(curl -sSL -m 110 -o /tmp/be8.csv -w '%{http_code}|%{time_total}|%{size_download}' "$G" 2>/dev/null || echo '000|to|0')
-            sz=${r##*|}
-            g=HONG; case "$r" in 200*) [ "$sz" -gt 20000 ] && { g=OK; ok=$((ok+1)); } ;; esac
-            echo "   BE T8 gviz luot $i: $r · $g"
-            [ "$g" = OK ] && break
-            sleep 5
-          done
-          echo "   -> $ok"
+          keo() {
+            ten="$1"; url="$2"; out="$3"
+            for i in 1 2 3 4 5; do
+              rm -f "$out"
+              r=$(curl -sSL -m 110 -o "$out" -w '%{http_code}|%{time_total}|%{size_download}' "$url" 2>/dev/null || echo '000|to|0')
+              sz=${r##*|}
+              echo "   $ten luot $i: $r"
+              case "$r" in 200*) [ "$sz" -gt 2000 ] && return 0 ;; esac
+              sleep 5
+            done
+            return 1
+          }
+          keo "auto T9" "https://docs.google.com/spreadsheets/d/$AUTO_T9_ID/export?format=csv&gid=0" /tmp/a9.csv || true
+          keo "auto T8" "https://docs.google.com/spreadsheets/d/$AUTO_T8_ID/export?format=csv&gid=0" /tmp/a8.csv || true
 
-      - name: File API san — den thang nao
-        run: |
-          U="https://docs.google.com/spreadsheets/d/e/$API_PUB/pub?gid=0&single=true&output=csv"
-          for i in 1 2 3 4 5; do
-            rm -f /tmp/api.csv
-            r=$(curl -sSL -m 110 -o /tmp/api.csv -w '%{http_code}|%{time_total}|%{size_download}' "$U" 2>/dev/null || echo '000|to|0')
-            sz=${r##*|}
-            echo "   API luot $i: $r"
-            case "$r" in 200*) [ "$sz" -gt 5000 ] && break ;; esac
-            sleep 5
-          done
-
-      - name: Doc ket qua
+      - name: Doi chieu khuon cot
         run: |
           python3 - <<'PY'
           import csv, os, re, collections, unicodedata
@@ -77,40 +67,33 @@ jobs:
               return f'{int(m.group(1)):02d}/{m.group(2)}' if m else ''
           n = lambda x: f'{x:,.0f}'.replace(',', '.')
 
-          print('##### BE T8 qua gviz')
-          if not os.path.exists('/tmp/be8.csv') or os.path.getsize('/tmp/be8.csv') < 20000:
-              print('  khong tai duoc')
-          else:
-              rows = list(csv.reader(open('/tmp/be8.csv', encoding='utf-8', errors='ignore')))
-              print(f'  {len(rows)} dong')
-              print('  [0] ' + ' | '.join((x or '·')[:26] for x in rows[0][:20]))
-              print('  [1] ' + ' | '.join((x or '·')[:26] for x in rows[1][:20]))
-
-          print('\n##### FILE API SAN')
-          if not os.path.exists('/tmp/api.csv') or os.path.getsize('/tmp/api.csv') < 2000:
-              print('  khong tai duoc')
-          else:
-              rows = list(csv.reader(open('/tmp/api.csv', encoding='utf-8', errors='ignore')))
+          for ten, f in (('AUTO T9', '/tmp/a9.csv'), ('AUTO T8', '/tmp/a8.csv')):
+              print(f'##### {ten}')
+              if not os.path.exists(f) or os.path.getsize(f) < 500:
+                  print('  khong tai duoc\n'); continue
+              rows = list(csv.reader(open(f, encoding='utf-8', errors='ignore')))
               hdr = next((i for i,r in enumerate(rows[:40])
                           if any(bd(c) in ('order id','order_id','ma don') for c in r)), None)
               print(f'  {len(rows)} dong · tieu de {hdr}')
               if hdr is None:
                   for r in rows[:3]: print('   ' + ' | '.join(x[:20] for x in r[:14]))
-              else:
-                  cols = [c.strip() for c in rows[hdr]]
-                  print('  cot: ' + ' | '.join(cols))
-                  i_d = next((i for i,c in enumerate(cols) if 'hoan tat' in bd(c)), None)
-                  if i_d is None:
-                      i_d = next((i for i,c in enumerate(cols) if 'ngay' in bd(c)), None)
-                  i_v = next((i for i,c in enumerate(cols) if bd(c).startswith('thanh tien') or 'quy doi' in bd(c)), None)
-                  t = collections.defaultdict(lambda: [0, 0.0])
-                  for r in rows[hdr+1:]:
-                      g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
-                      k = thang(g(i_d))
-                      if not k: continue
-                      t[k][0] += 1; t[k][1] += viNum(g(i_v))
-                  print(f'  cot ngay [{i_d}] · cot tien [{i_v}]')
-                  for k in sorted(t, key=lambda x: (x[3:], x[:2])):
-                      c, v = t[k]
-                      print(f'     thang {k}  {n(c):>7} dong · {n(v):>18} d')
+                  print(); continue
+              cols = [c.strip() for c in rows[hdr]]
+              print(f'  {len(cols)} cot: ' + ' | '.join(cols))
+              for k in ('gia von','thanh tien','quy doi','ty gia','doanh thu','thuc nhan','san','ngay hoan tat'):
+                  v = [i for i,c in enumerate(cols) if k in bd(c)]
+                  print(f'     {k:<14} {v if v else "KHONG THAY"}')
+              i_d = next((i for i,c in enumerate(cols) if 'hoan tat' in bd(c)), None)
+              i_u = next((i for i,c in enumerate(cols) if bd(c)=='doanh thu'), None)
+              i_g = next((i for i,c in enumerate(cols) if bd(c)=='gia von'), None)
+              t = collections.defaultdict(lambda: [0,0.0,0.0])
+              for r in rows[hdr+1:]:
+                  g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
+                  k = thang(g(i_d))
+                  if not k: continue
+                  t[k][0]+=1; t[k][1]+=viNum(g(i_u)); t[k][2]+=viNum(g(i_g))
+              for k in sorted(t, key=lambda x:(x[3:], x[:2])):
+                  c,u,gv = t[k]
+                  print(f'     thang {k}  {n(c):>6} dong · DT ${u:>11,.2f} · GV ${gv:>11,.2f}')
+              print()
           PY
