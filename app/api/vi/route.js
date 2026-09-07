@@ -13,150 +13,79 @@ import histT4 from '@/lib/data/vi-2026-04.json';
 import histT5 from '@/lib/data/vi-2026-05.json';
 import histT6 from '@/lib/data/vi-2026-06.json';
 import histT7 from '@/lib/data/vi-2026-07.json';
+/* T9 CHƯA chốt sổ — file này do .github/workflows/chup-vi.yml chụp lại mỗi 2
+   tiếng, vì Google không xuất nổi file ví T9 theo yêu cầu (đo 07/09: bản công
+   bố 0/2 lượt, export 0/3, gviz 1/5 và mất 38–44s). Tháng nào đọc live được
+   thì bản chụp của tháng đó bị bỏ qua ở dưới, không cộng dồn hai lần. */
+import histT9 from '@/lib/data/vi-2026-09.json';
 import { nhoDocFile } from '@/lib/boNho';
+/* .mjs chứ không phải .js: scripts/chup-vi.mjs chạy bằng node trần, mà
+   package.json không đặt type:module nên node đọc .js là CommonJS. */
+import { parseWallet } from '@/lib/viParse.mjs';
 
-const HIST = [histT4, histT5, histT6, histT7];
+const HIST = [histT4, histT5, histT6, histT7, histT9];
 
 export const dynamic = 'force-dynamic';
 
-const norm = (s) =>
-  String(s ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-function viNum(raw) {
-  let s = String(raw ?? '').trim().replace(/\s/g, '').replace(/%$/, '');
-  if (!s) return 0;
-  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
-  else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
-  const n = parseFloat(s);
-  return isNaN(n) ? 0 : n;
-}
-
-function toCsvUrl(sheetUrl, gid) {
+function toCsvUrl(sheetUrl, gid, duong) {
   try {
     const u = new URL(sheetUrl);
     if (!u.hostname.includes('docs.google.com')) return null;
+    const id = (u.pathname.match(/\/spreadsheets\/d\/(?!e\/)([^/]+)/) || [])[1];
+    /* Đường gviz — dùng khi hai đường kia đã chết. Đo ngày 07/09 trên file ví
+       T9: bản công bố 0/2 lượt và export 0/3 lượt, lượt nào cũng HTTP 307 rỗng
+       sau 110s; riêng gviz thì ra, tuy chỉ 1/5 lượt và mất 38–44s.
+       headers=5 là BẮT BUỘC: để mặc định thì gviz bỏ trống tên mọi cột kiểu
+       số (Số Tiền · Tỷ giá tuần · DT VND · Giá Vốn · Lợi Nhuận) nên không dò
+       nổi dòng tiêu đề. Đổi lại nó dán 5 dòng tiêu đề vào nhau — lib/viParse
+       khớp theo hậu tố để đọc được cả hai dạng. */
+    if (duong === 'gviz' && id) {
+      return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=${gid || '0'}&headers=5`;
+    }
     const pub = u.pathname.match(/\/spreadsheets\/d\/e\/([^/]+)/);
     /* single=true là BẮT BUỘC: thiếu nó Google hiểu là xuất CẢ WORKBOOK chứ
        không phải một tab, nên với file nhiều tab lớn thì trả HTTP 500 hoặc
        treo quá 90s. Đã đo được đúng lỗi này ở file BE T8 và file ví T8. */
     if (pub) return `https://docs.google.com/spreadsheets/d/e/${pub[1]}/pub?gid=${gid || u.searchParams.get('gid') || '0'}&single=true&output=csv`;
-    const m = u.pathname.match(/\/spreadsheets\/d\/([^/]+)/);
-    if (m) return `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${gid || '0'}`;
+    if (id) return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid || '0'}`;
     return null;
   } catch {
     return sheetUrl; // URL CSV trực tiếp (mock/test)
   }
 }
 
-/* Đo ngày 12/08: file ví T7 xuất 5,4 MB trong 13,5s, còn file ví T8 chạy đủ
-   240s rồi Google trả HTTP 400 — tức là hỏng hẳn chứ không phải chậm. Cho
-   90s một lượt; gặp hết giờ thì dừng luôn thay vì đợi thêm lượt nữa, kết
-   hợp với việc nhớ lỗi ở lib/boNho.js cho khỏi treo trang. */
-const HAN_CHO = [90000, 90000];
+/* Google xuất file nặng theo kiểu HÊN XUI TỪNG LƯỢT chứ không hỏng hẳn — đo
+   trên file ví T9 ngày 07/09: gviz ra ở lượt 5 và lượt 6, các lượt trước đều
+   trượt. Nên hết giờ chỉ là MỘT LƯỢT TRƯỢT, không phải lý do bỏ cuộc; bản cũ
+   thấy TimeoutError là ném ra ngay, tức tự cắt mất các lượt còn lại.
+   Hạn chờ ngắn trước rồi nới dần, tổng vẫn dưới maxDuration 300s. */
+const HAN_CHO = [45000, 45000, 60000, 60000, 60000];
 /* Có nhớ: file ví tháng đang chạy khá nặng, mà PKT6 và PKT20 đọc chung —
    xem lib/boNho.js */
-async function loadGrid(url, gid) {
-  const csvUrl = toCsvUrl(url, gid) || url;
+async function loadGrid(url, gid, duong) {
+  const csvUrl = toCsvUrl(url, gid, duong) || url;
   const { val } = await nhoDocFile(`vi|${csvUrl}`, async () => {
-    let loiCuoi = null;
+    const daTruot = [];
     for (let i = 0; i < HAN_CHO.length; i++) {
-      if (i) await new Promise((ok) => setTimeout(ok, i * 2000));
+      if (i) await new Promise((ok) => setTimeout(ok, 1500));
       try {
         const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(HAN_CHO[i]) });
-        if (!res.ok) throw new Error(`Google trả về HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
-        if (text.trim().startsWith('<')) throw new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.');
+        /* HTML = file chưa mở quyền xem cho người có link, hoặc sai GID. Thử
+           lại bao nhiêu lượt cũng vậy nên dừng luôn. */
+        if (text.trim().startsWith('<')) {
+          throw Object.assign(new Error('Nhận về HTML thay vì CSV — kiểm tra Publish to web và GID.'), { batDau: true });
+        }
         return text;
       } catch (e) {
-        if (e.name === 'TimeoutError') {
-          throw new Error(`Google không xuất nổi file này trong ${HAN_CHO[i] / 1000}s — nhiều khả năng phải xuất bản lại hoặc làm nhẹ tab`);
-        }
-        loiCuoi = e;
+        if (e.batDau) throw e;
+        daTruot.push(e.name === 'TimeoutError' ? `quá ${HAN_CHO[i] / 1000}s` : e.message);
       }
     }
-    throw loiCuoi;
+    throw new Error(`Google không xuất được file sau ${HAN_CHO.length} lượt (${daTruot.join(' · ')})`);
   });
   return Papa.parse(val, { header: false, skipEmptyLines: false }).data;
-}
-
-/* Tab THVí Tiền: header dòng 5 — Tên sàn | ID | Trạng thái | Số Tiền | Ngày |
-   Tuần | Tỷ giá tuần | DT VND | Giá Vốn | Tìm | Lợi Nhuận | Tên Sheet |
-   Loại đơn hàng BE | ... | BU */
-function parseWallet(grid, { month, year }) {
-  let headIdx = -1;
-  let headers = [];
-  for (let i = 0; i < Math.min(grid.length, 20); i++) {
-    const h = (grid[i] || []).map(norm);
-    if ((h.includes('ten san') || h.includes('san')) && h.includes('so tien') && h.includes('tim')) {
-      headIdx = i;
-      headers = h;
-      break;
-    }
-  }
-  if (headIdx < 0) throw new Error('Không tìm thấy dòng tiêu đề tab THVí Tiền.');
-
-  const col = {
-    san: headers.indexOf('ten san') >= 0 ? headers.indexOf('ten san') : headers.indexOf('san'),
-    so_tien: headers.indexOf('so tien'),
-    ngay: headers.indexOf('ngay'),
-    dt_vnd: headers.indexOf('dt vnd'),
-    gia_von: headers.indexOf('gia von'),
-    tim: headers.indexOf('tim'),
-    loi_nhuan: headers.indexOf('loi nhuan'),
-    /* Cột phân loại đơn. Bản ver1 gọi là "Loại đơn hàng BE" (Tự động / Thủ
-       công / Flip), bản ver2 đổi thành "Phân loại doanh thu BE" (Flip /
-       Doanh thu dịch vụ). Phải bám hậu tố BE: file ver2 còn hai cột trùng
-       tên "Phân loại doanh thu" ở cuối bảng, lấy nhầm là ra số khác. */
-    loai_don: (() => {
-      const i = headers.findIndex((h) => h.startsWith('loai don hang'));
-      if (i >= 0) return i;
-      return headers.findIndex((h) => h === 'phan loai doanh thu be');
-    })(),
-    bu: headers.indexOf('bu'),
-  };
-
-  const agg = new Map();
-  let ok = 0;
-  for (let i = headIdx + 1; i < grid.length; i++) {
-    const r = grid[i] || [];
-    if (norm(r[col.tim]) !== 'dt') continue; // chỉ dòng doanh thu
-    const san = String(r[col.san] ?? '').trim();
-    const day = Math.round(viNum(r[col.ngay]));
-    if (!san || day < 1 || day > 31) continue;
-    const ngay = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
-    const sortKey = `${year}${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
-    const spdv = String(r[col.loai_don] ?? '').trim() || 'KHÁC';
-    const bu = col.bu >= 0 ? String(r[col.bu] ?? '').trim().toUpperCase() : '';
-    const key = `${sortKey}|${san}|${spdv}|${bu}`;
-    if (!agg.has(key)) {
-      agg.set(key, {
-        ngay, sortKey, san, spdv, bu, nguon: 'dh',
-        so_don: 0, don_fail: 0, don_huy: 0,
-        doanh_thu_usd: 0, phi_san: 0, phi_san_vnd: 0,
-        dthu_thuc: 0, thanh_tien: 0, gia_von: 0, loi_nhuan: 0,
-      });
-    }
-    const a = agg.get(key);
-    ok += 1;
-    const usd = viNum(r[col.so_tien]);
-    const tt = viNum(r[col.dt_vnd]);
-    const gv = viNum(r[col.gia_von]);
-    const lnRaw = String(r[col.loi_nhuan] ?? '').trim();
-    a.so_don += 1;
-    a.doanh_thu_usd += usd;
-    a.dthu_thuc += usd;
-    a.thanh_tien += tt;
-    a.gia_von += gv;
-    a.loi_nhuan += lnRaw ? viNum(lnRaw) : tt - gv;
-  }
-  const detail = [...agg.values()].sort((x, y) => (x.sortKey < y.sortKey ? -1 : x.sortKey > y.sortKey ? 1 : x.san.localeCompare(y.san)));
-  return { detail, ok };
 }
 
 export const maxDuration = 300;
@@ -167,17 +96,20 @@ export async function GET(request) {
      (url, gid, month, year) ghép theo thứ tự. */
   const urls = searchParams.getAll('url');
   const gids = searchParams.getAll('gid');
+  const duongs = searchParams.getAll('duong');
   const months = searchParams.getAll('month');
   const years = searchParams.getAll('year');
   const useHist = searchParams.get('hist') === '1';
-  if (!urls.length) return Response.json({ error: 'Thiếu url' }, { status: 400 });
-  if (!months.length) return Response.json({ error: 'Thiếu month/year cho tab ví' }, { status: 400 });
+  /* Không có file live vẫn chạy được nếu bật hist: tháng nào Google không
+     xuất nổi thì nằm sẵn trong datalake (xem chup-vi.yml chụp định kỳ). */
+  if (!urls.length && !useHist) return Response.json({ error: 'Thiếu url' }, { status: 400 });
+  if (urls.length && !months.length) return Response.json({ error: 'Thiếu month/year cho tab ví' }, { status: 400 });
 
   const live = { detail: [], ok: 0 };
   const loi = [];
   const daDoc = await Promise.all(
     urls.map((u, i) =>
-      loadGrid(u, gids[i] || '0')
+      loadGrid(u, gids[i] || '0', duongs[i] || '')
         .then((grid) => ({ grid, i }))
         .catch((e) => ({ err: e, i }))
     )
@@ -195,20 +127,27 @@ export async function GET(request) {
       loi.push(`file ${kq.i + 1} (tháng ${thang}): ${e.message}`);
     }
   }
-  /* Hụt hết thì mới báo lỗi hẳn; hụt một file thì vẫn trả số, kèm main_error
-     để trang hiện cảnh báo thay vì âm thầm thiếu một tháng. */
-  if (!live.detail.length && loi.length) {
-    return Response.json({ error: `Tab THVí Tiền: ${loi.join(' · ')}` }, { status: 502 });
-  }
-
   let detail = live.detail.sort((x, y) => (x.sortKey < y.sortKey ? -1 : x.sortKey > y.sortKey ? 1 : x.san.localeCompare(y.san)));
   let histOk = 0;
   if (useHist) {
-    const histRows = HIST.flatMap((h) => h.detail);
+    /* Tháng nào đọc live được thì BỎ bản trong datalake của tháng đó, không
+       thì hai nguồn cùng một tháng cộng dồn thành gấp đôi. Ảnh chụp định kỳ
+       chỉ là bản sàn để trang còn số khi Google không xuất nổi. */
+    const daCoLive = new Set(live.detail.map((r) => r.sortKey.slice(0, 6)));
+    const histRows = HIST.flatMap((h) => h.detail).filter((r) => !daCoLive.has(r.sortKey.slice(0, 6)));
     detail = histRows
       .concat(detail)
       .sort((x, y) => (x.sortKey < y.sortKey ? -1 : x.sortKey > y.sortKey ? 1 : x.san.localeCompare(y.san)));
-    for (const h of HIST) histOk += h.counts?.ok || 0;
+    for (const h of HIST) {
+      const thangH = h.detail?.[0]?.sortKey?.slice(0, 6) || '';
+      if (!daCoLive.has(thangH)) histOk += h.counts?.ok || 0;
+    }
+  }
+  /* Không còn dòng nào thì mới báo lỗi hẳn; hụt một file mà datalake còn số
+     thì vẫn trả, kèm main_error để trang hiện cảnh báo thay vì âm thầm
+     thiếu một tháng. */
+  if (!detail.length) {
+    return Response.json({ error: `Tab THVí Tiền: ${loi.join(' · ') || 'không có dữ liệu'}` }, { status: 502 });
   }
   const dates = detail.map((x) => x.ngay);
 

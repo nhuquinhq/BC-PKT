@@ -1,0 +1,99 @@
+# Chup anh tab THVi Tien vao datalake.
+#
+# Vi sao: file vi thang dang chay Google khong xuat noi nua. Do ngay 07/09 tren
+# file vi T9 — ban cong bo 0/2 luot, export 0/3 luot (deu HTTP 307 rong sau
+# 110s), chi con gviz va cung chi 1/5 den 1/6 luot, moi luot 38–44s. Trang web
+# co 300s va nguoi dung dang ngoi cho, khong the danh cuoc kieu do.
+#
+# O day thi nguoc lai: chay nen, co ca tieng de thu lai, khong ai cho. Cu thu
+# toi khi duoc roi ghi ra JSON tinh cho web doc — mo phat ra ngay.
+#
+# scripts/chup-vi.mjs tu chot so truoc khi ghi: doi chieu tong minh cong duoc
+# voi tong cua chinh file. Lech qua nguong thi khong ghi.
+name: Chup vi vao datalake
+
+on:
+  schedule:
+    # 2 tieng mot lan. Gio UTC — 0h UTC la 7h sang VN.
+    - cron: '17 */2 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+env:
+  VI_ID: "1PW-EuT3Z6U_GFBXlnv1HYXETjD5l556x2hKL4Zhokt4"
+  VI_GID: "1425184209"
+  THANG: "9"
+  NAM: "2026"
+
+concurrency:
+  group: chup-vi
+  cancel-in-progress: false
+
+jobs:
+  chup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cai goi
+        run: npm ci --omit=dev --no-audit --no-fund
+
+      - name: Keo file vi
+        id: keo
+        run: |
+          # headers=5 la BAT BUOC: de mac dinh thi gviz bo trong ten moi cot
+          # kieu so (So Tien, Ty gia tuan, DT VND, Gia Von, Loi Nhuan) nen
+          # khong do noi dong tieu de.
+          G="https://docs.google.com/spreadsheets/d/$VI_ID/gviz/tq?tqx=out:csv&gid=$VI_GID&headers=5"
+          for i in $(seq 1 24); do
+            rm -f /tmp/vi.csv
+            r=$(curl -sSL -m 110 -o /tmp/vi.csv -w '%{http_code}|%{time_total}|%{size_download}' "$G" 2>/dev/null || echo '000|het gio|0')
+            sz=${r##*|}
+            echo "   luot $i: $r"
+            case "$r" in 200*)
+              if [ "$sz" -gt 20000 ] && ! head -c 14 /tmp/vi.csv | grep -qi '^<' ; then
+                echo "keo_duoc=1" >> "$GITHUB_OUTPUT"; exit 0
+              fi ;;
+            esac
+            sleep 20
+          done
+          echo "keo_duoc=0" >> "$GITHUB_OUTPUT"
+          echo "Google khong xuat duoc file vi sau 24 luot."
+
+      - name: Boc va ghi datalake
+        if: steps.keo.outputs.keo_duoc == '1'
+        run: |
+          RA="lib/data/vi-$NAM-$(printf '%02d' "$THANG").json"
+          node scripts/chup-vi.mjs /tmp/vi.csv "$THANG" "$NAM" "$RA"
+
+      - name: Day len nhanh main
+        if: steps.keo.outputs.keo_duoc == '1'
+        run: |
+          RA="lib/data/vi-$NAM-$(printf '%02d' "$THANG").json"
+          # So sanh bo qua truong chup_luc: khong thi lan nao cung "co thay doi"
+          # va day len mot commit rong moi 2 tieng.
+          cu=$(git show "HEAD:$RA" 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const o=JSON.parse(s);delete o.chup_luc;console.log(JSON.stringify(o))}catch{console.log("")}})')
+          moi=$(node -e 'const o=require("./'"$RA"'");delete o.chup_luc;console.log(JSON.stringify(o))')
+          if [ "$cu" = "$moi" ]; then
+            echo "So khong doi — khong day."
+            git checkout -- "$RA" 2>/dev/null || true
+            exit 0
+          fi
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add "$RA"
+          git commit -m "Chụp ví $THANG/$NAM vào datalake
+
+Chụp tự động, xem .github/workflows/chup-vi.yml."
+          for n in 1 2 3 4; do
+            git pull --rebase origin main && git push origin main && exit 0
+            sleep $((n * n * 2))
+          done
+          exit 1
