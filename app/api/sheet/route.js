@@ -11,7 +11,11 @@ export const dynamic = 'force-dynamic';
 function toCsvUrl(raw, gidParam) {
   const url = String(raw || '').trim();
   if (!url) return null;
-  if (url.includes('output=csv') || url.includes('format=csv')) return url;
+  /* Đã là link xuất CSV rồi thì để nguyên. Phải kể cả dạng gviz (tqx=out:csv):
+     không thì đoạn dưới thấy /spreadsheets/d/<id> và viết lại thành /export,
+     mà /export của đúng file đó lại trả trang đăng nhập — tức là tự tay đổi
+     một đường CHẠY ĐƯỢC thành một đường hỏng. */
+  if (url.includes('output=csv') || url.includes('format=csv') || url.includes('tqx=out:csv')) return url;
 
   const pub = url.match(/\/spreadsheets\/d\/e\/([^/]+)/);
   if (pub) {
@@ -28,29 +32,42 @@ function toCsvUrl(raw, gidParam) {
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const raw = searchParams.get('raw') === '1';
-  const csvUrl = toCsvUrl(searchParams.get('url'), searchParams.get('gid'));
+  const gid = searchParams.get('gid');
+  /* Nhận NHIỀU url, thử lần lượt tới khi có đường ra. Cùng một tab mà Google
+     lúc thì xuất được đường này lúc đường kia — đo ngày 07/09 trên tab tỷ giá:
+     bản công bố ra, /export cùng file trả trang đăng nhập, gviz lại ra. */
+  const nguon = searchParams.getAll('url').map((u) => toCsvUrl(u, gid)).filter(Boolean);
 
-  if (!csvUrl) {
+  if (!nguon.length) {
     return Response.json({ error: 'Link không hợp lệ. Dán link Google Sheet dạng /spreadsheets/d/<ID>/edit#gid=<GID>.' }, { status: 400 });
   }
 
-  try {
-    const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store' });
-    if (!res.ok) {
-      return Response.json({ error: `Google Sheet trả về mã ${res.status}. Kiểm tra quyền chia sẻ: Anyone with the link → Viewer, hoặc File → Share → Publish to web.` }, { status: 400 });
+  const truot = [];
+  for (const csvUrl of nguon) {
+    try {
+      const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store' });
+      if (!res.ok) {
+        truot.push(`mã ${res.status}`);
+        continue;
+      }
+      const text = await res.text();
+      if (text.trim().startsWith('<')) {
+        truot.push('trang đăng nhập');
+        continue;
+      }
+      if (raw) {
+        /* Trả về lưới ô thô (mảng 2 chiều) cho các sheet dạng ma trận như WEEKLY RATE */
+        const parsed = Papa.parse(text.trim(), { header: false, skipEmptyLines: false });
+        return Response.json({ grid: parsed.data, count: parsed.data.length, csvUrl });
+      }
+      const parsed = Papa.parse(text.trim(), { header: true, skipEmptyLines: true, transformHeader: (h) => h.trim() });
+      return Response.json({ rows: parsed.data, count: parsed.data.length, csvUrl });
+    } catch (err) {
+      truot.push(err.message);
     }
-    const text = await res.text();
-    if (text.trim().startsWith('<')) {
-      return Response.json({ error: 'Sheet chưa mở quyền xem công khai nên Google trả về trang đăng nhập.' }, { status: 400 });
-    }
-    if (raw) {
-      /* Trả về lưới ô thô (mảng 2 chiều) cho các sheet dạng ma trận như WEEKLY RATE */
-      const parsed = Papa.parse(text.trim(), { header: false, skipEmptyLines: false });
-      return Response.json({ grid: parsed.data, count: parsed.data.length, csvUrl });
-    }
-    const parsed = Papa.parse(text.trim(), { header: true, skipEmptyLines: true, transformHeader: (h) => h.trim() });
-    return Response.json({ rows: parsed.data, count: parsed.data.length, csvUrl });
-  } catch (err) {
-    return Response.json({ error: `Không kết nối được Google Sheet: ${err.message}` }, { status: 500 });
   }
+  return Response.json(
+    { error: `Không đọc được Google Sheet sau ${nguon.length} đường (${truot.join(' · ')}). Kiểm tra quyền chia sẻ: Anyone with the link → Viewer, hoặc File → Share → Publish to web.` },
+    { status: 400 }
+  );
 }

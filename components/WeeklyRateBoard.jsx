@@ -26,7 +26,8 @@ export default function WeeklyRateBoard({ report, onLive, range }) {
   const load = useCallback(async () => {
     setState((s) => ({ ...s, status: s.weeks ? 'refreshing' : 'loading' }));
     try {
-      const grid = await fetchSheetGrid(cfg.url, cfg.gid);
+      /* Hai đường đọc cùng tab tỷ giá — hụt đường này còn đường kia. */
+      const grid = await fetchSheetGrid([cfg.url, ...(cfg.urls || [])], cfg.gid);
       const parsed = parseWeeklyRate(grid);
       setState({ status: 'ok', ...parsed, at: new Date() });
       onLive?.({ tables: { [cfg.table]: parsed.tidy }, kpis: parsed.kpis });
