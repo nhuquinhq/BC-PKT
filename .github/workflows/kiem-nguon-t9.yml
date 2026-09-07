@@ -20,12 +20,10 @@ jobs:
         run: |
           BE="https://docs.google.com/spreadsheets/d/e/2PACX-1vS0Tldb2hmR8TxnYC_un9q0tpgpm3RCyN3O7oJimo17gP4EpagCRwEPwpqMr2BjdZtXeRVOcthy23PX/pubhtml?gid=0&single=true"
           API="https://docs.google.com/spreadsheets/d/1GpOFicbNTmkxCCe9488516LPx31ryZTAVwS9hSxEL7U/edit?gid=0"
-          API8="https://docs.google.com/spreadsheets/d/e/2PACX-1vQvTKIa8hAWjghuGri8nsnk2zFhlHNIKKgGunBFDolf3IyG4lYZ8G9zt6tYrIIxESHQty7cskmUcbIG/pubhtml?gid=0&single=true"
           for i in 1 2 3; do
             code=$(curl -sS -m 280 -G "$GOC/api/cpv" \
               --data-urlencode "url=$BE" --data-urlencode 'gid=0' \
               --data-urlencode "url2=$API" --data-urlencode 'gid2=0' \
-              --data-urlencode "url2=$API8" --data-urlencode 'gid2=0' \
               --data-urlencode 'hist=1' --data-urlencode 'moi=1' \
               -o /tmp/cpv.json -w '%{http_code}') || code=000
             echo "   luot $i: HTTP $code · $(stat -c%s /tmp/cpv.json 2>/dev/null || echo 0) byte"
@@ -34,14 +32,11 @@ jobs:
           done
           head -c 400 /tmp/cpv.json; echo
 
-      - name: Goi /api/vi (T8 live + datalake)
+      # T8 va T9 deu da vao datalake nen PKT6 khong con doc file live nao.
+      - name: Goi /api/vi (chi datalake)
         run: |
-          VI8="https://docs.google.com/spreadsheets/d/e/2PACX-1vTmigt_mS16GnHQ5qpx2jxv_0F9irT-jJt6c3KyfUrTn2AgbZVZ4d5Q0fBvoINSmnMJHm5GcDU58ai2/pubhtml?gid=1425184209&single=true"
           for i in 1 2 3; do
             code=$(curl -sS -m 280 -G "$GOC/api/vi" \
-              --data-urlencode "url=$VI8" --data-urlencode 'gid=1425184209' \
-              --data-urlencode 'duong=' \
-              --data-urlencode 'month=8' --data-urlencode 'year=2026' \
               --data-urlencode 'hist=1' \
               -o /tmp/vi.json -w '%{http_code}') || code=000
             echo "   luot $i: HTTP $code · $(stat -c%s /tmp/vi.json 2>/dev/null || echo 0) byte"
