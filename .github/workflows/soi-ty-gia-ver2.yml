@@ -70,7 +70,7 @@ jobs:
           cat > ./thu-tam.mjs <<'JS'
           import fs from 'node:fs';
           import Papa from 'papaparse';
-          import { parseWeeklyRate } from './weeklyRate-tam.mjs';
+          import { parseWeeklyRate, buildWeeklyCompare } from './weeklyRate-tam.mjs';
           const n = (x) => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(x);
           for (const [ten, f] of [['CONG BO', '/tmp/a.csv'], ['GVIZ', '/tmp/b.csv']]) {
             console.log(`##### PKT1 doc ${ten}`);
@@ -80,7 +80,9 @@ jobs:
               const p = parseWeeklyRate(grid);
               console.log(`  ${p.weeks.length} tuan · ${p.rows.length} dong chi so · ${(p.tidy || []).length} dong tidy`);
               for (const w of p.weeks.slice(-4)) console.log(`     tuan ${w.week} (${w.year}/${w.month}) ${w.from} -> ${w.to}`);
-              console.log('  KPI:', JSON.stringify(p.kpis));
+              console.log(`  KPI (lay tuan ${p.tuanKpi || '?'}):`, JSON.stringify(p.kpis));
+              const c = buildWeeklyCompare(p.tidy);
+              console.log(`  Nhan xet: tuan ${c?.cur?.week ?? '?'} so voi tuan ${c?.prev?.week ?? '?'} · ${c ? c.items.length : 0} dong so sanh`);
               const co = p.rows.find((r) => /co rate/i.test(r.kind || ''));
               const re = p.rows.find((r) => /rev rate/i.test(r.kind || ''));
               for (const [t, r] of [['REV Rate', re], ['CO Rate', co]]) {
