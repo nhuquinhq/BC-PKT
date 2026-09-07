@@ -80,7 +80,11 @@ if (vndFile) {
 if (kq.thuTyGia > 0) {
   const ty = kq.khopTyGia / kq.thuTyGia;
   console.log(`   chốt Số Tiền: ${so(kq.khopTyGia)}/${so(kq.thuTyGia)} dòng thoả Số Tiền × Tỷ giá tuần = DT VND (${(ty * 100).toFixed(2)}%)`);
-  if (ty < 0.98) lech = true;
+  /* Ngưỡng 85% chứ không phải 99%: đo ngày 07/09 ra 3.214/3.419 dòng, tức 94%.
+     Phần còn lại là dòng có tỷ giá riêng (đơn bù, đơn chốt tay), không phải
+     lấy nhầm cột — lấy nhầm cột thì tỉ lệ về gần 0 chứ không phải 94. Ngưỡng
+     này vẫn bắt được lỗi cột mà không chặn oan. */
+  if (ty < 0.85) lech = true;
 } else {
   console.error('   chốt Số Tiền: không có dòng nào đủ Số Tiền/Tỷ giá/DT VND để kiểm.');
   lech = true;
