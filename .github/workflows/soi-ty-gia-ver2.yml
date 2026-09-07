@@ -64,11 +64,13 @@ jobs:
           # lib/weeklyRate.js la ESM nhung package.json khong dat type:module
           # nen node tran doc .js la CommonJS. Chep sang .mjs de import duoc,
           # KHONG sua file that — muc dich la thu dung ban dang chay.
-          cp lib/weeklyRate.js /tmp/weeklyRate.mjs
-          cat > /tmp/thu.mjs <<'JS'
+          # Script phai nam TRONG thu muc repo, khong thi node khong tim ra
+          # node_modules de import papaparse.
+          cp lib/weeklyRate.js ./weeklyRate-tam.mjs
+          cat > ./thu-tam.mjs <<'JS'
           import fs from 'node:fs';
           import Papa from 'papaparse';
-          import { parseWeeklyRate } from '/tmp/weeklyRate.mjs';
+          import { parseWeeklyRate } from './weeklyRate-tam.mjs';
           const n = (x) => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(x);
           for (const [ten, f] of [['CONG BO', '/tmp/a.csv'], ['GVIZ', '/tmp/b.csv']]) {
             console.log(`##### PKT1 doc ${ten}`);
@@ -92,4 +94,5 @@ jobs:
             console.log();
           }
           JS
-          node /tmp/thu.mjs
+          node ./thu-tam.mjs
+          rm -f ./thu-tam.mjs ./weeklyRate-tam.mjs
