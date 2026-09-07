@@ -17,13 +17,18 @@ import histT7 from '@/lib/data/vi-2026-07.json';
    tiếng, vì Google không xuất nổi file ví T9 theo yêu cầu (đo 07/09: bản công
    bố 0/2 lượt, export 0/3, gviz 1/5 và mất 38–44s). Tháng nào đọc live được
    thì bản chụp của tháng đó bị bỏ qua ở dưới, không cộng dồn hai lần. */
+/* T8 chốt ngày 07/09 bằng chính chup-vi.yml, chạy tay với kiểu 'pub'.
+   File ví T8 vẫn xuất bản được nên chụp thẳng từ bản live, không cần file
+   tải tay — file chị Quinh gửi là bản ver2.072026, tab của nó dừng ở Tháng 7
+   còn 'Trang tính5' thì 24.927 dòng nhưng DT VND, Giá Vốn, Tỷ giá đều #REF!. */
+import histT8 from '@/lib/data/vi-2026-08.json';
 import histT9 from '@/lib/data/vi-2026-09.json';
 import { nhoDocFile } from '@/lib/boNho';
 /* .mjs chứ không phải .js: scripts/chup-vi.mjs chạy bằng node trần, mà
    package.json không đặt type:module nên node đọc .js là CommonJS. */
 import { parseWallet } from '@/lib/viParse.mjs';
 
-const HIST = [histT4, histT5, histT6, histT7, histT9];
+const HIST = [histT4, histT5, histT6, histT7, histT8, histT9];
 
 export const dynamic = 'force-dynamic';
 

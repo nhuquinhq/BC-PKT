@@ -8,24 +8,37 @@
 # O day thi nguoc lai: chay nen, co ca tieng de thu lai, khong ai cho. Cu thu
 # toi khi duoc roi ghi ra JSON tinh cho web doc — mo phat ra ngay.
 #
-# scripts/chup-vi.mjs tu chot so truoc khi ghi: doi chieu tong minh cong duoc
-# voi tong cua chinh file. Lech qua nguong thi khong ghi.
+# scripts/chup-vi.mjs tu chot so truoc khi ghi: doi chieu tong VND voi tong cua
+# chinh file, va kiem tung dong So Tien x Ty gia tuan = DT VND. Lech thi khong ghi.
+#
+# Chay tay duoc cho thang khac: dien thang/nam/kieu/ma/gid. Kieu 'pub' dung cho
+# file con xuat ban duoc (T8), kieu 'gviz' cho file da hong hai duong kia (T9).
 name: Chup vi vao datalake
 
 on:
   schedule:
     # 2 tieng mot lan. Gio UTC — 0h UTC la 7h sang VN.
     - cron: '17 */2 * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      thang:
+        description: 'Thang (so)'
+        default: '9'
+      nam:
+        description: 'Nam'
+        default: '2026'
+      kieu:
+        description: 'pub (ban cong bo) hoac gviz'
+        default: 'gviz'
+      ma:
+        description: 'Ma file: token 2PACX... neu pub, file id neu gviz'
+        default: '1PW-EuT3Z6U_GFBXlnv1HYXETjD5l556x2hKL4Zhokt4'
+      gid:
+        description: 'GID cua tab THVi Tien'
+        default: '1425184209'
 
 permissions:
   contents: write
-
-env:
-  VI_ID: "1PW-EuT3Z6U_GFBXlnv1HYXETjD5l556x2hKL4Zhokt4"
-  VI_GID: "1425184209"
-  THANG: "9"
-  NAM: "2026"
 
 concurrency:
   group: chup-vi
@@ -35,6 +48,13 @@ jobs:
   chup:
     runs-on: ubuntu-latest
     timeout-minutes: 55
+    env:
+      # Lich chay tu dong khong co inputs nen phai tu ve mac dinh o day.
+      THANG: ${{ github.event.inputs.thang || '9' }}
+      NAM: ${{ github.event.inputs.nam || '2026' }}
+      KIEU: ${{ github.event.inputs.kieu || 'gviz' }}
+      MA: ${{ github.event.inputs.ma || '1PW-EuT3Z6U_GFBXlnv1HYXETjD5l556x2hKL4Zhokt4' }}
+      GID: ${{ github.event.inputs.gid || '1425184209' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -48,10 +68,15 @@ jobs:
       - name: Keo file vi
         id: keo
         run: |
-          # headers=5 la BAT BUOC: de mac dinh thi gviz bo trong ten moi cot
-          # kieu so (So Tien, Ty gia tuan, DT VND, Gia Von, Loi Nhuan) nen
-          # khong do noi dong tieu de.
-          G="https://docs.google.com/spreadsheets/d/$VI_ID/gviz/tq?tqx=out:csv&gid=$VI_GID&headers=5"
+          # headers=5 la BAT BUOC voi gviz: de mac dinh thi gviz bo trong ten
+          # moi cot kieu so (So Tien, Ty gia tuan, DT VND, Gia Von, Loi Nhuan)
+          # nen khong do noi dong tieu de.
+          if [ "$KIEU" = "pub" ]; then
+            G="https://docs.google.com/spreadsheets/d/e/$MA/pub?gid=$GID&single=true&output=csv"
+          else
+            G="https://docs.google.com/spreadsheets/d/$MA/gviz/tq?tqx=out:csv&gid=$GID&headers=5"
+          fi
+          echo "   $KIEU · thang $THANG/$NAM"
           for i in $(seq 1 24); do
             rm -f /tmp/vi.csv
             r=$(curl -sSL -m 110 -o /tmp/vi.csv -w '%{http_code}|%{time_total}|%{size_download}' "$G" 2>/dev/null || echo '000|het gio|0')

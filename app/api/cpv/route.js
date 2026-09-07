@@ -24,8 +24,14 @@ import histT4 from '@/lib/data/cpv-2026-04.json';
 import histT5 from '@/lib/data/cpv-2026-05.json';
 import histT6 from '@/lib/data/cpv-2026-06.json';
 import histT7 from '@/lib/data/cpv-2026-07.json';
+/* T8 chốt ngày 07/09 từ file xlsx chị Quinh tải về (tab "Tháng 8" của BÁO CÁO
+   DOANH THU Quản lý đơn hàng BE), ghép với file API sàn T8 đọc live. Phải chốt
+   bằng file tải tay vì bản công bố của file BE T8 đã hỏng hẳn — đo cùng ngày
+   0/5 lượt qua đường công bố, gviz cũng hỏng. Chị hẹn 17/09 xem lại, có thay
+   đổi thì chạy lại đúng đường này. */
+import histT8 from '@/lib/data/cpv-2026-08.json';
 
-const HIST = [histT1, histT2, histT3, histT4, histT5, histT6, histT7];
+const HIST = [histT1, histT2, histT3, histT4, histT5, histT6, histT7, histT8];
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
