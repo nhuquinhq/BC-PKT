@@ -1,0 +1,123 @@
+# Hai nguon T9 co du gia von cho web: CPV BE T9 va Lich su vi T9.
+# Do toc do (3 luot) va soi khuon cot truoc khi dau vao cau hinh — da vai lan
+# dinh chuyen doi nguon xong moi phat hien file doi ten cot.
+name: Soi nguon T9
+
+on:
+  workflow_dispatch: {}
+
+env:
+  BE_PUB: "2PACX-1vS0Tldb2hmR8TxnYC_un9q0tpgpm3RCyN3O7oJimo17gP4EpagCRwEPwpqMr2BjdZtXeRVOcthy23PX"
+  VI_PUB: "2PACX-1vQeUfF2nTzlfu_SXY_nhNlVXMYhPb0gcax-vNpaduXcvjTlWR-c6jCU7yJ6nOGTQCSs-HSpJpD906gf"
+  VI_GID: "1425184209"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Do toc do
+        run: |
+          thu() {
+            ten="$1"; url="$2"; out="$3"
+            echo "===== $ten"
+            ok=0
+            for i in 1 2 3; do
+              rm -f "$out"
+              r=$(curl -sSL -m 110 -o "$out" -w '%{http_code}|%{time_total}|%{size_download}' "$url" 2>/dev/null || echo '000|timeout|0')
+              code=${r%%|*}; rest=${r#*|}; tg=${rest%%|*}; sz=${rest##*|}
+              h=$(head -c 14 "$out" 2>/dev/null | tr -d '\n')
+              g=HONG
+              case "$h" in '<!DOCTYPE'*|'<html'*) g='TRANG DANG NHAP' ;;
+                *) [ "$code" = "200" ] && [ "$sz" -gt 20000 ] && { g=OK; ok=$((ok+1)); } ;;
+              esac
+              printf '   luot %s: HTTP %-3s · %-9ss · %-10s byte · %s\n' "$i" "$code" "$tg" "$sz" "$g"
+              [ "$g" = "OK" ] && break
+              sleep 6
+            done
+            echo "   -> $ok/3"
+            echo
+          }
+          thu "CPV BE T9" "https://docs.google.com/spreadsheets/d/e/$BE_PUB/pub?gid=0&single=true&output=csv" /tmp/be.csv
+          thu "Lich su vi T9" "https://docs.google.com/spreadsheets/d/e/$VI_PUB/pub?gid=$VI_GID&single=true&output=csv" /tmp/vi.csv
+
+      - name: Soi khuon cot
+        run: |
+          python3 - <<'PY'
+          import csv, os, re, collections, unicodedata
+          csv.field_size_limit(10**9)
+          def bd(s):
+              s = unicodedata.normalize('NFD', str(s or ''))
+              return ''.join(c for c in s if unicodedata.category(c) != 'Mn').replace('đ','d').lower().strip()
+          def viNum(s):
+              s = str(s or '').strip().replace(' ', '')
+              if not s: return 0.0
+              if ',' in s: s = s.replace('.', '').replace(',', '.')
+              elif re.fullmatch(r'-?\d{1,3}(\.\d{3})+', s): s = s.replace('.', '')
+              try: return float(s)
+              except ValueError: return 0.0
+          def ngay(s):
+              m = re.search(r'(\d{4})-(\d{2})-(\d{2})', str(s or ''))
+              if m: return f'{m.group(3)}/{m.group(2)}/{m.group(1)}'
+              m = re.search(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', str(s or ''))
+              return f'{int(m.group(1)):02d}/{int(m.group(2)):02d}/{m.group(3)}' if m else ''
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+
+          # ---- CPV BE T9: khuon giong file BE, tim dong tieu de co Order ID
+          print('##### CPV BE T9')
+          if not os.path.exists('/tmp/be.csv') or os.path.getsize('/tmp/be.csv') < 1000:
+              print('  khong tai duoc')
+          else:
+              rows = list(csv.reader(open('/tmp/be.csv', encoding='utf-8', errors='ignore')))
+              hdr = next((i for i, r in enumerate(rows[:40]) if any(bd(c) == 'order id' for c in r)), None)
+              print(f'  {len(rows)} dong · dong tieu de {hdr}')
+              if hdr is not None:
+                  cols = [c.strip() for c in rows[hdr]]
+                  print(f'  {len(cols)} cot')
+                  for k in ('order id','san','doanh thu','phi','thuc nhan','thanh tien','quy doi',
+                            'ngay hoan tat','trang thai','ty gia tuan','gia von','loi nhuan','bu'):
+                      v = [i for i, c in enumerate(cols) if k in bd(c)]
+                      print(f'     {k:<16} {v if v else "KHONG THAY"}')
+                  i_ht = next((i for i,c in enumerate(cols) if 'hoan tat' in bd(c) and 'ngay' in bd(c)), None)
+                  i_tt = next((i for i,c in enumerate(cols) if bd(c).startswith('thanh tien') or 'quy doi' in bd(c)), None)
+                  i_usd = next((i for i,c in enumerate(cols) if bd(c) == 'doanh thu'), None)
+                  t = collections.defaultdict(lambda: [0,0.0,0.0])
+                  for r in rows[hdr+1:]:
+                      g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
+                      d = ngay(g(i_ht))
+                      if not d: continue
+                      t[d][0]+=1; t[d][1]+=viNum(g(i_usd)); t[d][2]+=viNum(g(i_tt))
+                  for d in sorted(t, key=lambda x:(x[6:],x[3:5],x[:2]))[-10:]:
+                      c,u,v = t[d]
+                      print(f'     {d}  {n(c):>6} dong · ${u:>12,.0f} · {n(v):>18} d')
+
+          # ---- Lich su vi T9: tab THVi Tien, tieu de co Ten san / So Tien / Tim
+          print('\n##### LICH SU VI T9')
+          if not os.path.exists('/tmp/vi.csv') or os.path.getsize('/tmp/vi.csv') < 1000:
+              print('  khong tai duoc')
+          else:
+              rows = list(csv.reader(open('/tmp/vi.csv', encoding='utf-8', errors='ignore')))
+              hdr = next((i for i, r in enumerate(rows[:20])
+                          if any(bd(c) in ('ten san','san') for c in r) and any(bd(c)=='so tien' for c in r)
+                          and any(bd(c)=='tim' for c in r)), None)
+              print(f'  {len(rows)} dong · dong tieu de {hdr}')
+              if hdr is not None:
+                  cols = [c.strip() for c in rows[hdr]]
+                  print(f'  {len(cols)} cot: ' + ' | '.join(cols[:20]))
+                  i_tim = next(i for i,c in enumerate(cols) if bd(c)=='tim')
+                  i_ngay = next(i for i,c in enumerate(cols) if bd(c)=='ngay')
+                  i_dt = next((i for i,c in enumerate(cols) if bd(c)=='dt vnd'), None)
+                  lo = next((i for i,c in enumerate(cols) if bd(c).startswith('loai don hang')), None)
+                  lo2 = next((i for i,c in enumerate(cols) if bd(c)=='phan loai doanh thu be'), None)
+                  print(f'     cot phan loai: loai don hang={lo} · phan loai doanh thu be={lo2}')
+                  t = collections.defaultdict(lambda: [0,0.0])
+                  for r in rows[hdr+1:]:
+                      g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
+                      if bd(g(i_tim)) != 'dt': continue
+                      d = int(viNum(g(i_ngay)) or 0)
+                      if not (1 <= d <= 31): continue
+                      t[d][0]+=1; t[d][1]+=viNum(g(i_dt))
+                  for d in sorted(t)[-10:]:
+                      c,v = t[d]
+                      print(f'     ngay {d:>2}  {n(c):>6} dong · {n(v):>18} d')
+          PY
