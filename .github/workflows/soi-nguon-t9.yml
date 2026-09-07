@@ -1,58 +1,47 @@
-# Do toc do va soi khuon cot cac nguon truoc khi dau vao cau hinh — da vai lan
-# dinh chuyen doi nguon xong moi phat hien file doi ten cot.
+# Do lai cot ty gia trong file CPV BE T9 va doi chieu voi file ty gia.
 #
-# Da chot qua nam luot truoc (07/09):
-#   BE T9 (publish, gid 0): 1,54s va 19,9s. 37.425 dong, tieu de dong 4, 48 cot.
-#     [36] REV, [35] CO, [42] gia von VND (ngay truoc [43] Loi Nhuan) — dung
-#     nhu /api/cpv dang gia dinh. DA DAU VAO CAU HINH.
-#   BE T8: publish 0/5, gviz cung hong. Khong con duong nao xuat duoc — muon co
-#     lai so T8 thi phai xuat ban lai file hoac tai ve day vao datalake.
-#   Vi T9: publish 0/2, export 0/3, gviz 1/5 va 1/6 (38–44s). Qua thap de doc
-#     live — chuyen sang chup anh dinh ky, xem .github/workflows/chup-vi.yml.
-#   File API san dang dung: 352 dong, TOAN BO la 08/2026, khong co cot Thanh
-#     tien (la ban tho, /api/cpv tu quy doi). Tuc T9 dang thieu phan don tu
-#     dong — T7 phan nay la 781.906.237 d tren tong 8.524.646.772 d, khoang 9%.
+# Sang 07/09 luc 08:18 do duoc file BE ghi tuan 37 la REV 25.382 / CO 25.900,
+# trong khi file ty gia ghi 25.389 / 25.907 — lech 7d. Chi Quinh bao chieu
+# 19:40 xem lai thi da khop. Do lai de xac nhan, va de biet GMV T9 doi bao
+# nhieu: bao cao CPV dung thang cot "Thanh tien GMV" cua file BE chu khong tu
+# quy doi, nen ty gia trong file doi la so tien doi theo.
 #
-# Luot nay: soi file "Don hang tu dong T9" (ban V3 bot dang dung) xem co dung
-# khuon de thay cho file API san khong. Diem phai kiem: co cot Gia von khong.
-# Chi co GMV ma khong co gia von thi dap vao web se thanh loi nhuan ao.
-name: Soi nguon T9
+# Kiem luon rang buoc REV = CO * 98% (cong thuc =EH31*98% trong file ty gia).
+# Dung tren ca bang: 25.907x98%=25.389 · 25.803x98%=25.286 · 25.814x98%=25.297
+# · 26.070x98%=25.549. Lech rang buoc nay la dau hieu mot trong hai cot sai.
+name: Soi ty gia trong file BE T9
 
 on:
   workflow_dispatch: {}
 
 env:
-  AUTO_T9_ID: "1GpOFicbNTmkxCCe9488516LPx31ryZTAVwS9hSxEL7U"
-  AUTO_T8_ID: "1MgKdAkn_shglL0xoduuUnqhKTmJDwpCilUnJgwpmAEQ"
+  BE_PUB: "2PACX-1vS0Tldb2hmR8TxnYC_un9q0tpgpm3RCyN3O7oJimo17gP4EpagCRwEPwpqMr2BjdZtXeRVOcthy23PX"
 
 jobs:
   soi:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Tai hai file don hang tu dong
+      - name: Keo file BE T9
         run: |
-          keo() {
-            ten="$1"; url="$2"; out="$3"
-            for i in 1 2 3 4 5; do
-              rm -f "$out"
-              r=$(curl -sSL -m 110 -o "$out" -w '%{http_code}|%{time_total}|%{size_download}' "$url" 2>/dev/null || echo '000|to|0')
-              sz=${r##*|}
-              echo "   $ten luot $i: $r"
-              case "$r" in 200*) [ "$sz" -gt 2000 ] && return 0 ;; esac
-              sleep 5
-            done
-            return 1
-          }
-          keo "auto T9" "https://docs.google.com/spreadsheets/d/$AUTO_T9_ID/export?format=csv&gid=0" /tmp/a9.csv || true
-          keo "auto T8" "https://docs.google.com/spreadsheets/d/$AUTO_T8_ID/export?format=csv&gid=0" /tmp/a8.csv || true
+          U="https://docs.google.com/spreadsheets/d/e/$BE_PUB/pub?gid=0&single=true&output=csv"
+          for i in $(seq 1 6); do
+            rm -f /tmp/be.csv
+            r=$(curl -sSL -m 110 -o /tmp/be.csv -w '%{http_code}|%{time_total}|%{size_download}' "$U" 2>/dev/null || echo '000|het gio|0')
+            sz=${r##*|}
+            echo "   luot $i: $r"
+            case "$r" in 200*) [ "$sz" -gt 20000 ] && break ;; esac
+            sleep 8
+          done
+          ls -l /tmp/be.csv
 
-      - name: Doi chieu khuon cot
+      - name: Doi chieu ty gia theo tuan
         run: |
           python3 - <<'PY'
           import csv, os, re, collections, unicodedata
           csv.field_size_limit(10**9)
-          bd = lambda s: ''.join(c for c in unicodedata.normalize('NFD', str(s or '')) if unicodedata.category(c) != 'Mn').replace('đ','d').lower().strip()
+          bd = lambda s: ''.join(c for c in unicodedata.normalize('NFD', str(s or ''))
+                                 if unicodedata.category(c) != 'Mn').replace('đ','d').lower().strip()
           def viNum(s):
               s = str(s or '').strip().replace(' ', '')
               if not s: return 0.0
@@ -60,40 +49,51 @@ jobs:
               elif re.fullmatch(r'-?\d{1,3}(\.\d{3})+', s): s = s.replace('.', '')
               try: return float(s)
               except ValueError: return 0.0
-          def thang(s):
-              m = re.search(r'(\d{4})-(\d{2})-\d{2}', str(s or ''))
-              if m: return f'{m.group(2)}/{m.group(1)}'
-              m = re.search(r'\d{1,2}[/-](\d{1,2})[/-](\d{4})', str(s or ''))
-              return f'{int(m.group(1)):02d}/{m.group(2)}' if m else ''
           n = lambda x: f'{x:,.0f}'.replace(',', '.')
 
-          for ten, f in (('AUTO T9', '/tmp/a9.csv'), ('AUTO T8', '/tmp/a8.csv')):
-              print(f'##### {ten}')
-              if not os.path.exists(f) or os.path.getsize(f) < 500:
-                  print('  khong tai duoc\n'); continue
-              rows = list(csv.reader(open(f, encoding='utf-8', errors='ignore')))
-              hdr = next((i for i,r in enumerate(rows[:40])
-                          if any(bd(c) in ('order id','order_id','ma don') for c in r)), None)
-              print(f'  {len(rows)} dong · tieu de {hdr}')
-              if hdr is None:
-                  for r in rows[:3]: print('   ' + ' | '.join(x[:20] for x in r[:14]))
-                  print(); continue
-              cols = [c.strip() for c in rows[hdr]]
-              print(f'  {len(cols)} cot: ' + ' | '.join(cols))
-              for k in ('gia von','thanh tien','quy doi','ty gia','doanh thu','thuc nhan','san','ngay hoan tat'):
-                  v = [i for i,c in enumerate(cols) if k in bd(c)]
-                  print(f'     {k:<14} {v if v else "KHONG THAY"}')
-              i_d = next((i for i,c in enumerate(cols) if 'hoan tat' in bd(c)), None)
-              i_u = next((i for i,c in enumerate(cols) if bd(c)=='doanh thu'), None)
-              i_g = next((i for i,c in enumerate(cols) if bd(c)=='gia von'), None)
-              t = collections.defaultdict(lambda: [0,0.0,0.0])
-              for r in rows[hdr+1:]:
-                  g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
-                  k = thang(g(i_d))
-                  if not k: continue
-                  t[k][0]+=1; t[k][1]+=viNum(g(i_u)); t[k][2]+=viNum(g(i_g))
-              for k in sorted(t, key=lambda x:(x[3:], x[:2])):
-                  c,u,gv = t[k]
-                  print(f'     thang {k}  {n(c):>6} dong · DT ${u:>11,.2f} · GV ${gv:>11,.2f}')
-              print()
+          if not os.path.exists('/tmp/be.csv') or os.path.getsize('/tmp/be.csv') < 20000:
+              print('khong tai duoc'); raise SystemExit(1)
+          rows = list(csv.reader(open('/tmp/be.csv', encoding='utf-8', errors='ignore')))
+          hdr = next(i for i, r in enumerate(rows[:40]) if any(bd(c) == 'order id' for c in r))
+          cols = [c.strip() for c in rows[hdr]]
+          print(f'{len(rows)} dong · tieu de {hdr} · {len(cols)} cot')
+
+          i_tuan = next(i for i, c in enumerate(cols) if bd(c) == 'tuan')
+          tg = [i for i, c in enumerate(cols) if 'ty gia tuan' in bd(c)]
+          i_co, i_rev = tg[0], tg[-1]
+          i_tt = next(i for i, c in enumerate(cols) if bd(c).startswith('thanh tien'))
+          i_ht = next(i for i, c in enumerate(cols) if 'hoan tat' in bd(c) and 'ngay' in bd(c))
+          print(f'cot: Tuan[{i_tuan}] · CO[{i_co}] · REV[{i_rev}] · Thanh tien[{i_tt}]')
+
+          theo = collections.defaultdict(lambda: [collections.Counter(), collections.Counter(), 0, 0.0])
+          tongGmv = 0.0
+          for r in rows[hdr+1:]:
+              g = lambda i: (r[i] if i < len(r) else '')
+              if not re.search(r'\d{4}-\d{2}-\d{2}', g(i_ht)): continue
+              t = str(int(viNum(g(i_tuan)))) if viNum(g(i_tuan)) else '?'
+              co, rev, tt = viNum(g(i_co)), viNum(g(i_rev)), viNum(g(i_tt))
+              if co: theo[t][0][co] += 1
+              if rev: theo[t][1][rev] += 1
+              theo[t][2] += 1; theo[t][3] += tt
+              tongGmv += tt
+
+          # So voi file ty gia (chep tay tu bang, doi chieu 07/09)
+          CHUAN = {'32': (25724, 26249), '33': (25549, 26070), '34': (25282, 25798),
+                   '35': (25297, 25814), '36': (25286, 25803), '37': (25389, 25907)}
+          print()
+          for t in sorted(theo, key=lambda x: int(x) if x.isdigit() else 99):
+              cco, crev, dem, gmv = theo[t]
+              co = cco.most_common(1)[0][0] if cco else 0
+              rev = crev.most_common(1)[0][0] if crev else 0
+              chuan = CHUAN.get(t)
+              dau = '—'
+              if chuan:
+                  dau = 'KHOP' if (round(rev) == chuan[0] and round(co) == chuan[1]) else 'LECH'
+              # Rang buoc noi bo: REV = CO * 98%
+              rb = ''
+              if co and rev:
+                  rb = 'ok' if abs(rev - co * 0.98) <= 1 else f'VO ({rev:.0f} vs {co*0.98:.2f})'
+              print(f'  tuan {t:>2}  {n(dem):>6} don · REV {rev:>9,.0f} · CO {co:>9,.0f} · '
+                    f'file ty gia {chuan or "-"} → {dau} · REV=CO*98%: {rb} · GMV {n(gmv):>16}')
+          print(f'\n  TONG Thanh tien GMV: {n(tongGmv)} d')
           PY
