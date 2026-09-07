@@ -56,23 +56,40 @@ const tongCuaFile = (ten) => {
   return /\d/.test(m) ? viNum(m) : null;
 };
 
-const chot = [
-  ['USD (Số Tiền)', tongCuaFile('so tien'), kq.usdTong, 0.005],
-  ['VND (DT VND)', tongCuaFile('dt vnd'), kq.vndTong, 0.005],
-];
 let lech = false;
-for (const [ten, cuaFile, cuaMinh, nguong] of chot) {
-  if (cuaFile == null || cuaFile === 0) {
-    console.log(`   chốt ${ten}: file không ghi sẵn tổng, bỏ qua`);
-    continue;
-  }
-  const d = Math.abs(cuaMinh - cuaFile) / cuaFile;
-  const dau = d <= nguong ? 'khớp' : 'LỆCH';
-  console.log(`   chốt ${ten}: file ${so(cuaFile)} · cộng được ${so(cuaMinh)} · ${dau} ${(d * 100).toFixed(3)}%`);
-  if (d > nguong) lech = true;
+
+/* Chốt 1 — tổng VND. Đây là con số cuối cùng lên báo cáo nên phải khớp
+   tuyệt đối. Chạy ngày 07/09: file 1.856.675.361 · cộng được 1.856.675.361,
+   lệch 0,000%. */
+const vndFile = tongCuaFile('dt vnd');
+if (vndFile) {
+  const d = Math.abs(kq.vndTong - vndFile) / vndFile;
+  console.log(`   chốt VND: file ${so(vndFile)} · cộng được ${so(kq.vndTong)} · ${d <= 0.005 ? 'khớp' : 'LỆCH'} ${(d * 100).toFixed(3)}%`);
+  if (d > 0.005) lech = true;
+} else {
+  console.log('   chốt VND: file không ghi sẵn tổng, bỏ qua');
 }
+
+/* Chốt 2 — cột Số Tiền, kiểm theo TỪNG DÒNG chứ không so với ô tổng.
+   Vì sao không so ô tổng: chạy ngày 07/09, ô tổng của cột Số Tiền ghi 30.119
+   trong khi cộng các dòng DT ra 67.898. Ô đó không phải tổng của các dòng DT
+   (hàng xóm của nó tên là "Cộng tổng giá trị TÌM ĐƯỢC Giá Vốn" — tức tổng của
+   ô tìm kiếm), và nó nhích 29.688 → 30.119 trong nửa tiếng trong khi tổng VND
+   đứng yên, tức hai ô đếm hai thứ khác nhau. Đẳng thức từng dòng thì không mơ
+   hồ: lấy nhầm cột là vỡ ngay. */
+if (kq.thuTyGia > 0) {
+  const ty = kq.khopTyGia / kq.thuTyGia;
+  console.log(`   chốt Số Tiền: ${so(kq.khopTyGia)}/${so(kq.thuTyGia)} dòng thoả Số Tiền × Tỷ giá tuần = DT VND (${(ty * 100).toFixed(2)}%)`);
+  if (ty < 0.98) lech = true;
+} else {
+  console.error('   chốt Số Tiền: không có dòng nào đủ Số Tiền/Tỷ giá/DT VND để kiểm.');
+  lech = true;
+}
+
 if (lech) {
-  console.error('Tổng cộng được không khớp tổng của file — KHÔNG ghi. Nhiều khả năng file đã đổi tên/đổi vị trí cột.');
+  console.error('Số không chốt được — KHÔNG ghi. Nhiều khả năng file đã đổi tên hoặc đổi vị trí cột.');
+  console.error(`Tiêu đề đọc được (${kq.headers.length} cột): ${JSON.stringify(kq.headers)}`);
+  console.error(`Cột đã chọn: ${JSON.stringify(kq.col)}`);
   process.exit(1);
 }
 
