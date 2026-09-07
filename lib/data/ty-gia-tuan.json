@@ -1,6 +1,6 @@
 {
   "nguon": "Tab WEEKLY RATE Ver2 (gid 1739295342) của file HQS - BẢNG TỶ GIÁ HÀNG TUẦN — dòng 'REV Rate' và 'CO Rate' trong khối ER2 USDT/VND. Tab Ver1 đã bỏ, không dùng nữa.",
-  "ghi_chu": "REV dùng quy đổi DOANH THU, CO dùng quy đổi GIÁ VỐN — hai tỷ giá khác nhau, CO cao hơn REV khoảng 520 đ. Nguồn đơn hàng V3 là bản xuất thô từ hệ thống, không có cột tỷ giá lẫn cột Thành tiền VND, nên phải tra ở đây.",
+  "ghi_chu": "REV dùng quy đổi DOANH THU, CO dùng quy đổi GIÁ VỐN — hai tỷ giá khác nhau, CO cao hơn REV khoảng 520 đ. Quan hệ là công thức cứng trên file: REV = CO × 98%. Nguồn đơn hàng V3 là bản xuất thô từ hệ thống, không có cột tỷ giá lẫn cột Thành tiền VND, nên phải tra ở đây.",
   "cong_thuc": "Thành tiền (GMV VND) = DThu thực nhận (USD) × REV — KHÔNG phải Doanh thu gộp × REV. Đã đối chiếu trên file BE tháng 7 và 8: tỷ số Thành tiền ÷ DThu thực nhận bằng đúng REV từng ngày. Giá vốn VND = Giá vốn (USD) × CO.",
   "cach_dung": "Mỗi mốc là NGÀY ĐẦU TUẦN, có hiệu lực tới trước mốc kế tiếp. Ngày sau mốc cuối dùng luôn tỷ giá mốc cuối. Bảng này là bản dự phòng — /api/cpv ưu tiên đọc thẳng tab tỷ giá, hụt mới lùi về đây.",
   "cap_nhat": "07/09/2026",
