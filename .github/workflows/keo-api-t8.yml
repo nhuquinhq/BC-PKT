@@ -1,0 +1,54 @@
+# Keo file API san T8 ve repo mot lat de chot so T8 vao datalake.
+#
+# Vi sao phai qua Action: may dung de chot so khong ra duoc docs.google.com,
+# chi GitHub Actions moi ra. File nay nho (khoang 350 dong) nen day tam vao
+# repo roi xoa ngay trong lan commit chot so — khong de lai rac.
+#
+# File API san la phan don TU DONG, nam ngoai file BE. Thang 7 phan nay la
+# 781.906.237 d tren tong 8.524.646.772 d, khoang 9% — bo qua la hut han.
+name: Keo file API T8
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+env:
+  API_PUB: "2PACX-1vQvTKIa8hAWjghuGri8nsnk2zFhlHNIKKgGunBFDolf3IyG4lYZ8G9zt6tYrIIxESHQty7cskmUcbIG"
+
+jobs:
+  keo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Keo ve
+        run: |
+          mkdir -p tam
+          U="https://docs.google.com/spreadsheets/d/e/$API_PUB/pub?gid=0&single=true&output=csv"
+          for i in $(seq 1 8); do
+            rm -f tam/api-t8.csv
+            r=$(curl -sSL -m 110 -o tam/api-t8.csv -w '%{http_code}|%{time_total}|%{size_download}' "$U" 2>/dev/null || echo '000|het gio|0')
+            sz=${r##*|}
+            echo "   luot $i: $r"
+            case "$r" in 200*) [ "$sz" -gt 5000 ] && break ;; esac
+            sleep 10
+          done
+          head -c 300 tam/api-t8.csv; echo
+          wc -l tam/api-t8.csv
+
+      - name: Day len
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add -f tam/api-t8.csv
+          git diff --cached --quiet && { echo "khong doi"; exit 0; }
+          git commit -m "Kéo tạm file API sàn T8 để chốt số vào datalake" \
+                     -m "Xoá ngay ở lần commit chốt số. Xem .github/workflows/keo-api-t8.yml."
+          for n in 1 2 3 4; do
+            git pull --rebase origin main && git push origin main && exit 0
+            sleep $((n * n * 2))
+          done
+          exit 1
