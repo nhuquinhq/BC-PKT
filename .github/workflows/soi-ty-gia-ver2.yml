@@ -1,0 +1,102 @@
+# Soi tab WEEKLY RATE Ver2 (gid 1739295342) qua CA HAI duong chi Quinh dua:
+#   1. Ban cong bo  (/d/e/2PACX-.../pub)
+#   2. File goc     (/d/1tMLW.../export va /gviz)
+#
+# Muc dich: xem duong nao ra, ra co giong nhau khong, va boc ra bang tuan de
+# doi chieu voi so tren anh chup man hinh:
+#   tuan 33 REV 25.549 CO 26.070 · tuan 34 REV 25.282 CO 25.798
+#   tuan 35 REV 25.297 CO 25.814 · tuan 36 REV 25.286 CO 25.803
+#   tuan 37 REV 25.389 CO 25.907
+# Khop het thi moi doi cau hinh — doi nguon ty gia ma sai la sai TIEN, khong
+# phai sai hien thi.
+name: Soi ty gia Ver2
+
+on:
+  workflow_dispatch: {}
+
+env:
+  PUB: "2PACX-1vRBzYH7dMHHBU1PhVf368oCNlLhKhGFclc4VuH9nucqShlrk5fxbYtUUBUUAbYXzm7c3nXO6P7Yb9vQ"
+  FID: "1tMLW_mB8U08CQvE-lPBoLYAbjjs2Cc78t5bLHWTsK48"
+  GID: "1739295342"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Keo ba duong
+        run: |
+          thu() {
+            ten="$1"; url="$2"; out="$3"
+            for i in 1 2 3; do
+              rm -f "$out"
+              r=$(curl -sSL -m 110 -o "$out" -w '%{http_code}|%{time_total}|%{size_download}' "$url" 2>/dev/null || echo '000|het gio|0')
+              sz=${r##*|}
+              h=$(head -c 14 "$out" 2>/dev/null | tr -d '\n')
+              g=HONG
+              case "$h" in '<!DOCTYPE'*|'<html'*) g='TRANG HTML' ;;
+                *) case "$r" in 200*) [ "$sz" -gt 500 ] && g=OK ;; esac ;;
+              esac
+              echo "   $ten luot $i: $r · $g"
+              [ "$g" = OK ] && return 0
+              sleep 5
+            done
+            return 1
+          }
+          thu "cong bo" "https://docs.google.com/spreadsheets/d/e/$PUB/pub?gid=$GID&single=true&output=csv" /tmp/a.csv || true
+          thu "export"  "https://docs.google.com/spreadsheets/d/$FID/export?format=csv&gid=$GID" /tmp/b.csv || true
+          thu "gviz"    "https://docs.google.com/spreadsheets/d/$FID/gviz/tq?tqx=out:csv&gid=$GID&headers=0" /tmp/c.csv || true
+          ls -l /tmp/a.csv /tmp/b.csv /tmp/c.csv 2>/dev/null || true
+
+      - name: Boc bang tuan tu tung duong
+        run: |
+          python3 - <<'PY'
+          import csv, os, re, unicodedata
+          csv.field_size_limit(10**9)
+          def bd(s):
+              s = unicodedata.normalize('NFD', str(s or ''))
+              return ''.join(c for c in s if unicodedata.category(c) != 'Mn').replace('đ','d').lower().strip()
+          def so(s):
+              t = str(s or '').strip().replace(' ', '')
+              if not t: return 0.0
+              t = t.replace('.', '').replace(',', '.') if ',' in t else t.replace('.', '')
+              try: return float(t)
+              except ValueError: return 0.0
+
+          for ten, f in (('CONG BO', '/tmp/a.csv'), ('EXPORT', '/tmp/b.csv'), ('GVIZ', '/tmp/c.csv')):
+              print(f'##### {ten}')
+              if not os.path.exists(f) or os.path.getsize(f) < 500:
+                  print('  khong tai duoc\n'); continue
+              grid = list(csv.reader(open(f, encoding='utf-8', errors='ignore')))
+              rong = max(len(r) for r in grid)
+              print(f'  {len(grid)} dong x {rong} cot')
+              # Bam NHAN dong: ghep 4 o dau, giong het lib/tyGia.js
+              nhan = lambda r: ' '.join(x.strip() for x in (r or [])[:4] if x and x.strip()).lower()
+              idx = {}
+              for i, r in enumerate(grid):
+                  k = nhan(r)
+                  for ten_dong, dieu_kien in (('nam', k == 'year'), ('thang', k == 'month'),
+                                              ('tuan', k == 'week'), ('ngay', k == 'days'),
+                                              ('rev', 'rev rate' in k), ('co', 'co rate' in k)):
+                      if dieu_kien and ten_dong not in idx:
+                          idx[ten_dong] = i
+              print(f'  dong nhan: {idx}')
+              if not {'nam','thang','tuan','rev'} <= set(idx):
+                  print('  THIEU dong moc — in thu 12 nhan dau:')
+                  for i, r in enumerate(grid[:12]): print(f'     [{i}] {nhan(r)!r}')
+                  print(); continue
+              o = lambda i, j: (grid[i][j].strip() if i in idx.values() or True else '') if (i < len(grid) and j < len(grid[i])) else ''
+              ra = []
+              for j in range(2, rong):
+                  t = o(idx['tuan'], j)
+                  if not re.fullmatch(r'\d{1,2}', t): continue
+                  nam, thang = so(o(idx['nam'], j)), so(o(idx['thang'], j))
+                  rev, co = so(o(idx['rev'], j)), so(o(idx['co'], j)) if 'co' in idx else 0
+                  d = o(idx['ngay'], j) if 'ngay' in idx else ''
+                  if not nam or not thang or rev <= 0: continue
+                  ra.append((int(nam), int(thang), t, d, rev, co))
+              print(f'  boc duoc {len(ra)} tuan · 6 tuan cuoi:')
+              for x in ra[-6:]:
+                  print(f'     {x[0]}/{x[1]:02d} tuan {x[2]:>2} tu {x[3]:>6}  REV {x[4]:>10,.0f}  CO {x[5]:>10,.0f}')
+              print()
+          PY
