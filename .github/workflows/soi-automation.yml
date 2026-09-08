@@ -1,0 +1,61 @@
+# Soi tab "Automation / thu cong (don Bot)" truoc khi dung lam nguon.
+#
+# Quyen tren Drive: chi chia cho domain hqgroups.vn (reader) va chu file —
+# KHONG co "anyone with link". Web doc an danh nen nhieu kha nang khong vao
+# duoc; nhung "Publish to web" la thiet lap RIENG, khong hien trong danh sach
+# quyen, nen phai thu that ca ba duong roi moi ket luan.
+name: Soi tab Automation
+
+on:
+  workflow_dispatch: {}
+
+env:
+  FID: "1QRGgA6odROT8na4lGWe8yq8DV07-6YT90GqZG53JGts"
+  GID: "1785292172"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Thu ba duong
+        run: |
+          thu() {
+            ten="$1"; url="$2"; out="$3"
+            for i in 1 2 3; do
+              rm -f "$out"
+              r=$(curl -sSL -m 110 -o "$out" -w '%{http_code}|%{time_total}|%{size_download}' "$url" 2>/dev/null || echo '000|het gio|0')
+              sz=${r##*|}
+              h=$(head -c 14 "$out" 2>/dev/null | tr -d '\n')
+              g=HONG
+              case "$h" in '<!DOCTYPE'*|'<html'*) g='TRANG DANG NHAP' ;;
+                *) case "$r" in 200*) [ "$sz" -gt 200 ] && g=OK ;; esac ;;
+              esac
+              echo "   $ten luot $i: $r · $g"
+              [ "$g" = OK ] && return 0
+              sleep 5
+            done
+            return 1
+          }
+          thu "export" "https://docs.google.com/spreadsheets/d/$FID/export?format=csv&gid=$GID" /tmp/a.csv || true
+          thu "gviz"   "https://docs.google.com/spreadsheets/d/$FID/gviz/tq?tqx=out:csv&gid=$GID&headers=0" /tmp/b.csv || true
+          # Neu file da publish-to-web thi trang pubhtml se ra; thu xem co khong.
+          thu "pubhtml" "https://docs.google.com/spreadsheets/d/$FID/pubhtml" /tmp/c.html || true
+          ls -l /tmp/a.csv /tmp/b.csv /tmp/c.html 2>/dev/null || true
+
+      - name: Soi khuon neu doc duoc
+        run: |
+          python3 - <<'PY'
+          import csv, os
+          csv.field_size_limit(10**9)
+          for ten, f in (('export', '/tmp/a.csv'), ('gviz', '/tmp/b.csv')):
+              print(f'##### {ten}')
+              if not os.path.exists(f) or os.path.getsize(f) < 200:
+                  print('  khong doc duoc\n'); continue
+              rows = list(csv.reader(open(f, encoding='utf-8', errors='ignore')))
+              print(f'  {len(rows)} dong x {max((len(r) for r in rows), default=0)} cot')
+              for i, r in enumerate(rows[:30]):
+                  if any(x.strip() for x in r):
+                      print(f'   [{i}] ' + ' | '.join((x.strip() or '·')[:16] for x in r[:16]))
+              print()
+          PY
