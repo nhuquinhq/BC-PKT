@@ -1,0 +1,50 @@
+# Cung mot file, GitHub tai 1,5s ma Vercel qua 25s van chua xong.
+# Do xem la Google cham voi TAT CA hay chi cham voi Vercel — hai kha nang nay
+# dan den hai cach sua khac han:
+#   - Google cham voi tat ca  -> noi han cho la xong
+#   - Chi cham voi Vercel     -> noi han cho cung vo ich, phai chup anh dinh ky
+#
+# /api/sheet tren Vercel goi fetch TRAN khong bo han cho, chay toi maxDuration
+# 300s, nen do duoc Vercel thuc su can bao lau.
+name: Do Vercel so voi GitHub
+
+on:
+  workflow_dispatch: {}
+
+env:
+  GOC: "https://bc-pkt.vercel.app"
+  FID: "1WQdk90dz0Ddrh4C7exhuqHfNnD-DH616Ms0vUeDSNZw"
+  PUB: "2PACX-1vS0Tldb2hmR8TxnYC_un9q0tpgpm3RCyN3O7oJimo17gP4EpagCRwEPwpqMr2BjdZtXeRVOcthy23PX"
+
+jobs:
+  do:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Tu GitHub keo thang
+        run: |
+          for i in 1 2 3; do
+            r=$(curl -sSL -m 200 -o /tmp/a.csv -w '%{http_code}|%{time_total}|%{size_download}' \
+              "https://docs.google.com/spreadsheets/d/$FID/export?format=csv&gid=0" 2>/dev/null || echo '000|het gio|0')
+            echo "   GH export luot $i: $r"
+            sleep 4
+          done
+
+      - name: Qua Vercel (/api/sheet, khong bo han cho)
+        run: |
+          EXP="https://docs.google.com/spreadsheets/d/$FID/edit?gid=0"
+          PUBU="https://docs.google.com/spreadsheets/d/e/$PUB/pubhtml?gid=0&single=true"
+          for i in 1 2 3; do
+            r=$(curl -sS -m 290 -G "$GOC/api/sheet" \
+              --data-urlencode "url=$EXP" --data-urlencode 'gid=0' --data-urlencode 'raw=1' \
+              -o /tmp/v.json -w '%{http_code}|%{time_total}|%{size_download}' 2>/dev/null || echo '000|het gio|0')
+            echo "   Vercel export luot $i: $r · $(head -c 110 /tmp/v.json)"
+            sleep 4
+          done
+          for i in 1 2; do
+            r=$(curl -sS -m 290 -G "$GOC/api/sheet" \
+              --data-urlencode "url=$PUBU" --data-urlencode 'gid=0' --data-urlencode 'raw=1' \
+              -o /tmp/w.json -w '%{http_code}|%{time_total}|%{size_download}' 2>/dev/null || echo '000|het gio|0')
+            echo "   Vercel congbo luot $i: $r · $(head -c 110 /tmp/w.json)"
+            sleep 4
+          done
