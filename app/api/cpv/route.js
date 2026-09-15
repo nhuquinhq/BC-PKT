@@ -118,18 +118,24 @@ const statusClass = (raw) => {
 
    Vì vậy: THỬ NHIỀU LƯỢT, hạn chờ ngắn ở lượt đầu rồi nới dần. Với tỉ lệ
    ~60% mỗi lượt thì 4 lượt trượt hết chỉ còn ~2,5%. Và KHÔNG bỏ cuộc khi
-   hết giờ — hết giờ cũng chỉ là một lượt trượt như HTTP 500. */
-const HAN_CHO = [25000, 25000, 40000, 60000];
+   hết giờ — hết giờ cũng chỉ là một lượt trượt như HTTP 500.
+
+   Hạn chờ nới lên từ [25,25,40,60] ngày 15/09: đo QUA VERCEL thì lượt đọc
+   được của file BE T9 mất 38,7s, tức hạn 25s cắt ngay cả lượt THÀNH CÔNG —
+   trang báo lỗi trong khi Google vẫn đang trả dữ liệu bình thường. Ba lượt
+   60+90+60 = 210s, còn dưới maxDuration 300s kể cả thời gian bóc 9 MB CSV. */
+const HAN_CHO = [60000, 90000, 60000];
 /* Có nhớ theo từng file: PKT8, PKT20, các trang team và trang sàn đều đọc
    đúng những file này, chưa kể PKT10/PKT15 cần dữ liệu từng đơn. Nhớ ở đây
    thì cả nhóm dùng chung một lượt tải — xem lib/boNho.js. */
 /* vet: mảng thu thập tình trạng đọc từng file, để GET nói được số đang hiện
    lấy từ bản nhớ bao lâu rồi. Không có nó thì Google hỏng cả buổi mà trang
    vẫn hiện số cũ y như số mới — đúng vụ bot bắn 18h và 23h ra cùng một số. */
-/* urlb: đường đọc DỰ PHÒNG của cùng tab đó. Cùng một tab mà Google xuất được
-   đường này lại hụt đường kia — đo file CPV BE T9 ngày 15/09, 5 lượt mỗi đường:
-   bản công bố 3/5 (hai lượt trả HTTP 307 rỗng sau 110s), còn /export trên file
-   gốc 5/5 và đều 1,3–1,6s. Một đường thôi thì trang hỏng theo xác suất. */
+/* urlb: đường đọc DỰ PHÒNG của cùng tab đó — cùng một tab mà Google xuất được
+   đường này lại hụt đường kia, nên khai hai đường thì đỡ hỏng theo xác suất.
+   NHƯNG phải đo QUA VERCEL rồi mới xếp thứ tự: đo ngày 15/09 thì /export của
+   file BE T9 chạy 5/5 từ GitHub mà qua Vercel lại 0/3, lượt nào cũng HTTP 400
+   sau 240s. Số đo từ GitHub không nói được gì về Vercel. */
 async function loadGrid(url, gid, luot = HAN_CHO.length, vet = null, moi = false, urlb = '') {
   const csvUrl = toCsvUrl(url, gid) || url;
   const csvUrlB = urlb ? toCsvUrl(urlb, gid) || urlb : '';
@@ -138,12 +144,15 @@ async function loadGrid(url, gid, luot = HAN_CHO.length, vet = null, moi = false
      mỗi lần đổi đường là một khoá khác, cả nhóm trang hết dùng chung bản nhớ. */
   const kq = await nhoDocFile(`cpv-file|${csvUrl}`, async () => {
     const daTruot = [];
-    /* Xen kẽ hai đường theo từng lượt thay vì cạn đường một rồi mới sang đường
-       hai: đường nào cũng có lúc hụt, xen kẽ thì hai lượt đầu đã phủ cả hai. */
+    /* Đường CHÍNH đi trước và đi nhiều lượt, đường dự phòng chỉ ở lượt CUỐI.
+       Bản đầu tôi xen kẽ hai đường đều nhau, nhưng đo ngày 15/09 thì đường
+       dự phòng qua Vercel trả HTTP 400 sau 240s — xen kẽ hoá ra là đem một
+       nửa số lượt ném vào đường chết, còn đường sống chỉ được một lượt. */
     for (let i = 0; i < Math.max(luot, duong.length); i++) {
       if (i) await new Promise((ok) => setTimeout(ok, 1500));
       const han = HAN_CHO[Math.min(i, HAN_CHO.length - 1)];
-      const u = duong[i % duong.length];
+      const cuoi = i === Math.max(luot, duong.length) - 1;
+      const u = cuoi && duong[1] ? duong[1] : duong[0];
       try {
         const res = await fetch(u, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(han) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);

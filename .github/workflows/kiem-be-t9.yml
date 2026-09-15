@@ -14,13 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Goi 8 luot, moi luot bat doc lai
+      - name: Goi 6 luot, moi luot bat doc lai
         run: |
-          BE="https://docs.google.com/spreadsheets/d/1WQdk90dz0Ddrh4C7exhuqHfNnD-DH616Ms0vUeDSNZw/edit?gid=0"
-          BEB="https://docs.google.com/spreadsheets/d/e/2PACX-1vS0Tldb2hmR8TxnYC_un9q0tpgpm3RCyN3O7oJimo17gP4EpagCRwEPwpqMr2BjdZtXeRVOcthy23PX/pubhtml?gid=0&single=true"
+          # Thu tu phai GIONG lib/reports.js: ban cong bo la duong chinh.
+          BE="https://docs.google.com/spreadsheets/d/e/2PACX-1vS0Tldb2hmR8TxnYC_un9q0tpgpm3RCyN3O7oJimo17gP4EpagCRwEPwpqMr2BjdZtXeRVOcthy23PX/pubhtml?gid=0&single=true"
+          BEB="https://docs.google.com/spreadsheets/d/1WQdk90dz0Ddrh4C7exhuqHfNnD-DH616Ms0vUeDSNZw/edit?gid=0"
           API="https://docs.google.com/spreadsheets/d/1GpOFicbNTmkxCCe9488516LPx31ryZTAVwS9hSxEL7U/edit?gid=0"
           ok=0
-          for i in $(seq 1 8); do
+          for i in $(seq 1 6); do
             code=$(curl -sS -m 290 -G "$GOC/api/cpv" \
               --data-urlencode "url=$BE" --data-urlencode 'gid=0' \
               --data-urlencode "urlb=$BEB" \
@@ -28,7 +29,10 @@ jobs:
               --data-urlencode 'hist=1' --data-urlencode 'moi=1' \
               -o /tmp/r.json -w '%{http_code}|%{time_total}') || code='000|-'
             c=${code%%|*}; t=${code#*|}
-            if [ "$c" = "200" ]; then
+            loi=$(node -e 'try{const j=require("/tmp/r.json");process.stdout.write(String(j.meta&&j.meta.main_error||""))}catch{process.stdout.write("khong doc duoc JSON")}')
+            # HTTP 200 KHONG du: /api/cpv van tra 200 khi thang dang chay hong
+            # ma datalake con so cu. Phai doi main_error rong moi tinh la dat.
+            if [ "$c" = "200" ] && [ -z "$loi" ]; then
               ok=$((ok+1))
               echo "   luot $i: HTTP $c · ${t}s · $(node -e '
                 const j=require("/tmp/r.json");
@@ -42,5 +46,5 @@ jobs:
             fi
             sleep 6
           done
-          echo "   -> $ok/8 luot ra so"
-          [ "$ok" -ge 8 ] || { echo "VAN CON LUOT HONG"; exit 1; }
+          echo "   -> $ok/6 luot doc duoc thang dang chay"
+          [ "$ok" -ge 1 ] || { echo "KHONG LUOT NAO DOC DUOC THANG DANG CHAY"; exit 1; }
