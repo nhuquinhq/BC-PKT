@@ -1,0 +1,106 @@
+# CPV BE T9 dang bao loi tren web (chi Quinh bao ngay 15/09).
+# Do ca ba duong xuat cua CUNG mot tab (gid 0) va bat dung thong bao loi tren
+# ban dang chay, truoc khi sua bat cu thu gi.
+#
+# Boi canh: file BE T8 da chet han theo dung kieu nay — ngay 26/08 con ra 3/5
+# luot trong 0,70s, den 07/09 thi 0/5 luot, luot nao cung HTTP 307 rong sau
+# 110s. File T9 hom 07/09 con ra 1,54s va 19,9s. Nghi la no cung dang xuong
+# theo so dong, nen do NHIEU LUOT chu khong chi mot lan.
+name: Soi loi CPV BE T9
+
+on:
+  workflow_dispatch: {}
+
+env:
+  FID: "1WQdk90dz0Ddrh4C7exhuqHfNnD-DH616Ms0vUeDSNZw"
+  PUB: "2PACX-1vS0Tldb2hmR8TxnYC_un9q0tpgpm3RCyN3O7oJimo17gP4EpagCRwEPwpqMr2BjdZtXeRVOcthy23PX"
+  GOC: "https://bc-pkt.vercel.app"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Loi that tren ban dang chay
+        run: |
+          BE="https://docs.google.com/spreadsheets/d/e/$PUB/pubhtml?gid=0&single=true"
+          API="https://docs.google.com/spreadsheets/d/1GpOFicbNTmkxCCe9488516LPx31ryZTAVwS9hSxEL7U/edit?gid=0"
+          code=$(curl -sS -m 290 -G "$GOC/api/cpv" \
+            --data-urlencode "url=$BE" --data-urlencode 'gid=0' \
+            --data-urlencode "url2=$API" --data-urlencode 'gid2=0' \
+            --data-urlencode 'hist=1' --data-urlencode 'moi=1' \
+            -o /tmp/live.json -w '%{http_code}') || code=000
+          echo "   HTTP $code · $(stat -c%s /tmp/live.json 2>/dev/null || echo 0) byte"
+          head -c 1200 /tmp/live.json; echo
+
+      - name: Do ba duong xuat
+        run: |
+          thu() {
+            ten="$1"; url="$2"; out="$3"; n="$4"
+            echo "===== $ten"
+            ok=0
+            for i in $(seq 1 "$n"); do
+              rm -f "$out"
+              r=$(curl -sSL -m 110 -o "$out" -w '%{http_code}|%{time_total}|%{size_download}' "$url" 2>/dev/null || echo '000|het gio|0')
+              code=${r%%|*}; rest=${r#*|}; tg=${rest%%|*}; sz=${rest##*|}
+              h=$(head -c 14 "$out" 2>/dev/null | tr -d '\n')
+              g=HONG
+              case "$h" in '<!DOCTYPE'*|'<html'*) g='TRANG HTML' ;;
+                *) [ "$code" = "200" ] && [ "$sz" -gt 20000 ] && { g=OK; ok=$((ok+1)); } ;;
+              esac
+              printf '   luot %s: HTTP %-3s · %-9ss · %-10s byte · %s\n' "$i" "$code" "$tg" "$sz" "$g"
+              sleep 4
+            done
+            echo "   -> $ok/$n"
+            echo
+          }
+          thu "cong bo" "https://docs.google.com/spreadsheets/d/e/$PUB/pub?gid=0&single=true&output=csv" /tmp/a.csv 5
+          thu "export"  "https://docs.google.com/spreadsheets/d/$FID/export?format=csv&gid=0" /tmp/b.csv 5
+          thu "gviz"    "https://docs.google.com/spreadsheets/d/$FID/gviz/tq?tqx=out:csv&gid=0&headers=5" /tmp/c.csv 5
+          ls -l /tmp/a.csv /tmp/b.csv /tmp/c.csv 2>/dev/null || true
+
+      - name: Soi khuon duong nao doc duoc
+        run: |
+          python3 - <<'PY'
+          import csv, os, re, collections, unicodedata
+          csv.field_size_limit(10**9)
+          bd = lambda s: ''.join(c for c in unicodedata.normalize('NFD', str(s or ''))
+                                 if unicodedata.category(c) != 'Mn').replace('đ','d').lower().strip()
+          def viNum(s):
+              s = str(s or '').strip().replace(' ', '')
+              if not s: return 0.0
+              if ',' in s: s = s.replace('.', '').replace(',', '.')
+              elif re.fullmatch(r'-?\d{1,3}(\.\d{3})+', s): s = s.replace('.', '')
+              try: return float(s)
+              except ValueError: return 0.0
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+
+          for ten, f in (('CONG BO', '/tmp/a.csv'), ('EXPORT', '/tmp/b.csv'), ('GVIZ', '/tmp/c.csv')):
+              print(f'##### {ten}')
+              if not os.path.exists(f) or os.path.getsize(f) < 20000:
+                  print('  khong doc duoc\n'); continue
+              rows = list(csv.reader(open(f, encoding='utf-8', errors='ignore')))
+              hdr = next((i for i, r in enumerate(rows[:40]) if any(bd(c) == 'order id' for c in r)), None)
+              print(f'  {len(rows)} dong · tieu de {hdr}')
+              if hdr is None:
+                  for i, r in enumerate(rows[:6]):
+                      print(f'   [{i}] ' + ' | '.join((x.strip() or "·")[:18] for x in r[:14]))
+                  print(); continue
+              cols = [c.strip() for c in rows[hdr]]
+              print(f'  {len(cols)} cot')
+              i_tt = next((i for i, c in enumerate(cols) if bd(c).startswith('thanh tien')), None)
+              i_ht = next((i for i, c in enumerate(cols) if 'hoan tat' in bd(c) and 'ngay' in bd(c)), None)
+              print(f'  Thanh tien[{i_tt}] · Ngay hoan tat[{i_ht}]')
+              t = collections.defaultdict(lambda: [0, 0.0])
+              for r in rows[hdr+1:]:
+                  g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
+                  m = re.search(r'(\d{4})-(\d{2})-(\d{2})', g(i_ht))
+                  if not m: continue
+                  t[f'{m.group(3)}/{m.group(2)}'][0] += 1
+                  t[f'{m.group(3)}/{m.group(2)}'][1] += viNum(g(i_tt))
+              tong = sum(v[1] for v in t.values())
+              for k in sorted(t)[-5:]:
+                  print(f'     {k}  {n(t[k][0]):>6} don · {n(t[k][1]):>16} d')
+              print(f'  TONG {n(sum(v[0] for v in t.values()))} don · {n(tong)} d')
+              print()
+          PY
