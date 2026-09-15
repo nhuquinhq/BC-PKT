@@ -126,29 +126,45 @@ const HAN_CHO = [25000, 25000, 40000, 60000];
 /* vet: mảng thu thập tình trạng đọc từng file, để GET nói được số đang hiện
    lấy từ bản nhớ bao lâu rồi. Không có nó thì Google hỏng cả buổi mà trang
    vẫn hiện số cũ y như số mới — đúng vụ bot bắn 18h và 23h ra cùng một số. */
-async function loadGrid(url, gid, luot = HAN_CHO.length, vet = null, moi = false) {
+/* urlb: đường đọc DỰ PHÒNG của cùng tab đó. Cùng một tab mà Google xuất được
+   đường này lại hụt đường kia — đo file CPV BE T9 ngày 15/09, 5 lượt mỗi đường:
+   bản công bố 3/5 (hai lượt trả HTTP 307 rỗng sau 110s), còn /export trên file
+   gốc 5/5 và đều 1,3–1,6s. Một đường thôi thì trang hỏng theo xác suất. */
+async function loadGrid(url, gid, luot = HAN_CHO.length, vet = null, moi = false, urlb = '') {
   const csvUrl = toCsvUrl(url, gid) || url;
+  const csvUrlB = urlb ? toCsvUrl(urlb, gid) || urlb : '';
+  const duong = csvUrlB && csvUrlB !== csvUrl ? [csvUrl, csvUrlB] : [csvUrl];
+  /* Khoá nhớ bám đường CHÍNH, không bám đường thực sự đọc được — không thì
+     mỗi lần đổi đường là một khoá khác, cả nhóm trang hết dùng chung bản nhớ. */
   const kq = await nhoDocFile(`cpv-file|${csvUrl}`, async () => {
     const daTruot = [];
-    for (let i = 0; i < luot; i++) {
+    /* Xen kẽ hai đường theo từng lượt thay vì cạn đường một rồi mới sang đường
+       hai: đường nào cũng có lúc hụt, xen kẽ thì hai lượt đầu đã phủ cả hai. */
+    for (let i = 0; i < Math.max(luot, duong.length); i++) {
       if (i) await new Promise((ok) => setTimeout(ok, 1500));
       const han = HAN_CHO[Math.min(i, HAN_CHO.length - 1)];
+      const u = duong[i % duong.length];
       try {
-        const res = await fetch(csvUrl, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(han) });
+        const res = await fetch(u, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(han) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
-        /* HTTP 401 kèm trang HTML = file chưa mở quyền "ai có link", không
-           phải lỗi tạm thời — thử lại bao nhiêu lượt cũng vậy, dừng luôn. */
+        /* HTTP 401 kèm trang HTML = file chưa mở quyền "ai có link". Với MỘT
+           đường thì thử lại vô ích, nhưng còn đường khác thì vẫn phải thử nốt
+           — hai đường có quyền khác nhau. */
         if (text.trim().startsWith('<')) {
-          throw Object.assign(new Error('Google trả về trang HTML thay vì CSV — file chưa mở quyền xem cho người có link, hoặc sai GID.'), { batDau: true });
+          throw Object.assign(
+            new Error('Google trả về trang HTML thay vì CSV — file chưa mở quyền xem cho người có link, hoặc sai GID.'),
+            { batDau: duong.length === 1 }
+          );
         }
         return text;
       } catch (e) {
         if (e.batDau) throw e;
-        daTruot.push(e.name === 'TimeoutError' ? `quá ${han / 1000}s` : e.message);
+        const ten = duong.length > 1 ? `${u.includes('/pub?') ? 'công bố' : 'export'}: ` : '';
+        daTruot.push(ten + (e.name === 'TimeoutError' ? `quá ${han / 1000}s` : e.message));
       }
     }
-    throw new Error(`Google không xuất được file sau ${luot} lượt (${daTruot.join(' · ')})`);
+    throw new Error(`Google không xuất được file sau ${daTruot.length} lượt (${daTruot.join(' · ')})`);
   }, { moi });
   if (vet) vet.push({ url: csvUrl, tuoi_giay: Math.round((kq.tuoi || 0) / 1000), loi: kq.loi || null });
   return Papa.parse(kq.val, { header: false, skipEmptyLines: false }).data;
@@ -318,7 +334,7 @@ function aggregate(rows) {
 /* Đọc toàn bộ nguồn LIVE (file BE các tháng đang chạy + file API sàn) rồi
    chuẩn hoá thành danh sách từng đơn. Tách riêng khỏi GET để bọc được bộ
    nhớ đệm — xem lib/boNho.js. */
-async function docLive({ urls, gids, url2s, gid2s, san2, moi = false }) {
+async function docLive({ urls, gids, urlbs = [], url2s, gid2s, san2, moi = false }) {
   /* Đọc bảng tỷ giá MỘT lần cho cả lượt, dùng chung cho mọi dòng đơn. */
   const tg = await boTyGia();
   let mainRows = [];
@@ -327,7 +343,7 @@ async function docLive({ urls, gids, url2s, gid2s, san2, moi = false }) {
   const vetFile = [];
   const loaded = await Promise.all(
     urls.map((u, i) =>
-      loadGrid(u, gids[i] || '0', 2, vetFile, moi)
+      loadGrid(u, gids[i] || '0', 3, vetFile, moi, urlbs[i] || '')
         .then((grid) => ({ grid }))
         .catch((e) => ({ err: e }))
     )
@@ -566,6 +582,9 @@ export async function GET(request) {
      truyền lặp ?url=...&gid=...&url=...&gid=... — file đầu là file chủ đạo. */
   const urls = searchParams.getAll('url');
   const gids = searchParams.getAll('gid');
+  /* Đường đọc DỰ PHÒNG của từng file nguồn chính, ghép theo thứ tự với url.
+     Rỗng nghĩa là file đó chỉ có một đường. */
+  const urlbs = searchParams.getAll('urlb');
   /* File API sàn cũng có thể nhiều file theo tháng: lặp url2/gid2 */
   const url2s = searchParams.getAll('url2');
   const gid2s = searchParams.getAll('gid2');
@@ -578,8 +597,8 @@ export async function GET(request) {
   const moi = searchParams.get('moi') === '1';
   if (!urls.length) return Response.json({ error: 'Thiếu url' }, { status: 400 });
 
-  const thamSo = { urls, gids, url2s, gid2s, san2, moi };
-  const khoa = `cpv|${PHIEN_BAN_TINH}|${urls.join(',')}|${gids.join(',')}|${url2s.join(',')}|${gid2s.join(',')}|${san2}`;
+  const thamSo = { urls, gids, urlbs, url2s, gid2s, san2, moi };
+  const khoa = `cpv|${PHIEN_BAN_TINH}|${urls.join(',')}|${gids.join(',')}|${urlbs.join(',')}|${url2s.join(',')}|${gid2s.join(',')}|${san2}`;
 
   let goi = null;
   let noCostList = null;
