@@ -1,0 +1,46 @@
+# Goi PKT8 tren ban da trien khai NHIEU LUOT.
+# Loi cu la loi theo XAC SUAT (ban cong bo 3/5 luot), nen goi mot lan thay 200
+# khong chung minh duoc gi — phai goi lien tuc moi biet da het chua.
+name: Kiem CPV BE T9 tren ban chay
+
+on:
+  workflow_dispatch: {}
+
+env:
+  GOC: "https://bc-pkt.vercel.app"
+
+jobs:
+  kiem:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Goi 8 luot, moi luot bat doc lai
+        run: |
+          BE="https://docs.google.com/spreadsheets/d/1WQdk90dz0Ddrh4C7exhuqHfNnD-DH616Ms0vUeDSNZw/edit?gid=0"
+          BEB="https://docs.google.com/spreadsheets/d/e/2PACX-1vS0Tldb2hmR8TxnYC_un9q0tpgpm3RCyN3O7oJimo17gP4EpagCRwEPwpqMr2BjdZtXeRVOcthy23PX/pubhtml?gid=0&single=true"
+          API="https://docs.google.com/spreadsheets/d/1GpOFicbNTmkxCCe9488516LPx31ryZTAVwS9hSxEL7U/edit?gid=0"
+          ok=0
+          for i in $(seq 1 8); do
+            code=$(curl -sS -m 290 -G "$GOC/api/cpv" \
+              --data-urlencode "url=$BE" --data-urlencode 'gid=0' \
+              --data-urlencode "urlb=$BEB" \
+              --data-urlencode "url2=$API" --data-urlencode 'gid2=0' \
+              --data-urlencode 'hist=1' --data-urlencode 'moi=1' \
+              -o /tmp/r.json -w '%{http_code}|%{time_total}') || code='000|-'
+            c=${code%%|*}; t=${code#*|}
+            if [ "$c" = "200" ]; then
+              ok=$((ok+1))
+              echo "   luot $i: HTTP $c · ${t}s · $(node -e '
+                const j=require("/tmp/r.json");
+                const n=x=>new Intl.NumberFormat("vi-VN",{maximumFractionDigits:0}).format(x);
+                const d=(j.detail||[]).filter(r=>r.sortKey.slice(0,6)==="202609");
+                const t=d.reduce((s,r)=>[s[0]+r.so_don,s[1]+r.thanh_tien],[0,0]);
+                process.stdout.write(`T9 ${n(t[0])} đơn · ${n(t[1])} đ · lỗi: ${j.meta.main_error||"không"}`);
+              ')"
+            else
+              echo "   luot $i: HTTP $c · ${t}s · $(head -c 200 /tmp/r.json)"
+            fi
+            sleep 6
+          done
+          echo "   -> $ok/8 luot ra so"
+          [ "$ok" -ge 8 ] || { echo "VAN CON LUOT HONG"; exit 1; }
