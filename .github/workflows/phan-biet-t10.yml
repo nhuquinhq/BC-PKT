@@ -1,0 +1,85 @@
+# File T10 chi Quinh dua la file DON HANG CHINH cua thang 10, hay chi la file
+# phu "don tu dong"? Dat sai cho la bot bao thieu doanh thu ma khong bao loi.
+#
+# Dau hieu phan biet, lay tu chinh du lieu thang 9:
+#   file DON HANG chinh  21.529 don/thang (~718/ngay), nhieu san
+#   file TU DONG         228 don/thang (~7/ngay), gan nhu chi mot san
+# File T10 co 368 don trong NUA NGAY dau thang. Doi chieu phan bo san de chac.
+name: Phan biet file T10
+
+on:
+  workflow_dispatch: {}
+
+env:
+  T10: "2PACX-1vQu2DaU7ZJYev-aVlli-xArdakHP1BTCdJgJCaFmCJbvxYNM19FHakx99kHSisRJ2w6SMFR5zDzqsvi"
+  V3T9: "10EBQ6uFLK_wlfzbxw1KQIxu3QZYpWGrO4u35bFcL2yA"
+  AUTOT9: "1GpOFicbNTmkxCCe9488516LPx31ryZTAVwS9hSxEL7U"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Keo ba file
+        run: |
+          keo() {
+            for i in 1 2 3 4; do
+              rm -f "$2"
+              r=$(curl -sSL -m 110 -o "$2" -w '%{http_code}|%{time_total}|%{size_download}' "$1" 2>/dev/null || echo '000|het gio|0')
+              echo "   $3 luot $i: $r"
+              case "$r" in 200*) return 0 ;; esac
+              sleep 6
+            done
+          }
+          keo "https://docs.google.com/spreadsheets/d/e/$T10/pub?gid=0&single=true&output=csv" /tmp/t10.csv "T10"
+          keo "https://docs.google.com/spreadsheets/d/$V3T9/export?format=csv&gid=0" /tmp/v3t9.csv "don hang T9"
+          keo "https://docs.google.com/spreadsheets/d/$AUTOT9/export?format=csv&gid=0" /tmp/autot9.csv "tu dong T9"
+
+      - name: Doi chieu
+        run: |
+          python3 - <<'PY'
+          import csv, os, re, collections, unicodedata
+          csv.field_size_limit(10**9)
+          bd = lambda s: ''.join(c for c in unicodedata.normalize('NFD', str(s or ''))
+                                 if unicodedata.category(c) != 'Mn').replace('đ','d').lower().strip()
+          def viNum(s):
+              s = str(s or '').strip().replace(' ', '')
+              if not s: return 0.0
+              if ',' in s: s = s.replace('.', '').replace(',', '.')
+              elif re.fullmatch(r'-?\d{1,3}(\.\d{3})+', s): s = s.replace('.', '')
+              try: return float(s)
+              except ValueError: return 0.0
+
+          def soi(ten, f):
+              print(f'##### {ten}')
+              if not os.path.exists(f) or os.path.getsize(f) < 300:
+                  print('  khong doc duoc\n'); return
+              rows = list(csv.reader(open(f, encoding='utf-8', errors='ignore')))
+              hdr = next(i for i,r in enumerate(rows[:40]) if any(bd(c)=='order id' for c in r))
+              cols = [c.strip() for c in rows[hdr]]
+              i_s = next(i for i,c in enumerate(cols) if bd(c)=='san')
+              i_d = next(i for i,c in enumerate(cols) if 'hoan tat' in bd(c))
+              i_u = next(i for i,c in enumerate(cols) if bd(c)=='doanh thu')
+              i_t = next((i for i,c in enumerate(cols) if bd(c)=='trang thai'), None)
+              san = collections.Counter(); ngay = collections.defaultdict(lambda:[0,0.0])
+              for r in rows[hdr+1:]:
+                  if i_d >= len(r): continue
+                  m = re.search(r'(\d{4})-(\d{2})-(\d{2})', r[i_d])
+                  if not m: continue
+                  san[r[i_s] if i_s < len(r) else '?'] += 1
+                  k = f'{m.group(3)}/{m.group(2)}'
+                  ngay[k][0]+=1; ngay[k][1]+=viNum(r[i_u] if i_u < len(r) else '')
+              tong = sum(v[0] for v in ngay.values())
+              print(f'  {tong} don · {len(san)} san khac nhau')
+              print(f'  san: {dict(san.most_common(10))}')
+              ks = sorted(ngay)
+              print(f'  so ngay co don: {len(ks)} · trung binh {tong/max(len(ks),1):,.0f} don/ngay')
+              for k in ks[:3] + (['...'] if len(ks)>6 else []) + ks[-3:]:
+                  if k == '...': print('     ...'); continue
+                  print(f'     {k}  {ngay[k][0]:>6} don · DT ${ngay[k][1]:>12,.2f}')
+              print()
+
+          soi('T10 (file chi Quinh dua)', '/tmp/t10.csv')
+          soi('DON HANG T9 (file chinh)', '/tmp/v3t9.csv')
+          soi('TU DONG T9 (file phu)',   '/tmp/autot9.csv')
+          PY
