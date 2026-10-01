@@ -1,0 +1,33 @@
+# Xem truoc tin bot sau khi chuyen nguon sang thang 10. Chua gui ra box.
+# preview=1 chi dung tin roi tra ve, khong ban Telegram.
+name: Xem truoc tin bot T10
+
+on:
+  workflow_dispatch: {}
+
+env:
+  GOC: "https://bc-pkt.vercel.app"
+
+jobs:
+  xem:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Goi preview
+        run: |
+          for i in 1 2 3; do
+            r=$(curl -sS -m 290 "$GOC/api/bot/cpv?preview=1&tay=1" \
+              -o /tmp/b.json -w '%{http_code}|%{time_total}' 2>/dev/null || echo '000|het gio')
+            echo "   luot $i: $r"
+            case "$r" in 200*) break ;; esac
+            sleep 8
+          done
+          node -e '
+          const j = require("/tmp/b.json");
+          if (j.error) { console.log("LOI:", j.error); process.exit(1); }
+          console.log("--- meta:", JSON.stringify({sent:j.sent, reason:j.reason, chan:j.chan}));
+          const t = j.text || j.message || "";
+          console.log("--- noi dung tin:");
+          console.log(t.replace(/<[^>]+>/g, ""));
+          if (j.meta) console.log("--- so lieu:", JSON.stringify(j.meta).slice(0, 700));
+          '
