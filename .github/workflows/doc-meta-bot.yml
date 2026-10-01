@@ -1,0 +1,51 @@
+# File T10 sach (368/368 dong Hoan Tat, du ngay, du DThu thuc nhan) ma bot van
+# bao 0 don. Goi thang /api/cpv voi DUNG cau hinh bot roi doc meta: skipNoDate,
+# skipStatus, rows_used, main_error, api_out_of_range se chi ra cho loc.
+name: Doc meta api cpv theo cau hinh bot
+
+on:
+  workflow_dispatch: {}
+
+env:
+  GOC: "https://bc-pkt.vercel.app"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Goi /api/cpv dung cau hinh bot
+        run: |
+          T10="https://docs.google.com/spreadsheets/d/e/2PACX-1vQu2DaU7ZJYev-aVlli-xArdakHP1BTCdJgJCaFmCJbvxYNM19FHakx99kHSisRJ2w6SMFR5zDzqsvi/pubhtml?gid=0&single=true"
+          T9="https://docs.google.com/spreadsheets/d/10EBQ6uFLK_wlfzbxw1KQIxu3QZYpWGrO4u35bFcL2yA/edit?gid=0"
+          AUTO9="https://docs.google.com/spreadsheets/d/1GpOFicbNTmkxCCe9488516LPx31ryZTAVwS9hSxEL7U/edit?gid=0"
+          for i in 1 2 3; do
+            r=$(curl -sS -m 290 -G "$GOC/api/cpv" \
+              --data-urlencode "url=$T10" --data-urlencode 'gid=0' --data-urlencode 'urlb=' \
+              --data-urlencode "url=$T9"  --data-urlencode 'gid=0' --data-urlencode 'urlb=' \
+              --data-urlencode "url2=$AUTO9" --data-urlencode 'gid2=0' \
+              --data-urlencode 'hist=1' --data-urlencode 'moi=1' \
+              -o /tmp/c.json -w '%{http_code}|%{time_total}') || r='000|-'
+            echo "   luot $i: $r"
+            case "$r" in 200*) break ;; esac
+            sleep 8
+          done
+          node -e '
+          const j = require("/tmp/c.json");
+          const n = x => new Intl.NumberFormat("vi-VN",{maximumFractionDigits:0}).format(x);
+          if (j.error) { console.log("LOI:", j.error); process.exit(1); }
+          console.log("meta:", JSON.stringify(j.meta));
+          const by = {};
+          for (const r of j.detail || []) {
+            const k = r.sortKey.slice(0,6);
+            (by[k] ||= [0,0,0]);
+            by[k][0] += r.so_don; by[k][1] += r.doanh_thu_usd; by[k][2] += r.thanh_tien;
+          }
+          console.log("--- theo thang:");
+          for (const k of Object.keys(by).sort().slice(-4))
+            console.log(`   ${k}  ${n(by[k][0])} don · $${n(by[k][1])} · ${n(by[k][2])} d`);
+          const t10 = (j.detail||[]).filter(r => r.sortKey.startsWith("202610"));
+          console.log(`--- dong 202610: ${t10.length} nhom`);
+          for (const r of t10.slice(0,6))
+            console.log(`   ${r.ngay} ${r.san} ${r.spdv} · ${r.so_don} don · $${r.doanh_thu_usd} · ${n(r.thanh_tien)} d`);
+          '
