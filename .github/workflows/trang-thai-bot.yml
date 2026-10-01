@@ -1,0 +1,22 @@
+# Hom nay bot da ban khung nao roi? Neu khung 12h/18h da ban khi cau hinh con
+# tro vao file T9 thi box da nhan mot tin bao 0 don — can biet de con noi lai.
+name: Trang thai bot hom nay
+
+on:
+  workflow_dispatch: {}
+
+env:
+  GOC: "https://bc-pkt.vercel.app"
+
+jobs:
+  xem:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Goi trangthai
+        run: |
+          curl -sS -m 120 "$GOC/api/bot/cpv?trangthai=1" -o /tmp/s.json -w 'HTTP %{http_code}\n'
+          node -e '
+          const j = require("/tmp/s.json");
+          console.log(JSON.stringify(j, null, 1).slice(0, 1800));
+          '
