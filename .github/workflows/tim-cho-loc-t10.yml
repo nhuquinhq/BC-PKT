@@ -1,0 +1,79 @@
+# Bot chuyen sang T10 nhung bao 0 don, trong khi file co 368 don ngay 01/10.
+# Tim xem bo loc nao loai het. Nghi ngo dau tien la cot Trang thai: parseOrders
+# cua /api/cpv bo moi dong co trang thai khong thuoc nhom hoan tat/huy/that bai.
+name: Tim cho loc het don T10
+
+on:
+  workflow_dispatch: {}
+
+env:
+  T10: "2PACX-1vQu2DaU7ZJYev-aVlli-xArdakHP1BTCdJgJCaFmCJbvxYNM19FHakx99kHSisRJ2w6SMFR5zDzqsvi"
+  V3T9: "10EBQ6uFLK_wlfzbxw1KQIxu3QZYpWGrO4u35bFcL2yA"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Keo hai file
+        run: |
+          keo() {
+            for i in 1 2 3 4; do
+              rm -f "$2"
+              r=$(curl -sSL -m 110 -o "$2" -w '%{http_code}|%{time_total}|%{size_download}' "$1" 2>/dev/null || echo '000|het gio|0')
+              echo "   $3 luot $i: $r"
+              case "$r" in 200*) return 0 ;; esac
+              sleep 6
+            done
+          }
+          keo "https://docs.google.com/spreadsheets/d/e/$T10/pub?gid=0&single=true&output=csv" /tmp/t10.csv "T10"
+          keo "https://docs.google.com/spreadsheets/d/$V3T9/export?format=csv&gid=0" /tmp/t9.csv "T9"
+
+      - name: Doi chieu trang thai va cac cot tien
+        run: |
+          python3 - <<'PY'
+          import csv, os, re, collections, unicodedata
+          csv.field_size_limit(10**9)
+          bd = lambda s: ''.join(c for c in unicodedata.normalize('NFD', str(s or ''))
+                                 if unicodedata.category(c) != 'Mn').replace('đ','d').lower().strip()
+
+          # Chep y nguyen statusClass cua /api/cpv
+          def statusClass(raw):
+              st = bd(raw).replace('  ', ' ')
+              if (not st) or 'hoan tat' in st or 'hoan thanh' in st or 'complete' in st or 'success' in st: return 'ok'
+              if 'hoan' in st: return 'huy'
+              if 'huy' in st or 'refund' in st or 'cancel' in st: return 'huy'
+              if 'that bai' in st or 'fail' in st or 'loi' in st: return 'fail'
+              return 'other'
+
+          def soi(ten, f):
+              print(f'##### {ten}')
+              if not os.path.exists(f) or os.path.getsize(f) < 300:
+                  print('  khong doc duoc\n'); return
+              rows = list(csv.reader(open(f, encoding='utf-8', errors='ignore')))
+              hdr = next(i for i,r in enumerate(rows[:40]) if any(bd(c)=='order id' for c in r))
+              cols = [c.strip() for c in rows[hdr]]
+              # /api/cpv: findCol(['trang thai', ...]) -> KHOP BANG, lay cot dau tien
+              i_t = next((i for i,c in enumerate(cols) if bd(c)=='trang thai'), None)
+              i_s = next((i for i,c in enumerate(cols) if bd(c)=='san'), None)
+              i_d = next((i for i,c in enumerate(cols) if 'hoan tat' in bd(c)), None)
+              i_u = next((i for i,c in enumerate(cols) if bd(c)=='doanh thu'), None)
+              i_n = next((i for i,c in enumerate(cols) if 'thuc nhan' in bd(c)), None)
+              print(f'  cot: Trang thai[{i_t}] · San[{i_s}] · Ngay hoan tat[{i_d}] · Doanh thu[{i_u}] · Thuc nhan[{i_n}]')
+              tt = collections.Counter(); phan = collections.Counter()
+              trong_sl = 0; co_ngay = 0
+              for r in rows[hdr+1:]:
+                  g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
+                  if not g(i_s).strip(): continue
+                  tt[g(i_t)] += 1
+                  phan[statusClass(g(i_t))] += 1
+                  if re.search(r'\d{4}-\d{2}-\d{2}', g(i_d)): co_ngay += 1
+                  if not str(g(i_n)).strip(): trong_sl += 1
+              print(f'  gia tri Trang thai: {dict(tt.most_common(8))}')
+              print(f'  phan loai theo /api/cpv: {dict(phan)}')
+              print(f'  dong co Ngay hoan tat: {co_ngay} · dong TRONG o DThu thuc nhan: {trong_sl}')
+              print()
+
+          soi('T10', '/tmp/t10.csv')
+          soi('T9 (doi chieu)', '/tmp/t9.csv')
+          PY
