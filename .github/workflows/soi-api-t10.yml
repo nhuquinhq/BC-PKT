@@ -1,12 +1,10 @@
-# File API (don tu dong) thang 10 cho bot — chi Quinh dua ngay 01/10.
+# File API T10 — ban cong bo doc duoc, 31 cot dung khuon file T9, nhung tong
+# Gia von ra $15.834.200 trong khi Doanh thu chi $6.136. Lech 2.500 lan.
+# Phai soi GIA TRI THO truoc khi dau vao bot: doc sai cot gia von la bot bao
+# lai ao, ma no khong he bao loi.
 #
-# Do CA HAI link, va do QUA VERCEL chu khong chi tu GitHub. Bai hoc ngay 15/09:
-# cung file BE T9 ma tu GitHub /export chay 5/5 luot trong 1,5s, qua Vercel lai
-# 0/3 luot va tra HTTP 400 sau 240s. Bot chay tren Vercel nen so do tu GitHub
-# khong ket luan duoc gi.
-#
-# Soi luon khuon cot: file "don tu dong" phai co Gia von, khong thi dap vao
-# bao cao se thanh loi nhuan ao. File T9 (1GpOFicb) co 31 cot va Gia von o [23].
+# Link /edit chi Quinh dua tra TRANG DANG NHAP — file chua mo "ai co link",
+# nen chi con duong cong bo. Do luon qua Vercel vi bot chay tren do.
 name: Soi API T10
 
 on:
@@ -15,6 +13,7 @@ on:
 env:
   FID: "1oBmAyyt5LMNNaivHPT7fp_2JktqjjbvItgftQ7sPT8I"
   PUB: "2PACX-1vQu2DaU7ZJYev-aVlli-xArdakHP1BTCdJgJCaFmCJbvxYNM19FHakx99kHSisRJ2w6SMFR5zDzqsvi"
+  T9: "1GpOFicbNTmkxCCe9488516LPx31ryZTAVwS9hSxEL7U"
   GOC: "https://bc-pkt.vercel.app"
 
 jobs:
@@ -22,46 +21,37 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - name: Tu GitHub — hai duong
+      - name: Keo T10 (cong bo) va T9 (de doi chieu)
         run: |
-          thu() {
-            ten="$1"; url="$2"; out="$3"
-            ok=0
-            for i in 1 2 3 4; do
-              rm -f "$out"
-              r=$(curl -sSL -m 110 -o "$out" -w '%{http_code}|%{time_total}|%{size_download}' "$url" 2>/dev/null || echo '000|het gio|0')
-              sz=${r##*|}
-              h=$(head -c 14 "$out" 2>/dev/null | tr -d '\n')
-              g=HONG
-              case "$h" in '<!DOCTYPE'*|'<html'*) g='TRANG DANG NHAP' ;;
-                *) case "$r" in 200*) [ "$sz" -gt 300 ] && { g=OK; ok=$((ok+1)); } ;; esac ;;
-              esac
-              echo "   $ten luot $i: $r · $g"
-              sleep 4
-            done
-            echo "   -> $ten $ok/4"
-          }
-          thu "cong bo" "https://docs.google.com/spreadsheets/d/e/$PUB/pub?gid=0&single=true&output=csv" /tmp/a.csv
-          thu "export"  "https://docs.google.com/spreadsheets/d/$FID/export?format=csv&gid=0" /tmp/b.csv
+          for i in 1 2 3 4; do
+            rm -f /tmp/t10.csv
+            r=$(curl -sSL -m 110 -o /tmp/t10.csv -w '%{http_code}|%{time_total}|%{size_download}' \
+              "https://docs.google.com/spreadsheets/d/e/$PUB/pub?gid=0&single=true&output=csv" 2>/dev/null || echo '000|het gio|0')
+            echo "   T10 cong bo luot $i: $r"
+            case "$r" in 200*) break ;; esac
+            sleep 5
+          done
+          for i in 1 2 3 4; do
+            rm -f /tmp/t9.csv
+            r=$(curl -sSL -m 110 -o /tmp/t9.csv -w '%{http_code}|%{time_total}|%{size_download}' \
+              "https://docs.google.com/spreadsheets/d/$T9/export?format=csv&gid=0" 2>/dev/null || echo '000|het gio|0')
+            echo "   T9 export luot $i: $r"
+            case "$r" in 200*) break ;; esac
+            sleep 5
+          done
 
-      - name: Qua Vercel — hai duong
+      - name: Qua Vercel
         run: |
           PUBU="https://docs.google.com/spreadsheets/d/e/$PUB/pubhtml?gid=0&single=true"
-          EDIT="https://docs.google.com/spreadsheets/d/$FID/edit?gid=0"
-          qua() {
-            ten="$1"; u="$2"
-            for i in 1 2 3; do
-              r=$(curl -sS -m 290 -G "$GOC/api/sheet" \
-                --data-urlencode "url=$u" --data-urlencode 'gid=0' --data-urlencode 'raw=1' \
-                -o /tmp/v.json -w '%{http_code}|%{time_total}|%{size_download}' 2>/dev/null || echo '000|het gio|0')
-              echo "   Vercel $ten luot $i: $r · $(head -c 90 /tmp/v.json)"
-              sleep 4
-            done
-          }
-          qua "cong bo" "$PUBU"
-          qua "export"  "$EDIT"
+          for i in 1 2 3; do
+            r=$(curl -sS -m 290 -G "$GOC/api/sheet" \
+              --data-urlencode "url=$PUBU" --data-urlencode 'gid=0' --data-urlencode 'raw=1' \
+              -o /tmp/v.json -w '%{http_code}|%{time_total}|%{size_download}' 2>/dev/null || echo '000|het gio|0')
+            echo "   Vercel cong bo luot $i: $r · $(head -c 80 /tmp/v.json)"
+            sleep 4
+          done
 
-      - name: Soi khuon cot
+      - name: Soi gia tri tho cot Gia von
         run: |
           python3 - <<'PY'
           import csv, os, re, collections, unicodedata
@@ -75,39 +65,42 @@ jobs:
               elif re.fullmatch(r'-?\d{1,3}(\.\d{3})+', s): s = s.replace('.', '')
               try: return float(s)
               except ValueError: return 0.0
-          n = lambda x: f'{x:,.0f}'.replace(',', '.')
 
-          for ten, f in (('CONG BO', '/tmp/a.csv'), ('EXPORT', '/tmp/b.csv')):
+          for ten, f in (('T10', '/tmp/t10.csv'), ('T9 (doi chieu)', '/tmp/t9.csv')):
               print(f'##### {ten}')
               if not os.path.exists(f) or os.path.getsize(f) < 300:
                   print('  khong doc duoc\n'); continue
               rows = list(csv.reader(open(f, encoding='utf-8', errors='ignore')))
-              hdr = next((i for i, r in enumerate(rows[:40])
-                          if any(bd(c) in ('order id','order_id','ma don') for c in r)), None)
-              print(f'  {len(rows)} dong · tieu de {hdr}')
-              if hdr is None:
-                  for i, r in enumerate(rows[:5]):
-                      print(f'   [{i}] ' + ' | '.join((x.strip() or "·")[:18] for x in r[:14]))
-                  print(); continue
+              hdr = next(i for i, r in enumerate(rows[:40]) if any(bd(c) == 'order id' for c in r))
               cols = [c.strip() for c in rows[hdr]]
-              print(f'  {len(cols)} cot: ' + ' | '.join(cols))
-              for k in ('order id','san','doanh thu','phi','thuc nhan','gia von',
-                        'thanh tien','quy doi','ty gia','ngay hoan tat','trang thai'):
-                  v = [i for i, c in enumerate(cols) if k in bd(c)]
-                  print(f'     {k:<14} {v if v else "KHONG THAY"}')
-              i_d = next((i for i,c in enumerate(cols) if 'hoan tat' in bd(c)), None)
-              i_u = next((i for i,c in enumerate(cols) if bd(c)=='doanh thu'), None)
-              i_g = next((i for i,c in enumerate(cols) if bd(c)=='gia von'), None)
-              t = collections.defaultdict(lambda: [0,0.0,0.0])
+              i_u = next(i for i,c in enumerate(cols) if bd(c) == 'doanh thu')
+              i_g = next(i for i,c in enumerate(cols) if bd(c) == 'gia von')
+              i_s = next(i for i,c in enumerate(cols) if bd(c) == 'san')
+              print(f'  {len(rows)-hdr-1} dong · Doanh thu[{i_u}] · Gia von[{i_g}]')
+              # 12 gia tri tho dau tien
+              print('  12 dong dau (San · Doanh thu THO · Gia von THO -> viNum):')
+              d = 0
               for r in rows[hdr+1:]:
-                  g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
-                  m = re.search(r'(\d{4})-(\d{2})-(\d{2})', g(i_d))
-                  if not m: continue
-                  k = f'{m.group(3)}/{m.group(2)}/{m.group(1)}'
-                  t[k][0]+=1; t[k][1]+=viNum(g(i_u)); t[k][2]+=viNum(g(i_g))
-              for k in sorted(t, key=lambda x:(x[6:],x[3:5],x[:2])):
-                  c,u,gv = t[k]
-                  print(f'     {k}  {n(c):>6} don · DT ${u:>11,.2f} · GV ${gv:>11,.2f}')
-              print(f'  TONG {n(sum(v[0] for v in t.values()))} don')
+                  if len(r) <= i_g: continue
+                  d += 1
+                  if d > 12: break
+                  print(f'     {r[i_s]:<5} | DT {r[i_u]!r:>12} | GV {r[i_g]!r:>14} -> {viNum(r[i_g]):,.2f}')
+              # Phan bo do lon cua gia von
+              bucket = collections.Counter()
+              lon = []
+              for r in rows[hdr+1:]:
+                  if len(r) <= i_g: continue
+                  v = viNum(r[i_g])
+                  if v <= 0: bucket['= 0'] += 1
+                  elif v < 100: bucket['< 100'] += 1
+                  elif v < 10000: bucket['100 - 10k'] += 1
+                  else:
+                      bucket['>= 10k'] += 1
+                      if len(lon) < 8: lon.append((r[i_s], r[i_u], r[i_g]))
+              print(f'  phan bo gia von: {dict(bucket)}')
+              if lon:
+                  print('  vai dong gia von LON:')
+                  for s, u, g in lon:
+                      print(f'     {s:<5} | DT {u!r:>12} | GV {g!r}')
               print()
           PY
