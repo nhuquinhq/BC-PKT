@@ -1,0 +1,54 @@
+# Cau hoi quyet dinh: file don hang chinh cua bot (V3 09/2026) co chua ngay
+# thang 10 khong?
+#
+# /api/cpv loai moi don cua file API nam NGOAI khoang ngay cua file chinh
+# (bien outOfRange). Neu file chinh dung o 30/09 thi 368 don T10 trong file API
+# moi se bi bo sach, bot bao 0 don cho thang 10 ma khong he bao loi.
+name: Soi pham vi ngay file don hang
+
+on:
+  workflow_dispatch: {}
+
+env:
+  V3T9: "10EBQ6uFLK_wlfzbxw1KQIxu3QZYpWGrO4u35bFcL2yA"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Keo file don hang V3 T9
+        run: |
+          for i in 1 2 3 4; do
+            rm -f /tmp/v3.csv
+            r=$(curl -sSL -m 110 -o /tmp/v3.csv -w '%{http_code}|%{time_total}|%{size_download}' \
+              "https://docs.google.com/spreadsheets/d/$V3T9/export?format=csv&gid=0" 2>/dev/null || echo '000|het gio|0')
+            echo "   luot $i: $r"
+            case "$r" in 200*) break ;; esac
+            sleep 6
+          done
+
+      - name: Pham vi ngay
+        run: |
+          python3 - <<'PY'
+          import csv, os, re, collections, unicodedata
+          csv.field_size_limit(10**9)
+          bd = lambda s: ''.join(c for c in unicodedata.normalize('NFD', str(s or ''))
+                                 if unicodedata.category(c) != 'Mn').replace('đ','d').lower().strip()
+          f = '/tmp/v3.csv'
+          if not os.path.exists(f) or os.path.getsize(f) < 300:
+              print('khong doc duoc'); raise SystemExit(1)
+          rows = list(csv.reader(open(f, encoding='utf-8', errors='ignore')))
+          hdr = next(i for i, r in enumerate(rows[:40]) if any(bd(c) == 'order id' for c in r))
+          cols = [c.strip() for c in rows[hdr]]
+          i_d = next(i for i,c in enumerate(cols) if 'hoan tat' in bd(c))
+          t = collections.Counter()
+          for r in rows[hdr+1:]:
+              if i_d >= len(r): continue
+              m = re.search(r'(\d{4})-(\d{2})-(\d{2})', r[i_d])
+              if m: t[f'{m.group(2)}/{m.group(1)}'] += 1
+          print(f'{len(rows)-hdr-1} dong · {len(cols)} cot')
+          for k in sorted(t): print(f'   thang {k}: {t[k]} don')
+          co10 = any(k.startswith('10/') for k in t)
+          print(f'\n   CO ngay thang 10 trong file chinh: {"CO" if co10 else "KHONG"}')
+          PY
