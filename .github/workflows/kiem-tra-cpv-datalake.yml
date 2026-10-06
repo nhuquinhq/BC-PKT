@@ -1,0 +1,101 @@
+# Kiem tra bao cao CPV sau khi chuyen sang doc het tu datalake (06/10).
+# Chi doc, khong gui gi, khong ghi gi.
+#
+# Vi sao phai do qua Vercel chu khong tin so do cuc bo: ngay 15/09 cung file
+# BE T9 ma tu GitHub /export chay 5/5 trong 1,5s, qua Vercel 0/3 va HTTP 400
+# sau 240s. Moi lan tin so do mot ben la mot lan trang hong.
+name: Kiem tra CPV datalake
+
+on:
+  workflow_dispatch: {}
+
+env:
+  GOC: "https://bc-pkt.vercel.app"
+
+jobs:
+  do:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Cac trang
+        run: |
+          for p in / /bao-cao/pkt8 /bao-cao/pkt10 /bao-cao/pkt15 /bao-cao/pkt6 /nguon-du-lieu; do
+            printf '%-22s ' "$p"
+            curl -sS -o /dev/null -m 90 -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' "$GOC$p" || echo LOI
+          done
+
+      - name: API cpv — 3 luot de xem bo nho dem
+        run: |
+          for i in 1 2 3; do
+            printf 'luot %s  ' "$i"
+            curl -sS -m 290 -o "/tmp/c$i.json" -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' \
+              "$GOC/api/cpv?hist=1" || true
+          done
+          python3 -I - <<'PY'
+          import json
+          d = json.load(open('/tmp/c1.json'))
+          m = d.get('meta') or {}
+          print('  error      :', d.get('error') or '(khong)')
+          print('  main_error :', m.get('main_error'))
+          print('  api_error  :', m.get('api_error'))
+          print('  rows_used  :', m.get('rows_used'), '· from', m.get('from'), '->', m.get('to'))
+          print('  api bo vi co datalake:', m.get('api_bo_vi_co_datalake'), '· dedup:', m.get('dedup_removed'))
+          t = {}
+          for r in d.get('detail') or []:
+              k = r['sortKey'][:6]
+              a = t.setdefault(k, [0, 0.0, 0.0])
+              a[0] += r.get('so_don') or 0
+              a[1] += r.get('thanh_tien') or 0
+              a[2] += r.get('gia_von') or 0
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+          for k in sorted(t):
+              print(f'    {k}  {n(t[k][0]):>7} don · {n(t[k][1]):>16} d · GV {n(t[k][2]):>16}')
+          # Hai luot sau phai y het luot dau: khac nhau la bo nho dem khong an.
+          a = json.load(open('/tmp/c2.json')).get('detail')
+          b = json.load(open('/tmp/c3.json')).get('detail')
+          print('  luot 2 == luot 3:', a == b)
+          PY
+
+      - name: API cpv — nocost (PKT10) va raw (PKT15)
+        run: |
+          printf 'nocost  '
+          curl -sS -m 290 -o /tmp/nc.json -w 'HTTP %{http_code} · %{time_total}s\n' "$GOC/api/cpv?hist=1&nocost=1" || true
+          printf 'raw     '
+          curl -sS -m 290 -o /tmp/rw.json -w 'HTTP %{http_code} · %{time_total}s\n' "$GOC/api/cpv?hist=1&raw=1" || true
+          python3 -I - <<'PY'
+          import json
+          nc = json.load(open('/tmp/nc.json'))
+          l = nc.get('no_cost_list') or []
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+          print('  nocost: error', nc.get('error') or '(khong)', '·', n(len(l)), 'don · GMV treo',
+                n(sum(r.get('thanh_tien') or 0 for r in l)))
+          t = {}
+          for r in l:
+              t[str(r.get('sortKey'))[:6]] = t.get(str(r.get('sortKey'))[:6], 0) + 1
+          print('  nocost theo thang:', t)
+          rw = json.load(open('/tmp/rw.json'))
+          # PKT15 PHAI bao loi ro rang chu khong duoc tra mang rong: xem
+          # app/api/cpv/route.js, nhanh raw khi khong co url.
+          print('  raw: error:', (rw.get('error') or '(khong - SAI, phai bao loi)')[:90])
+          PY
+
+      - name: API vi (PKT6)
+        run: |
+          printf 'vi      '
+          curl -sS -m 290 -o /tmp/v.json -w 'HTTP %{http_code} · %{time_total}s\n' "$GOC/api/vi?hist=1" || true
+          python3 -I - <<'PY'
+          import json
+          d = json.load(open('/tmp/v.json'))
+          m = d.get('meta') or {}
+          print('  error:', d.get('error') or '(khong)', '· main_error:', m.get('main_error'))
+          t = {}
+          for r in d.get('detail') or []:
+              k = r['sortKey'][:6]
+              a = t.setdefault(k, [0.0, 0.0])
+              a[0] += r.get('thanh_tien') or 0
+              a[1] += r.get('gia_von') or 0
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+          for k in sorted(t):
+              ty = (t[k][1] / t[k][0] * 100) if t[k][0] else 0
+              print(f'    {k}  {n(t[k][0]):>16} d · GV {n(t[k][1]):>16} · {ty:.1f}%')
+          PY
