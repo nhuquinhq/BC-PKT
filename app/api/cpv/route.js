@@ -204,7 +204,11 @@ async function docLive({ urls, gids, urlbs = [], url2s, gid2s, san2, moi = false
      repo, đọc không tốn gì. Người xem thấy màn hình toàn dấu gạch trong khi
      máy đang có đủ số lịch sử. Lỗi vẫn đi ra meta.main_error để hiện cảnh báo
      vàng; GET tự quyết chặn hay không tuỳ có datalake hay không. */
-  if (!mainOkCount) mainErrors.unshift('KHÔNG đọc được file tháng đang chạy');
+  /* KHÔNG khai file live nào là một LỰA CHỌN, không phải lỗi: tháng đã chốt
+     nằm hết trong datalake, tháng đang chạy thì Google không cho Vercel đọc
+     (xem .github/workflows/chup-be.yml). Báo lỗi lúc đó là hiện cảnh báo vàng
+     cho một trang hoàn toàn bình thường. */
+  if (!mainOkCount && urls.length) mainErrors.unshift('KHÔNG đọc được file tháng đang chạy');
 
   /* File API từ sàn (chỉ G1/G2): file BE ƯU TIÊN vì đã đối soát;
      API chỉ BỔ SUNG những đơn file BE còn thiếu (so theo Order ID, kể cả
@@ -410,7 +414,16 @@ export async function GET(request) {
   /* moi=1: bỏ qua bản đang nhớ, đọc lại Google cho bằng được. Trình duyệt
      dùng tham số này để lấy số mới sau khi đã hiện bản cũ. */
   const moi = searchParams.get('moi') === '1';
-  if (!urls.length) return Response.json({ error: 'Thiếu url' }, { status: 400 });
+  /* hist=1: nối thêm các tháng đã chốt từ datalake tĩnh. Khai báo SỚM vì
+     nhánh raw/nocost ở dưới cũng cần — PKT10 lấy danh sách đơn chưa có giá
+     vốn từ datalake khi tháng đó không đọc live. */
+  const useHist = searchParams.get('hist') === '1';
+  /* Không có file live vẫn chạy được nếu bật hist: tháng đã chốt nằm trong
+     datalake, tháng đang chạy có bản chụp định kỳ. /api/vi đã làm vậy từ
+     trước cho PKT6. */
+  if (!urls.length && searchParams.get('hist') !== '1') {
+    return Response.json({ error: 'Thiếu url' }, { status: 400 });
+  }
 
   const thamSo = { urls, gids, urlbs, url2s, gid2s, san2, moi };
   const khoa = `cpv|${PHIEN_BAN_TINH}|${urls.join(',')}|${gids.join(',')}|${urlbs.join(',')}|${url2s.join(',')}|${gid2s.join(',')}|${san2}`;
@@ -427,6 +440,22 @@ export async function GET(request) {
       kq = await docLive(thamSo);
     } catch (e) {
       return Response.json({ error: e.message }, { status: 502 });
+    }
+    /* raw = danh sách TỪNG ĐƠN, chỉ có từ file live. Không khai file nào thì
+       phải NÓI RA, đừng trả mảng rỗng: PKT15 tra mã đơn sẽ kết luận "đơn không
+       có trên BE" trong khi thật ra là không đọc được nguồn — im lặng kiểu đó
+       còn tệ hơn báo lỗi. /api/timdon bắt lỗi theo từng nguồn nên tab Đơn tạo
+       mới vẫn tra được. Datalake không giúp được ở đây: ảnh chụp chỉ lưu dòng
+       đã GỘP theo ngày × sàn × SPDV, không có mã đơn. */
+    if (raw && !urls.length) {
+      return Response.json(
+        {
+          error:
+            'Không có nguồn live cho tháng đang chạy nên không tra được theo mã đơn. ' +
+            'Cần link XUẤT BẢN của file BE tháng này đọc được qua Vercel — xem ghi chú ở lib/reports.js (CPV_SHEET_URL).',
+        },
+        { status: 503 }
+      );
     }
     if (raw) {
       const teamF = searchParams.get('team') || '';
@@ -465,6 +494,20 @@ export async function GET(request) {
         doanh_thu_usd: r.doanh_thu_usd,
         thanh_tien: r.thanh_tien,
       }));
+    /* Nối danh sách đơn chưa có giá vốn từ datalake cho những tháng KHÔNG đọc
+       live. Không có đoạn này thì PKT10 trắng trang kể từ lúc bỏ nguồn live —
+       mà tháng đang chạy thì Google không cho Vercel đọc, nên bản chụp định kỳ
+       (scripts/chup-be.mjs) là nguồn duy nhất. */
+    if (useHist) {
+      const thangLiveNc = new Set(kq.all.filter((r) => r.nguon === 'dh').map((r) => r.sortKey.slice(0, 6)));
+      const thuNc = HIST.flatMap((h) => h.no_cost_list || []).filter(
+        (r) => !thangLiveNc.has(String(r.sortKey || '').slice(0, 6))
+      );
+      noCostList = thuNc
+        .concat(noCostList)
+        .sort((x, y) => (x.sortKey < y.sortKey ? -1 : x.sortKey > y.sortKey ? 1 : 0))
+        .slice(0, 3000);
+    }
     goi = goiGon(kq);
   } else {
     let kq;
@@ -480,8 +523,6 @@ export async function GET(request) {
     }
   }
 
-  /* hist=1: nối thêm các tháng đã chốt từ datalake tĩnh */
-  const useHist = searchParams.get('hist') === '1';
   let detail = goi.detail;
   let histOk = 0;
   let histFail = 0;

@@ -156,12 +156,32 @@ if (BAN_CU && !process.env.CHO_PHEP_TEO) {
 /* Khuôn giống các file cpv-*.json đã chốt sổ để /api/cpv nối thẳng vào HIST.
    api_file và dup_list để rỗng: ảnh chụp này chỉ có nguồn đơn hàng BE, phần
    file API sàn do chốt sổ cuối tháng gộp vào. */
+/* Danh sách ĐƠN CHƯA BÓC ĐƯỢC GIÁ VỐN cho PKT10 — đơn Hoàn Tất có doanh thu
+   mà Giá Vốn = 0, đúng định nghĩa cờ 'nc' trong app/api/cpv/route.js. Phải
+   lưu ở đây vì PKT10 cần dữ liệu TỪNG ĐƠN, mà tháng đang chạy thì Google
+   không cho Vercel đọc live. Nhẹ: cả tháng 9 chỉ 530 đơn. */
+const noCost = trongThang
+  .filter((r) => r.sc === 'ok' && r.thanh_tien > 0 && !r.gia_von)
+  .slice(0, 3000)
+  .map((r) => ({
+    order_id: r.id,
+    san: r.san,
+    bu: r.bu,
+    spdv: r.spdv,
+    ngay: r.ngay,
+    sortKey: r.sortKey,
+    doanh_thu_usd: r.doanh_thu_usd,
+    thanh_tien: r.thanh_tien,
+  }));
+console.log(`   đơn chưa có giá vốn: ${so(noCost.length)} đơn · GMV treo ${so(noCost.reduce((s, r) => s + r.thanh_tien, 0))} đ`);
+
 const ra = {
   thang: `${String(thang).padStart(2, '0')}/${nam}`,
   nguon: 'Tab đơn hàng file CPV BE, chụp tự động bằng .github/workflows/chup-be.yml',
   chup_luc: new Date().toISOString(),
   counts: { ok, fail, huy },
   detail,
+  no_cost_list: noCost,
   api_file: [],
   dup_list: [],
 };
