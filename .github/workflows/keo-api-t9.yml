@@ -1,0 +1,44 @@
+# Keo tam file API san T9 ve repo de chot so T9 vao datalake, roi xoa ngay
+# trong lan commit chot so. May dung de chot khong ra duoc docs.google.com.
+name: Keo api T9
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+env:
+  FID: "1GpOFicbNTmkxCCe9488516LPx31ryZTAVwS9hSxEL7U"
+
+jobs:
+  keo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Keo ve
+        run: |
+          mkdir -p tam
+          for i in $(seq 1 8); do
+            rm -f tam/api-t9.csv
+            r=$(curl -sSL -m 110 -o tam/api-t9.csv -w '%{http_code}|%{time_total}|%{size_download}' \
+              "https://docs.google.com/spreadsheets/d/$FID/export?format=csv&gid=0" 2>/dev/null || echo '000|het gio|0')
+            echo "   luot $i: $r"
+            case "$r" in 200*) [ "$(stat -c%s tam/api-t9.csv)" -gt 5000 ] && break ;; esac
+            sleep 10
+          done
+          wc -l tam/api-t9.csv; head -c 200 tam/api-t9.csv; echo
+      - name: Day len
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add -f tam/api-t9.csv
+          git diff --cached --quiet && { echo "khong doi"; exit 0; }
+          git commit -m "Kéo tạm file API sàn T9 để chốt số vào datalake" \
+                     -m "Xoá ngay ở lần commit chốt số."
+          for n in 1 2 3 4; do
+            git pull --rebase origin main && git push origin main && exit 0
+            sleep $((n * n * 2))
+          done
+          exit 1
