@@ -1,0 +1,114 @@
+# Nguon CPV BE thang 10 — chi Quinh dua hai link ngay 06/10.
+# Do CA HAI va do QUA VERCEL. Bai hoc 15/09: cung file BE T9 ma tu GitHub
+# /export chay 5/5 trong 1,5s, qua Vercel lai 0/3 va tra HTTP 400 sau 240s —
+# so do tu GitHub khong noi duoc gi ve Vercel.
+#
+# Soi luon khuon cot: tab T9 trong file xlsx dung khuon 25 cot (Thanh tien GMV
+# o [17], Gia Von [22], BU [24]) con ban live T9 lai 49 cot. Hai khuon khac han
+# nhau nen phai xem ban T10 theo khuon nao.
+name: Soi BE T10
+
+on:
+  workflow_dispatch: {}
+
+env:
+  FID: "1VeH7CuRPzvszaERe3NXWtCQqnxUmNgf7InfFG40ocR4"
+  PUB: "2PACX-1vQbcMrCmvi-9hAOTCyrjyO87Jgylu1sv32R7zkX54eM3ELITOItCvQBE4S4iMZSj96bazjQQX6kVpL_"
+  GOC: "https://bc-pkt.vercel.app"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Tu GitHub — hai duong
+        run: |
+          thu() {
+            ten="$1"; url="$2"; out="$3"
+            ok=0
+            for i in 1 2 3; do
+              rm -f "$out"
+              r=$(curl -sSL -m 110 -o "$out" -w '%{http_code}|%{time_total}|%{size_download}' "$url" 2>/dev/null || echo '000|het gio|0')
+              sz=${r##*|}
+              h=$(head -c 14 "$out" 2>/dev/null | tr -d '\n')
+              g=HONG
+              case "$h" in '<!DOCTYPE'*|'<html'*) g='TRANG DANG NHAP' ;;
+                *) case "$r" in 200*) [ "$sz" -gt 10000 ] && { g=OK; ok=$((ok+1)); } ;; esac ;;
+              esac
+              echo "   $ten luot $i: $r · $g"
+              sleep 4
+            done
+            echo "   -> $ten $ok/3"
+          }
+          thu "cong bo" "https://docs.google.com/spreadsheets/d/e/$PUB/pub?gid=0&single=true&output=csv" /tmp/a.csv
+          thu "export"  "https://docs.google.com/spreadsheets/d/$FID/export?format=csv&gid=0" /tmp/b.csv
+
+      - name: Qua Vercel
+        run: |
+          PUBU="https://docs.google.com/spreadsheets/d/e/$PUB/pubhtml?gid=0&single=true"
+          EDIT="https://docs.google.com/spreadsheets/d/$FID/edit?gid=0"
+          qua() {
+            for i in 1 2; do
+              r=$(curl -sS -m 290 -G "$GOC/api/sheet" \
+                --data-urlencode "url=$2" --data-urlencode 'gid=0' --data-urlencode 'raw=1' \
+                -o /tmp/v.json -w '%{http_code}|%{time_total}|%{size_download}' 2>/dev/null || echo '000|het gio|0')
+              echo "   Vercel $1 luot $i: $r · $(head -c 80 /tmp/v.json)"
+              sleep 4
+            done
+          }
+          qua "cong bo" "$PUBU"
+          qua "export"  "$EDIT"
+
+      - name: Soi khuon cot
+        run: |
+          python3 -I - <<'PY'
+          import csv, os, re, collections, unicodedata
+          csv.field_size_limit(10**9)
+          bd = lambda s: ''.join(c for c in unicodedata.normalize('NFD', str(s or ''))
+                                 if unicodedata.category(c) != 'Mn').replace('đ','d').lower().strip()
+          def viNum(s):
+              s = str(s or '').strip().replace(' ', '')
+              if not s: return 0.0
+              if ',' in s: s = s.replace('.', '').replace(',', '.')
+              elif re.fullmatch(r'-?\d{1,3}(\.\d{3})+', s): s = s.replace('.', '')
+              try: return float(s)
+              except ValueError: return 0.0
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+
+          for ten, f in (('CONG BO', '/tmp/a.csv'), ('EXPORT', '/tmp/b.csv')):
+              print(f'##### {ten}')
+              if not os.path.exists(f) or os.path.getsize(f) < 10000:
+                  print('  khong doc duoc\n'); continue
+              rows = list(csv.reader(open(f, encoding='utf-8', errors='ignore')))
+              hdrs = [i for i, r in enumerate(rows[:40]) if any(bd(c) == 'order id' for c in r)]
+              print(f'  {len(rows)} dong · cac dong tieu de co Order ID: {hdrs}')
+              if not hdrs:
+                  for i, r in enumerate(rows[:6]):
+                      print(f'   [{i}] ' + ' | '.join((x.strip() or "·")[:16] for x in r[:16]))
+                  print(); continue
+              for h in hdrs:
+                  cols = [c.strip() for c in rows[h]]
+                  print(f'   dong {h}: {len([c for c in cols if c])} o co ten · ' + ' | '.join(f'{j}:{c[:16]}' for j, c in enumerate(cols) if c))
+              hdr = hdrs[0]
+              cols = [c.strip() for c in rows[hdr]]
+              i_tt = next((i for i, c in enumerate(cols) if bd(c).startswith('thanh tien') or 'quy doi' in bd(c)), None)
+              i_ht = next((i for i, c in enumerate(cols) if 'hoan tat' in bd(c)), None)
+              i_gv = [i for i, c in enumerate(cols) if bd(c) == 'gia von']
+              i_tg = [i for i, c in enumerate(cols) if 'ty gia tuan' in bd(c)]
+              i_st = next((i for i, c in enumerate(cols) if bd(c) == 'trang thai'), None)
+              print(f'  Thanh tien[{i_tt}] · Ngay hoan tat[{i_ht}] · Gia von{i_gv} · Ty gia{i_tg} · Trang thai[{i_st}]')
+              t = collections.defaultdict(lambda: [0, 0.0])
+              st = collections.Counter()
+              for r in rows[hdr+1:]:
+                  g = lambda i: (r[i] if (i is not None and i < len(r)) else '')
+                  st[g(i_st)] += 1
+                  m = re.search(r'(\d{4})-(\d{2})-(\d{2})', g(i_ht))
+                  if not m: continue
+                  k = f'{m.group(3)}/{m.group(2)}'
+                  t[k][0] += 1; t[k][1] += viNum(g(i_tt))
+              print(f'  trang thai: {dict(st.most_common(5))}')
+              for k in sorted(t, key=lambda x: (x[3:], x[:2])):
+                  print(f'     {k}  {n(t[k][0]):>6} don · {n(t[k][1]):>16} d')
+              print(f'  TONG {n(sum(v[0] for v in t.values()))} don · {n(sum(v[1] for v in t.values()))} d')
+              print()
+          PY
