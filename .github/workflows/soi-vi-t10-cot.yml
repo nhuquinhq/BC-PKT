@@ -1,0 +1,68 @@
+# Soi khuon cot vi T10 qua duong DUY NHAT chay duoc: /export goi qua Vercel
+# (do 06/10: cong bo 400 sau 240s, gviz het gio 290s, export 200 trong 22s).
+#
+# Bai do truoc cua toi co loi: vong lap khong dung khi thanh cong nen luot sau
+# xoa mat file vua tai duoc, thanh ra phan soi cot khong co gi de doc.
+name: Soi cot vi T10
+
+on:
+  workflow_dispatch: {}
+
+env:
+  FID: "1Q7Jjku0OzQgqOpf1j1N1w09HVsKyw3x8Fp30IkwwYLA"
+  GID: "1425184209"
+  GOC: "https://bc-pkt.vercel.app"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Keo qua Vercel roi soi
+        run: |
+          EDIT="https://docs.google.com/spreadsheets/d/$FID/edit?gid=$GID"
+          for i in 1 2 3 4; do
+            rm -f /tmp/v.json
+            r=$(curl -sS -m 290 -G "$GOC/api/sheet" \
+              --data-urlencode "url=$EDIT" --data-urlencode "gid=$GID" --data-urlencode 'raw=1' \
+              -o /tmp/v.json -w '%{http_code}|%{time_total}|%{size_download}' 2>/dev/null || echo '000|het gio|0')
+            echo "   luot $i: $r"
+            case "$r" in 200*) [ "$(stat -c%s /tmp/v.json)" -gt 100000 ] && break ;; esac
+            sleep 10
+          done
+          node -e '
+          const j = require("/tmp/v.json");
+          if (j.error) { console.log("LOI:", j.error); process.exit(1); }
+          const g = j.grid || [];
+          const bd = s => String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/đ/g,"d").toLowerCase().trim();
+          console.log(`  ${g.length} dong`);
+          let hdr = -1;
+          for (let i = 0; i < Math.min(g.length, 20); i++) {
+            const h = (g[i]||[]).map(bd);
+            if (h.some(x => x === "so tien") && h.some(x => x === "tim")) { hdr = i; break; }
+          }
+          console.log(`  dong tieu de: ${hdr}`);
+          if (hdr < 0) { for (let i=0;i<6;i++) console.log("   ["+i+"] "+(g[i]||[]).slice(0,14).join(" | ")); process.exit(1); }
+          const cols = g[hdr].map(c => String(c||"").trim());
+          console.log(`  ${cols.length} cot: ${cols.join(" | ")}`);
+          const tim = t => cols.findIndex(c => bd(c) === t);
+          for (const k of ["ten san","so tien","ngay","tuan","ty gia tuan","dt vnd","gia von","tim","loi nhuan","ten sheet","phan loai doanh thu be","bu","phan loai team"])
+            console.log(`     ${k.padEnd(26)} ${tim(k)}`);
+          const iTim=tim("tim"), iNg=tim("ngay"), iDt=tim("dt vnd"), iGv=tim("gia von"), iSt=tim("so tien");
+          const viNum = s => { s=String(s??"").trim().replace(/\s/g,""); if(!s) return 0;
+            if (s.includes(",")) s=s.replace(/\./g,"").replace(",","."); else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s=s.replace(/\./g,"");
+            const n=parseFloat(s); return isNaN(n)?0:n; };
+          const t = {};
+          for (let i=hdr+1;i<g.length;i++){ const r=g[i]||[];
+            if (bd(r[iTim]) !== "dt") continue;
+            const d = Math.round(viNum(r[iNg])); if (!(d>=1&&d<=31)) continue;
+            (t[d] ||= [0,0,0,0]); t[d][0]++; t[d][1]+=viNum(r[iSt]); t[d][2]+=viNum(r[iDt]); t[d][3]+=viNum(r[iGv]);
+          }
+          const n = x => new Intl.NumberFormat("vi-VN",{maximumFractionDigits:0}).format(x);
+          const tong=[0,0,0,0];
+          for (const d of Object.keys(t).sort((a,b)=>a-b)) {
+            for (let k=0;k<4;k++) tong[k]+=t[d][k];
+            console.log(`     ngay ${String(d).padStart(2)}  ${String(t[d][0]).padStart(5)} dong · $${n(t[d][1]).padStart(9)} · ${n(t[d][2]).padStart(14)} d · GV ${n(t[d][3]).padStart(14)}`);
+          }
+          console.log(`  TONG ${n(tong[0])} dong · $${n(tong[1])} · ${n(tong[2])} d · GV ${n(tong[3])}`);
+          '
