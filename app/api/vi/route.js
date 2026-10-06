@@ -6,6 +6,14 @@
      vì trên tab chỉ có số NGÀY trong tháng, không có ngày đầy đủ).
    - Tháng đã chốt nằm trong datalake lib/data/vi-*.json.
    Trả về cùng khuôn dữ liệu với /api/cpv để dùng chung CpvBoard.
+
+   GIÁ VỐN CỦA THÁNG ĐANG CHẠY CHỈ ĐÚNG Ở MỨC TỔNG THÁNG. Cột giá vốn trên
+   tab live tự mô tả trong tên cột: "Cộng tổng giá trị TÌM ĐƯỢC theo ID bán
+   hàng, chỉ trả tổng cho 1 đơn duy nhất" — nhiều đơn cùng ID bán hàng thì
+   giá vốn của cả nhóm dồn vào MỘT dòng. Nên chia nhỏ theo ngày × sàn thì
+   lợi nhuận lồi lõm: đo 06/10 trên ví T10, GO1 ra 189% giá vốn / doanh thu
+   còn GS1 ra 10%, trong khi cả tháng thì bình thường. File tải tay lúc chốt
+   sổ không bị vậy (T9: 17.442/17.442 dòng thoả DT VND − Giá Vốn = Lợi Nhuận).
    ============================================================ */
 
 import Papa from 'papaparse';
