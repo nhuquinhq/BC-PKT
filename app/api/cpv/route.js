@@ -486,20 +486,37 @@ export async function GET(request) {
   let histOk = 0;
   let histFail = 0;
   let histHuy = 0;
-  /* Tháng nào ĐỌC LIVE ĐƯỢC thì BỎ bản của tháng đó trong datalake. Thiếu
-     chốt này là cộng dồn hai nguồn cùng một tháng thành gấp đôi — và đã xảy
-     ra thật: ngày 06/10, sau khi chốt BE T9 vào lib/data/cpv-2026-09.json mà
-     CPV_SHEET_URL vẫn trỏ vào chính file BE T9, tháng 9 bị đếm hai lần.
-     /api/vi có chốt này từ trước, /api/cpv thì không — tôi chỉ chép sang một
-     bên. Lọc theo THÁNG chứ không theo mã đơn: hai nguồn cùng một tháng thì
-     mọi dòng đều trùng, lọc tháng là đủ và rẻ. */
-  const thangLive = new Set(goi.detail.map((r) => r.sortKey.slice(0, 6)));
+  /* ===== MỘT THÁNG CHỈ ĐƯỢC LẤY TỪ MỘT NGUỒN =====
+     Tháng nào FILE ĐƠN HÀNG đọc live được thì bỏ bản datalake của tháng đó;
+     ngược lại thì lấy datalake và bỏ dòng live của tháng đó.
+
+     Vì sao cần: ngày 06/10, sau khi chốt BE T9 vào lib/data/cpv-2026-09.json
+     mà CPV_SHEET_URL vẫn trỏ vào chính file BE T9, tháng 9 bị đếm HAI LẦN —
+     28.050.688.989 đ thay vì 18.801.126.597 đ. /api/vi có chốt này từ trước,
+     /api/cpv thì không.
+
+     CHỈ TÍNH THEO DÒNG nguon 'dh' (file đơn hàng), KHÔNG tính file API sàn.
+     Bản đầu của tôi gộp cả hai và tạo ra một lỗ tệ hơn cái nó vá: file BE
+     live đọc hụt → mainRows rỗng → minKey rỗng → đoạn lọc theo khoảng ngày
+     ở docLive không chặn gì, nên MỌI dòng file API sàn được giữ; chốt thấy
+     tháng đó "đã có live" rồi xoá cả tháng trong datalake, tháng 9 tụt từ
+     21.823 đơn còn 228 đơn của riêng file API.
+
+     Và tháng lấy từ datalake thì bỏ luôn dòng API sàn của tháng đó: ảnh chụp
+     chốt sổ đã gộp sẵn phần API (cpv-2026-09.json = 21.595 đơn BE + 228 đơn
+     API), giữ lại là cộng phần API hai lần. */
+  const thangMain = new Set(
+    goi.detail.filter((r) => (r.nguon || 'dh') === 'dh').map((r) => r.sortKey.slice(0, 6))
+  );
   if (useHist) {
+    const truocLoc = detail.length;
+    detail = detail.filter((r) => (r.nguon || 'dh') === 'dh' || thangMain.has(r.sortKey.slice(0, 6)));
+    goi.meta = { ...(goi.meta || {}), api_bo_vi_co_datalake: truocLoc - detail.length };
     /* Snapshot không lưu BU (file gốc ẩn cột) — gán lại bằng map Sàn→BU
        học từ tháng đang live, cùng chuỗi dự phòng như dòng thường. */
     const sanBu = new Map(goi.san_bu || []);
     const histRows = HIST.flatMap((h) => h.detail)
-      .filter((r) => !thangLive.has(r.sortKey.slice(0, 6)))
+      .filter((r) => !thangMain.has(r.sortKey.slice(0, 6)))
       .map((r) => ({
         ...r,
         bu: r.bu || sanBu.get(r.san) || SAN_BU_MAP[r.san] || (r.san.match(/^[A-Za-z]+/)?.[0] || r.san).toUpperCase(),
@@ -510,7 +527,7 @@ export async function GET(request) {
         .sort((x, y) => (x.sortKey < y.sortKey ? -1 : x.sortKey > y.sortKey ? 1 : x.san.localeCompare(y.san)));
     }
     for (const h of HIST) {
-      if (thangLive.has(h.detail?.[0]?.sortKey?.slice(0, 6) || '')) continue;
+      if (thangMain.has(h.detail?.[0]?.sortKey?.slice(0, 6) || '')) continue;
       histOk += h.counts?.ok || 0;
       histFail += h.counts?.fail || 0;
       histHuy += h.counts?.huy || 0;
@@ -532,7 +549,7 @@ export async function GET(request) {
     /* sortKey dạng YYYYMMDD; hụt thì dựng lại từ ngay dd/mm/yyyy. */
     const d = String(r?.ngay || '');
     const thang = String(r?.sortKey || '').slice(0, 6) || (d.length >= 10 ? `${d.slice(6, 10)}${d.slice(3, 5)}` : '');
-    return !thang || !thangLive.has(thang);
+    return !thang || !thangMain.has(thang);
   };
   const apiFileOut = useHist
     ? HIST.flatMap((h) => h.api_file || []).filter(ngoaiLive).concat(goi.api_file)
