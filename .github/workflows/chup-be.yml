@@ -100,13 +100,31 @@ jobs:
           echo "Google khong xuat duoc file BE sau 24 luot."
 
       - name: Boc va ghi datalake
+        id: boc
         if: steps.keo.outputs.keo_duoc == '1'
         run: |
           RA="lib/data/cpv-$NAM-$(printf '%02d' "$THANG").json"
-          node scripts/chup-be.mjs /tmp/be.csv "$THANG" "$NAM" "$RA"
+          set +e
+          node scripts/chup-be.mjs /tmp/be.csv "$THANG" "$NAM" "$RA" 2>&1 | tee /tmp/chot.log
+          exit "${PIPESTATUS[0]}"
+
+      # Phan chot nam o giua job nen doc log phai keo nguoc rat nhieu dong —
+      # da mat 5 luot doc log de tim mot con so. In lai o CUOI, va vao ca
+      # trang tom tat cua job.
+      - name: In lai phan chot
+        if: always() && steps.keo.outputs.keo_duoc == '1'
+        run: |
+          echo '=== chot so ==='
+          cat /tmp/chot.log 2>/dev/null || echo '(khong co)'
+          {
+            echo '## Chốt số'
+            echo '```'
+            cat /tmp/chot.log 2>/dev/null || echo '(khong co)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Day len nhanh main
-        if: steps.keo.outputs.keo_duoc == '1'
+        if: steps.keo.outputs.keo_duoc == '1' && steps.boc.outcome == 'success'
         run: |
           RA="lib/data/cpv-$NAM-$(printf '%02d' "$THANG").json"
           # So sanh bo qua truong chup_luc: khong thi lan nao cung "co thay doi"

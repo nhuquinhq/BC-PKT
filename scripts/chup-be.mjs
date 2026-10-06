@@ -64,7 +64,7 @@ const gv = detail.reduce((s, r) => s + r.gia_von, 0);
 
 let lech = false;
 
-/* Chốt 1 — hai phép kiểm từng dòng. Xem đầu lib/beParse.mjs về chuyện vì sao
+/* Chốt 1 — đẳng thức từng dòng. Xem đầu lib/beParse.mjs về chuyện vì sao
    KHÔNG dùng "DThu thực nhận × Tỷ giá tuần = Thành tiền" làm chốt: phép đó
    chặn oan bốn lượt chụp BE T10 vì có sàn quyết toán theo tỷ giá riêng.
    Ngưỡng 85%: lấy nhầm cột thì tỉ lệ về gần 0 chứ không phải 90. */
@@ -79,14 +79,7 @@ if ((meta.cotTyGia || []).length && meta.thuTyGia) {
     );
   }
 }
-for (const [ten, khop, thu] of [
-  ['Thành tiền − Giá Vốn = Lợi Nhuận', meta.khopLn, meta.thuLn],
-  [
-    `Thành tiền ÷ DThu thực nhận trong khoảng ${so(meta.tyGiaKhoang[0])}–${so(meta.tyGiaKhoang[1])}`,
-    meta.trongKhoang,
-    meta.thuKhoang,
-  ],
-]) {
+for (const [ten, khop, thu] of [['Thành tiền − Giá Vốn = Lợi Nhuận', meta.khopLn, meta.thuLn]]) {
   if (!thu) {
     console.error(`   chốt "${ten}": không có dòng nào đủ cột để kiểm.`);
     lech = true;
@@ -96,12 +89,21 @@ for (const [ten, khop, thu] of [
   console.log(`   chốt ${ten}: ${so(khop)}/${so(thu)} dòng (${(ty * 100).toFixed(2)}%)`);
   if (ty < 0.85) lech = true;
 }
-/* Tỉ lệ khớp tỷ giá tuần in ra để THEO DÕI, không chặn — thấp đi nhiều so với
-   lần trước thì là dấu hiệu file đổi cách tính, đáng xem lại. Kèm vài dòng
-   lệch để biết sàn nào quyết toán theo tỷ giá riêng. */
+/* Chốt 2 — TIỀN MỖI ĐƠN ở mức tổng, độc lập với chốt 1 để không dựa hết vào
+   một đẳng thức. Lấy nhầm cột sang USD thì con số này về vài chục, nhầm sang
+   một cột VND khác thì bay lên hàng triệu. Đo được: BE T9 413.853 đ/đơn,
+   BE T10 (6 ngày đầu) khoảng 312.000. Khoảng 50.000–3.000.000 rất rộng nên
+   không báo oan, nhưng vẫn bắt được lỗi sai đơn vị. */
+const tienMoiDon = ok > 0 ? tt / ok : 0;
+console.log(`   chốt tiền mỗi đơn: ${so(tienMoiDon)} đ/đơn (cho phép 50.000–3.000.000)`);
+if (!(tienMoiDon >= 50000 && tienMoiDon <= 3000000)) lech = true;
+
+/* Hai phép dưới chỉ THEO DÕI — xem đầu lib/beParse.mjs về chuyện vì sao chúng
+   không được làm chốt. Tụt mạnh so với lần trước là dấu hiệu nguồn đổi cách
+   tính, đáng xem lại. */
 if (meta.thuTyGia) {
   console.log(
-    `   (theo dõi) khớp tỷ giá tuần: ${so(meta.khopTyGia)}/${so(meta.thuTyGia)} dòng · ${((meta.khopTyGia / meta.thuTyGia) * 100).toFixed(1)}%`
+    `   (theo dõi) khớp tỷ giá tuần ${so(meta.khopTyGia)}/${so(meta.thuTyGia)} (${((meta.khopTyGia / meta.thuTyGia) * 100).toFixed(1)}%) · trong khoảng tỷ giá ${so(meta.trongKhoang)}/${so(meta.thuKhoang)} (${((meta.trongKhoang / meta.thuKhoang) * 100).toFixed(1)}%)`
   );
   for (const v of (meta.viLech || []).slice(0, 4)) {
     console.log(
@@ -110,7 +112,7 @@ if (meta.thuTyGia) {
   }
 }
 
-/* Chốt 2 — phải có cột Thành tiền và cột Giá Vốn. Thiếu cột Thành tiền thì số
+/* Chốt 3 — phải có cột Thành tiền và cột Giá Vốn. Thiếu cột Thành tiền thì số
    VND là do route tự quy đổi bằng bảng tỷ giá tuần, KHÔNG phải số của file;
    đóng băng con số quy đổi đó vào datalake là chốt sổ một con số mình tự tính. */
 console.log(`   cột: Thành tiền ${meta.co_thanh_tien ? 'có' : 'KHÔNG'} · Tỷ giá tuần ${meta.co_ty_gia ? 'có' : 'KHÔNG'} · Giá Vốn ${meta.gia_von_found ? 'có' : 'KHÔNG'} · tiêu đề dòng ${meta.header_row}`);
@@ -122,7 +124,7 @@ if (lech) {
   process.exit(1);
 }
 
-/* Chốt 3 — KHÔNG ĐƯỢC TEO. Một tháng đang chạy chỉ dày thêm, không mỏng đi.
+/* Chốt 4 — KHÔNG ĐƯỢC TEO. Một tháng đang chạy chỉ dày thêm, không mỏng đi.
    Chốt này học từ vụ ví T9 ngày 03/10: file nguồn bị dựng lại, job chụp đúng
    cái rỗng đó đè lên bản tốt, 21.703 dòng tụt còn 435 và chạy ba ngày không
    ai biết. Cho tụt tối đa 2% để chừa chỗ cho đơn huỷ/sửa. Cố tình ghi đè bản
