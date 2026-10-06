@@ -49,11 +49,21 @@ if (!kq.detail.length) {
    bằng gviz headers=5; đọc bằng đường công bố thì tên cột sạch, không có
    số để đối chiếu — lúc đó bỏ qua bước chốt. */
 const { headers } = timTieuDe(grid);
+/* Lấy SỐ CUỐI CÙNG trong phần dán trước tên cột, không phải cả phần đó. Cột
+   giá vốn của ví T10 dạy tôi bài này: tiêu đề của nó là
+     "Cộng tổng giá trị TÌM ĐƯỢC theo ID bán hàng, chỉ trả tổng cho 1 đơn
+      duy nhất 118,47% 834.214.980,78 Giá Vốn"
+   Đưa cả chuỗi đó cho viNum thì ra 0, mà 0 lại rơi vào nhánh "file không ghi
+   sẵn ô tổng" — chốt im lặng bỏ qua thay vì bắt lỗi. Đúng kiểu hỏng tệ nhất:
+   nhìn log thì tưởng đã kiểm. */
 const tongCuaFile = (ten) => {
   const h = headers.find((x) => x.endsWith(` ${ten}`));
   if (!h) return null;
   const m = h.slice(0, h.length - ten.length).trim();
-  return /\d/.test(m) ? viNum(m) : null;
+  const cuoi = m.match(/(-?[\d][\d.]*(?:,\d+)?)\s*$/);
+  if (!cuoi) return null;
+  const n = viNum(cuoi[1]);
+  return n || null;
 };
 
 let lech = false;
@@ -105,7 +115,11 @@ if (kq.thuTyGia > 0) {
   if (gvFile) {
     const d = Math.abs(kq.gvTatCa - gvFile) / gvFile;
     console.log(`   chốt Giá Vốn: file ${so(gvFile)} · cộng cả cột ${so(kq.gvTatCa)} · ${d <= 0.005 ? 'khớp' : 'LỆCH'} ${(d * 100).toFixed(3)}%`);
-    if (d > 0.005) lech = true;
+    /* Chặn ở 20% chứ không 0,5% như chốt VND: lấy nhầm cột thì lệch cả chục
+       lần, chứ không lệch vài phần trăm. Để rộng vì chưa biết ô tổng của file
+       có tính đúng tập dòng mình cộng hay không — siết lại khi đã đo vài lượt
+       thấy nó khớp. Lệch nhỏ vẫn in LỆCH ra log để còn thấy. */
+    if (d > 0.2) lech = true;
   } else {
     console.log('   chốt Giá Vốn: file không ghi sẵn ô tổng, bỏ qua');
   }
