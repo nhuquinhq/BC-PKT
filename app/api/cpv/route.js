@@ -685,20 +685,31 @@ export async function GET(request) {
   let histOk = 0;
   let histFail = 0;
   let histHuy = 0;
+  /* Tháng nào ĐỌC LIVE ĐƯỢC thì BỎ bản của tháng đó trong datalake. Thiếu
+     chốt này là cộng dồn hai nguồn cùng một tháng thành gấp đôi — và đã xảy
+     ra thật: ngày 06/10, sau khi chốt BE T9 vào lib/data/cpv-2026-09.json mà
+     CPV_SHEET_URL vẫn trỏ vào chính file BE T9, tháng 9 bị đếm hai lần.
+     /api/vi có chốt này từ trước, /api/cpv thì không — tôi chỉ chép sang một
+     bên. Lọc theo THÁNG chứ không theo mã đơn: hai nguồn cùng một tháng thì
+     mọi dòng đều trùng, lọc tháng là đủ và rẻ. */
+  const thangLive = new Set(goi.detail.map((r) => r.sortKey.slice(0, 6)));
   if (useHist) {
     /* Snapshot không lưu BU (file gốc ẩn cột) — gán lại bằng map Sàn→BU
        học từ tháng đang live, cùng chuỗi dự phòng như dòng thường. */
     const sanBu = new Map(goi.san_bu || []);
-    const histRows = HIST.flatMap((h) => h.detail).map((r) => ({
-      ...r,
-      bu: r.bu || sanBu.get(r.san) || SAN_BU_MAP[r.san] || (r.san.match(/^[A-Za-z]+/)?.[0] || r.san).toUpperCase(),
-    }));
+    const histRows = HIST.flatMap((h) => h.detail)
+      .filter((r) => !thangLive.has(r.sortKey.slice(0, 6)))
+      .map((r) => ({
+        ...r,
+        bu: r.bu || sanBu.get(r.san) || SAN_BU_MAP[r.san] || (r.san.match(/^[A-Za-z]+/)?.[0] || r.san).toUpperCase(),
+      }));
     if (histRows.length) {
       detail = histRows
         .concat(detail)
         .sort((x, y) => (x.sortKey < y.sortKey ? -1 : x.sortKey > y.sortKey ? 1 : x.san.localeCompare(y.san)));
     }
     for (const h of HIST) {
+      if (thangLive.has(h.detail?.[0]?.sortKey?.slice(0, 6) || '')) continue;
       histOk += h.counts?.ok || 0;
       histFail += h.counts?.fail || 0;
       histHuy += h.counts?.huy || 0;
@@ -716,8 +727,18 @@ export async function GET(request) {
   const dates = detail.map((x) => x.ngay);
 
   /* Đối soát các tháng đã chốt: api_file + danh sách trùng lấy từ datalake */
-  const apiFileOut = useHist ? HIST.flatMap((h) => h.api_file || []).concat(goi.api_file) : goi.api_file;
-  const dupOut = useHist ? HIST.flatMap((h) => h.dup_list || []).concat(goi.dup_list) : goi.dup_list;
+  const ngoaiLive = (r) => {
+    /* sortKey dạng YYYYMMDD; hụt thì dựng lại từ ngay dd/mm/yyyy. */
+    const d = String(r?.ngay || '');
+    const thang = String(r?.sortKey || '').slice(0, 6) || (d.length >= 10 ? `${d.slice(6, 10)}${d.slice(3, 5)}` : '');
+    return !thang || !thangLive.has(thang);
+  };
+  const apiFileOut = useHist
+    ? HIST.flatMap((h) => h.api_file || []).filter(ngoaiLive).concat(goi.api_file)
+    : goi.api_file;
+  const dupOut = useHist
+    ? HIST.flatMap((h) => h.dup_list || []).filter(ngoaiLive).concat(goi.dup_list)
+    : goi.dup_list;
 
   return Response.json({
     detail,
