@@ -91,6 +91,11 @@ for (const [ten, khop, thu] of [
   console.log(`   chốt ${ten}: ${so(khop)}/${so(thu)} dòng (${(ty * 100).toFixed(2)}%)`);
   if (ty < 0.85) lech = true;
 }
+for (const v of meta.viLech || []) {
+  console.log(
+    `     lệch: ${v.ngay} ${v.san.padEnd(5)} DThu ${v.dthu_thuc} · DT ${v.doanh_thu} · Thành tiền ${so(v.thanh_tien)} · tỷ giá file [${v.ty_gia_file.join(', ')}] · suy ra ${v.ty_gia_suy_ra}`
+  );
+}
 
 /* Chốt 2 — phải có cột Thành tiền và cột Giá Vốn. Thiếu cột Thành tiền thì số
    VND là do route tự quy đổi bằng bảng tỷ giá tuần, KHÔNG phải số của file;
