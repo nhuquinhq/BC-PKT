@@ -97,6 +97,42 @@ if (lech) {
   process.exit(1);
 }
 
+/* Chốt 3 — KHÔNG ĐƯỢC TEO. So với bản đang nằm trong datalake của CHÍNH tháng
+   này: một tháng đang chạy chỉ có thể dày thêm, không thể mỏng đi.
+
+   Vì sao có chốt này: ngày 03/10 file ví T9 trên Google bị dựng lại, job chụp
+   chép đúng cái rỗng đó đè lên bản tốt — 21.703 dòng tụt còn 811 rồi 435, giá
+   vốn về 0, và chạy như vậy suốt ba ngày không ai biết. Hai chốt trên không bắt
+   được vì chúng chỉ kiểm bản đọc về có TỰ NHẤT QUÁN không, chứ không hỏi
+   "tháng này có bị mất dữ liệu so với hôm qua không".
+
+   Cho tụt tối đa 2% để chừa chỗ cho đơn bị huỷ/sửa; quá thì dừng, báo rõ, và
+   giữ nguyên bản cũ. Muốn cố tình ghi đè bản nhỏ hơn (vd chốt sổ lại từ file
+   tải tay) thì đặt CHO_PHEP_TEO=1. */
+const BAN_CU = (() => {
+  try {
+    return JSON.parse(readFileSync(duongRa, 'utf8'));
+  } catch {
+    return null;
+  }
+})();
+if (BAN_CU && !process.env.CHO_PHEP_TEO) {
+  const cu = Number(BAN_CU.counts?.ok) || 0;
+  const cuVnd = Number(BAN_CU.counts?.vnd) || 0;
+  if (cu > 0) {
+    const tiLe = kq.ok / cu;
+    const tiLeVnd = cuVnd > 0 ? kq.vndTong / cuVnd : 1;
+    console.log(`   chốt không teo: bản cũ ${so(cu)} dòng / ${so(cuVnd)} đ · bản mới ${so(kq.ok)} dòng / ${so(kq.vndTong)} đ`);
+    if (tiLe < 0.98 || tiLeVnd < 0.98) {
+      console.error(
+        `Bản mới TEO so với bản đang có (${(tiLe * 100).toFixed(1)}% số dòng · ${(tiLeVnd * 100).toFixed(1)}% số tiền) — KHÔNG ghi, giữ nguyên bản cũ.`
+      );
+      console.error('Nhiều khả năng file nguồn đang được dựng lại. Chốt sổ lại từ file tải tay thì đặt CHO_PHEP_TEO=1.');
+      process.exit(1);
+    }
+  }
+}
+
 const ra = {
   thang: `${String(thang).padStart(2, '0')}/${nam}`,
   nguon: 'Tab THVí Tiền, chụp tự động bằng .github/workflows/chup-vi.yml',
