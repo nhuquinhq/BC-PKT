@@ -90,6 +90,30 @@ if (kq.thuTyGia > 0) {
   lech = true;
 }
 
+/* Chốt 3 — cột GIÁ VỐN, cũng kiểm theo TỪNG DÒNG: DT VND − Giá Vốn = Lợi
+   Nhuận, ba cột cùng một dòng. Trước đây cột giá vốn không có chốt nào cả:
+   lấy nhầm nó thì tổng VND vẫn đẹp, hai chốt trên vẫn xanh, chỉ có lợi nhuận
+   sai âm thầm. Thiếu chốt này nên khi ví T10 ra GV/DT trên 100% mọi ngày
+   (T9 là 83%) thì không có cách nào nói được file sai hay mình đọc sai. */
+if (kq.thuLn > 0) {
+  const ty = kq.khopLn / kq.thuLn;
+  console.log(`   chốt Giá Vốn: ${so(kq.khopLn)}/${so(kq.thuLn)} dòng thoả DT VND − Giá Vốn = Lợi Nhuận (${(ty * 100).toFixed(2)}%)`);
+  /* Ngưỡng 50%: lấy nhầm cột thì đẳng thức vỡ gần hết, chứ không rơi xuống
+     quá nửa. Để rộng vì chưa có số đo nhiều tháng — siết lại khi đã biết
+     mức bình thường của nó. */
+  if (ty < 0.5) lech = true;
+} else {
+  console.log('   chốt Giá Vốn: không có dòng nào đủ DT VND/Giá Vốn/Lợi Nhuận để kiểm.');
+}
+/* Tổng giá vốn in ra để đối chiếu bằng mắt với chính file. Không dùng ô tổng
+   của cột này làm chốt: hàng xóm của nó tên "Cộng tổng giá trị TÌM ĐƯỢC Giá
+   Vốn" — tức tổng của ô tìm kiếm, không phải tổng các dòng DT. */
+{
+  const gvFile = tongCuaFile('gia von');
+  const tyLe = kq.vndTong > 0 ? (kq.gvTong / kq.vndTong) * 100 : 0;
+  console.log(`   giá vốn: cộng được ${so(kq.gvTong)} (${tyLe.toFixed(1)}% doanh thu)${gvFile ? ` · ô tổng của file ${so(gvFile)}` : ''}`);
+}
+
 if (lech) {
   console.error('Số không chốt được — KHÔNG ghi. Nhiều khả năng file đã đổi tên hoặc đổi vị trí cột.');
   console.error(`Tiêu đề đọc được (${kq.headers.length} cột): ${JSON.stringify(kq.headers)}`);
@@ -97,7 +121,7 @@ if (lech) {
   process.exit(1);
 }
 
-/* Chốt 3 — KHÔNG ĐƯỢC TEO. So với bản đang nằm trong datalake của CHÍNH tháng
+/* Chốt 4 — KHÔNG ĐƯỢC TEO. So với bản đang nằm trong datalake của CHÍNH tháng
    này: một tháng đang chạy chỉ có thể dày thêm, không thể mỏng đi.
 
    Vì sao có chốt này: ngày 03/10 file ví T9 trên Google bị dựng lại, job chụp
@@ -137,7 +161,7 @@ const ra = {
   thang: `${String(thang).padStart(2, '0')}/${nam}`,
   nguon: 'Tab THVí Tiền, chụp tự động bằng .github/workflows/chup-vi.yml',
   chup_luc: new Date().toISOString(),
-  counts: { ok: kq.ok, so_dong: kq.detail.length, usd: kq.usdTong, vnd: kq.vndTong },
+  counts: { ok: kq.ok, so_dong: kq.detail.length, usd: kq.usdTong, vnd: kq.vndTong, gv: kq.gvTong },
   detail: kq.detail,
 };
 writeFileSync(duongRa, `${JSON.stringify(ra, null, 0)}\n`, 'utf8');
