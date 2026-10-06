@@ -115,11 +115,11 @@ if (kq.thuTyGia > 0) {
   if (gvFile) {
     const d = Math.abs(kq.gvTatCa - gvFile) / gvFile;
     console.log(`   chốt Giá Vốn: file ${so(gvFile)} · cộng cả cột ${so(kq.gvTatCa)} · ${d <= 0.005 ? 'khớp' : 'LỆCH'} ${(d * 100).toFixed(3)}%`);
-    /* Chặn ở 20% chứ không 0,5% như chốt VND: lấy nhầm cột thì lệch cả chục
-       lần, chứ không lệch vài phần trăm. Để rộng vì chưa biết ô tổng của file
-       có tính đúng tập dòng mình cộng hay không — siết lại khi đã đo vài lượt
-       thấy nó khớp. Lệch nhỏ vẫn in LỆCH ra log để còn thấy. */
-    if (d > 0.2) lech = true;
+    /* 0,5% như chốt VND. Đo 06/10 trên ví T10: file 834.214.981 · cộng cả cột
+       834.214.981 · lệch 0,000% — ô tổng của file tính đúng tập dòng mình
+       cộng, nên siết chặt được. Để rộng thì không bắt nổi vụ lấy nhầm sang
+       một cột tiền khác xấp xỉ cùng độ lớn. */
+    if (d > 0.005) lech = true;
   } else {
     console.log('   chốt Giá Vốn: file không ghi sẵn ô tổng, bỏ qua');
   }

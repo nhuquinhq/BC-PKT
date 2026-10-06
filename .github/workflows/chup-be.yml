@@ -1,0 +1,133 @@
+# Chup tab don hang cua file CPV BE vao datalake.
+#
+# Vi sao: Google khong cho Vercel doc file BE thang dang chay. Do ngay 06/10
+# tren file BE T10 — QUA VERCEL thi ban cong bo 0/2 luot va export 0/2 luot,
+# luot nao cung HTTP 400 sau 240s; TU GITHUB thi export ra 1/3 luot trong 100s
+# (ban cong bo tu GitHub cung 0/3: hai luot 307 rong, mot luot 500 tra trang
+# dang nhap — token xuat ban co ve khong con dung cho tab nay).
+#
+# Lai mot lan nua GitHub va Vercel cho ket qua nguoc nhau. Bai hoc 15/09: cung
+# file BE T9 ma tu GitHub /export chay 5/5 trong 1,5s, qua Vercel 0/3 va tra
+# HTTP 400 sau 240s. Nen DUONG DUNG CHO WEB phai do qua Vercel, con job nay thi
+# do tu GitHub.
+#
+# O day chay nen, co ca tieng de thu lai, khong ai cho — cu thu toi khi duoc
+# roi ghi ra JSON tinh cho web doc.
+#
+# scripts/chup-be.mjs tu chot so truoc khi ghi (hai dang thuc tung dong, du
+# cot tien, va khong duoc teo so voi ban dang co). Lech thi khong ghi.
+#
+# SANG THANG MOI PHAI DOI 'thang' VA 'ma' O DAY — xem canh bao cung loai o
+# dau .github/workflows/chup-vi.yml.
+name: Chup BE vao datalake
+
+on:
+  schedule:
+    # 2 tieng mot lan, lech 37 phut so voi job chup vi de hai job khong tranh
+    # nhau khi day len nhanh main.
+    - cron: '37 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      thang:
+        description: 'Thang (so)'
+        default: '10'
+      nam:
+        description: 'Nam'
+        default: '2026'
+      kieu:
+        description: 'export (file id) hoac pub (token 2PACX...)'
+        default: 'export'
+      ma:
+        description: 'Ma file: file id neu export, token 2PACX... neu pub'
+        default: '1VeH7CuRPzvszaERe3NXWtCQqnxUmNgf7InfFG40ocR4'
+      gid:
+        description: 'GID cua tab don hang'
+        default: '0'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: chup-be
+  cancel-in-progress: false
+
+jobs:
+  chup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      # Lich chay tu dong khong co inputs nen phai tu ve mac dinh o day.
+      THANG: ${{ github.event.inputs.thang || '10' }}
+      NAM: ${{ github.event.inputs.nam || '2026' }}
+      KIEU: ${{ github.event.inputs.kieu || 'export' }}
+      MA: ${{ github.event.inputs.ma || '1VeH7CuRPzvszaERe3NXWtCQqnxUmNgf7InfFG40ocR4' }}
+      GID: ${{ github.event.inputs.gid || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cai goi
+        run: npm ci --omit=dev --no-audit --no-fund
+
+      - name: Keo file BE
+        id: keo
+        run: |
+          # single=true la BAT BUOC voi duong cong bo: thieu no Google hieu la
+          # xuat CA WORKBOOK chu khong phai mot tab, nen file nhieu tab lon thi
+          # tra HTTP 500 hoac treo qua 90s.
+          if [ "$KIEU" = "pub" ]; then
+            G="https://docs.google.com/spreadsheets/d/e/$MA/pub?gid=$GID&single=true&output=csv"
+          else
+            G="https://docs.google.com/spreadsheets/d/$MA/export?format=csv&gid=$GID"
+          fi
+          echo "   $KIEU · thang $THANG/$NAM"
+          for i in $(seq 1 24); do
+            rm -f /tmp/be.csv
+            r=$(curl -sSL -m 150 -o /tmp/be.csv -w '%{http_code}|%{time_total}|%{size_download}' "$G" 2>/dev/null || echo '000|het gio|0')
+            sz=${r##*|}
+            echo "   luot $i: $r"
+            case "$r" in 200*)
+              if [ "$sz" -gt 200000 ] && ! head -c 14 /tmp/be.csv | grep -qi '^<' ; then
+                echo "keo_duoc=1" >> "$GITHUB_OUTPUT"; exit 0
+              fi ;;
+            esac
+            sleep 20
+          done
+          echo "keo_duoc=0" >> "$GITHUB_OUTPUT"
+          echo "Google khong xuat duoc file BE sau 24 luot."
+
+      - name: Boc va ghi datalake
+        if: steps.keo.outputs.keo_duoc == '1'
+        run: |
+          RA="lib/data/cpv-$NAM-$(printf '%02d' "$THANG").json"
+          node scripts/chup-be.mjs /tmp/be.csv "$THANG" "$NAM" "$RA"
+
+      - name: Day len nhanh main
+        if: steps.keo.outputs.keo_duoc == '1'
+        run: |
+          RA="lib/data/cpv-$NAM-$(printf '%02d' "$THANG").json"
+          # So sanh bo qua truong chup_luc: khong thi lan nao cung "co thay doi"
+          # va day len mot commit rong moi 2 tieng.
+          cu=$(git show "HEAD:$RA" 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const o=JSON.parse(s);delete o.chup_luc;console.log(JSON.stringify(o))}catch{console.log("")}})')
+          moi=$(node -e 'const o=require("./'"$RA"'");delete o.chup_luc;console.log(JSON.stringify(o))')
+          if [ "$cu" = "$moi" ]; then
+            echo "So khong doi — khong day."
+            git checkout -- "$RA" 2>/dev/null || true
+            exit 0
+          fi
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add "$RA"
+          # Hai co -m thay vi xuong dong trong chuoi: dong nam o cot 0 se dong
+          # khoi "run: |" lai, lam ca file thanh YAML hong ma khong bao gi —
+          # GitHub chi tu choi bang "Workflow does not have workflow_dispatch".
+          git commit -m "Chụp BE $THANG/$NAM vào datalake" \
+                     -m "Chụp tự động, xem .github/workflows/chup-be.yml."
+          for n in 1 2 3 4; do
+            git pull --rebase origin main && git push origin main && exit 0
+            sleep $((n * n * 2))
+          done
+          exit 1
