@@ -64,9 +64,10 @@ const gv = detail.reduce((s, r) => s + r.gia_von, 0);
 
 let lech = false;
 
-/* Chốt 1 — hai đẳng thức từng dòng. Ngưỡng 85% như chup-vi: phần hụt là đơn
-   có tỷ giá riêng hoặc giá vốn chốt tay, còn lấy nhầm cột thì tỉ lệ về gần 0
-   chứ không phải 90. Đo trên file BE T9: cả hai đều 100,00%. */
+/* Chốt 1 — hai phép kiểm từng dòng. Xem đầu lib/beParse.mjs về chuyện vì sao
+   KHÔNG dùng "DThu thực nhận × Tỷ giá tuần = Thành tiền" làm chốt: phép đó
+   chặn oan bốn lượt chụp BE T10 vì có sàn quyết toán theo tỷ giá riêng.
+   Ngưỡng 85%: lấy nhầm cột thì tỉ lệ về gần 0 chứ không phải 90. */
 /* In cả ma trận gốc × cột tỷ giá. Đã mất hai lượt chạy để hiểu một con số
    "58%" trơ trọi, nên chốt phải tự nói ra chỗ lệch. */
 if ((meta.cotTyGia || []).length && meta.thuTyGia) {
@@ -79,8 +80,12 @@ if ((meta.cotTyGia || []).length && meta.thuTyGia) {
   }
 }
 for (const [ten, khop, thu] of [
-  ['DThu thực nhận × Tỷ giá = Thành tiền', meta.khopTyGia, meta.thuTyGia],
   ['Thành tiền − Giá Vốn = Lợi Nhuận', meta.khopLn, meta.thuLn],
+  [
+    `Thành tiền ÷ DThu thực nhận trong khoảng ${so(meta.tyGiaKhoang[0])}–${so(meta.tyGiaKhoang[1])}`,
+    meta.trongKhoang,
+    meta.thuKhoang,
+  ],
 ]) {
   if (!thu) {
     console.error(`   chốt "${ten}": không có dòng nào đủ cột để kiểm.`);
@@ -91,10 +96,18 @@ for (const [ten, khop, thu] of [
   console.log(`   chốt ${ten}: ${so(khop)}/${so(thu)} dòng (${(ty * 100).toFixed(2)}%)`);
   if (ty < 0.85) lech = true;
 }
-for (const v of meta.viLech || []) {
+/* Tỉ lệ khớp tỷ giá tuần in ra để THEO DÕI, không chặn — thấp đi nhiều so với
+   lần trước thì là dấu hiệu file đổi cách tính, đáng xem lại. Kèm vài dòng
+   lệch để biết sàn nào quyết toán theo tỷ giá riêng. */
+if (meta.thuTyGia) {
   console.log(
-    `     lệch: ${v.ngay} ${v.san.padEnd(5)} DThu ${v.dthu_thuc} · DT ${v.doanh_thu} · Thành tiền ${so(v.thanh_tien)} · tỷ giá file [${v.ty_gia_file.join(', ')}] · suy ra ${v.ty_gia_suy_ra}`
+    `   (theo dõi) khớp tỷ giá tuần: ${so(meta.khopTyGia)}/${so(meta.thuTyGia)} dòng · ${((meta.khopTyGia / meta.thuTyGia) * 100).toFixed(1)}%`
   );
+  for (const v of (meta.viLech || []).slice(0, 4)) {
+    console.log(
+      `     tỷ giá riêng: ${v.ngay} ${v.san.padEnd(5)} DThu ${v.dthu_thuc} → ${so(v.thanh_tien)} đ · file [${v.ty_gia_file.join(', ')}] · suy ra ${v.ty_gia_suy_ra}`
+    );
+  }
 }
 
 /* Chốt 2 — phải có cột Thành tiền và cột Giá Vốn. Thiếu cột Thành tiền thì số
