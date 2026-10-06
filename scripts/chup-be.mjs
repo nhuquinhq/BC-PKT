@@ -67,14 +67,16 @@ let lech = false;
 /* Chốt 1 — hai đẳng thức từng dòng. Ngưỡng 85% như chup-vi: phần hụt là đơn
    có tỷ giá riêng hoặc giá vốn chốt tay, còn lấy nhầm cột thì tỉ lệ về gần 0
    chứ không phải 90. Đo trên file BE T9: cả hai đều 100,00%. */
-if ((meta.cotTyGia || []).length > 1) {
-  /* File có nhiều cột "Tỷ giá tuần" (CO Rate · REV Rate) — in rõ cột nào khớp
-     bao nhiêu, vì đã mất một lượt chạy để hiểu tại sao chốt báo 58%. */
-  console.log(
-    `   file có ${meta.cotTyGia.length} cột Tỷ giá tuần: ${meta.cotTyGia
-      .map((i, k) => `[${i}] ${so(meta.khopTheoCot[k])}/${so(meta.thuTyGia)}`)
-      .join(' · ')}`
-  );
+/* In cả ma trận gốc × cột tỷ giá. Đã mất hai lượt chạy để hiểu một con số
+   "58%" trơ trọi, nên chốt phải tự nói ra chỗ lệch. */
+if ((meta.cotTyGia || []).length && meta.thuTyGia) {
+  for (let g = 0; g < meta.gocTyGia.length; g++) {
+    console.log(
+      `   ${meta.gocTyGia[g].padEnd(14)} × tỷ giá: ${meta.cotTyGia
+        .map((i, k) => `[${i}] ${so(meta.khopTheoCap[g][k])}/${so(meta.thuTyGia)} (${((meta.khopTheoCap[g][k] / meta.thuTyGia) * 100).toFixed(1)}%)`)
+        .join(' · ')}`
+    );
+  }
 }
 for (const [ten, khop, thu] of [
   ['DThu thực nhận × Tỷ giá = Thành tiền', meta.khopTyGia, meta.thuTyGia],
