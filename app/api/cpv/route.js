@@ -30,8 +30,13 @@ import histT7 from '@/lib/data/cpv-2026-07.json';
    0/5 lượt qua đường công bố, gviz cũng hỏng. Chị hẹn 17/09 xem lại, có thay
    đổi thì chạy lại đúng đường này. */
 import histT8 from '@/lib/data/cpv-2026-08.json';
+/* T9 chốt ngày 06/10 từ file xlsx chị Quinh tải về (tab "Tháng 9" của BÁO CÁO
+   DOANH THU Quản lý đơn hàng BE), ghép với file API sàn T9. Tab này chỉ có MỘT
+   dòng tiêu đề, khuôn 25 cột — khác bản live T9 là 49 cột, nên đã quét 60 dòng
+   đầu để chắc không bỏ sót dòng tiêu đề thứ hai như hồi T8. */
+import histT9 from '@/lib/data/cpv-2026-09.json';
 
-const HIST = [histT1, histT2, histT3, histT4, histT5, histT6, histT7, histT8];
+const HIST = [histT1, histT2, histT3, histT4, histT5, histT6, histT7, histT8, histT9];
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;

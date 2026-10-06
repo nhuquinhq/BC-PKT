@@ -12,7 +12,13 @@
 # chinh file, va kiem tung dong So Tien x Ty gia tuan = DT VND. Lech thi khong ghi.
 #
 # Chay tay duoc cho thang khac: dien thang/nam/kieu/ma/gid. Kieu 'pub' dung cho
-# file con xuat ban duoc (T8), kieu 'gviz' cho file da hong hai duong kia (T9).
+# file con xuat ban duoc, kieu 'gviz' cho file da hong hai duong kia.
+#
+# SANG THANG MOI PHAI DOI 'thang' VA 'ma' O DAY. Quen doi la job cu ghi de
+# thang cu: ngay 03/10 file vi T9 tren Google bi dung lai, job van tro vao do
+# nen chep ban rong de len ban tot — 21.703 dong tut con 435, gia von ve 0, va
+# chay nhu vay ba ngay khong ai biet. Gio scripts/chup-vi.mjs co chot khong-teo
+# nen lan sau se dung lai, nhung van phai doi so o day.
 name: Chup vi vao datalake
 
 on:
@@ -23,7 +29,7 @@ on:
     inputs:
       thang:
         description: 'Thang (so)'
-        default: '9'
+        default: '10'
       nam:
         description: 'Nam'
         default: '2026'
@@ -32,7 +38,7 @@ on:
         default: 'gviz'
       ma:
         description: 'Ma file: token 2PACX... neu pub, file id neu gviz'
-        default: '1PW-EuT3Z6U_GFBXlnv1HYXETjD5l556x2hKL4Zhokt4'
+        default: '1Q7Jjku0OzQgqOpf1j1N1w09HVsKyw3x8Fp30IkwwYLA'
       gid:
         description: 'GID cua tab THVi Tien'
         default: '1425184209'
@@ -50,10 +56,10 @@ jobs:
     timeout-minutes: 55
     env:
       # Lich chay tu dong khong co inputs nen phai tu ve mac dinh o day.
-      THANG: ${{ github.event.inputs.thang || '9' }}
+      THANG: ${{ github.event.inputs.thang || '10' }}
       NAM: ${{ github.event.inputs.nam || '2026' }}
       KIEU: ${{ github.event.inputs.kieu || 'gviz' }}
-      MA: ${{ github.event.inputs.ma || '1PW-EuT3Z6U_GFBXlnv1HYXETjD5l556x2hKL4Zhokt4' }}
+      MA: ${{ github.event.inputs.ma || '1Q7Jjku0OzQgqOpf1j1N1w09HVsKyw3x8Fp30IkwwYLA' }}
       GID: ${{ github.event.inputs.gid || '1425184209' }}
     steps:
       - uses: actions/checkout@v4

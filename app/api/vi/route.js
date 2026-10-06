@@ -23,12 +23,14 @@ import histT7 from '@/lib/data/vi-2026-07.json';
    còn 'Trang tính5' thì 24.927 dòng nhưng DT VND, Giá Vốn, Tỷ giá đều #REF!. */
 import histT8 from '@/lib/data/vi-2026-08.json';
 import histT9 from '@/lib/data/vi-2026-09.json';
+/* T10 — tháng ĐANG CHẠY, chụp định kỳ bằng chup-vi.yml. */
+import histT10 from '@/lib/data/vi-2026-10.json';
 import { nhoDocFile } from '@/lib/boNho';
 /* .mjs chứ không phải .js: scripts/chup-vi.mjs chạy bằng node trần, mà
    package.json không đặt type:module nên node đọc .js là CommonJS. */
 import { parseWallet } from '@/lib/viParse.mjs';
 
-const HIST = [histT4, histT5, histT6, histT7, histT8, histT9];
+const HIST = [histT4, histT5, histT6, histT7, histT8, histT9, histT10];
 
 export const dynamic = 'force-dynamic';
 
