@@ -124,11 +124,8 @@ if (lech) {
   process.exit(1);
 }
 
-/* Chốt 4 — KHÔNG ĐƯỢC TEO. Một tháng đang chạy chỉ dày thêm, không mỏng đi.
-   Chốt này học từ vụ ví T9 ngày 03/10: file nguồn bị dựng lại, job chụp đúng
-   cái rỗng đó đè lên bản tốt, 21.703 dòng tụt còn 435 và chạy ba ngày không
-   ai biết. Cho tụt tối đa 2% để chừa chỗ cho đơn huỷ/sửa. Cố tình ghi đè bản
-   nhỏ hơn (vd chốt sổ lại từ file tải tay) thì đặt CHO_PHEP_TEO=1. */
+/* Bản đang nằm trong datalake của chính tháng này — dùng cho cả hai chốt
+   dưới đây (giữ phần API sàn, và chốt không-được-teo). */
 const BAN_CU = (() => {
   try {
     return JSON.parse(readFileSync(duongRa, 'utf8'));
@@ -136,13 +133,44 @@ const BAN_CU = (() => {
     return null;
   }
 })();
+
+/* GIU_API=1 — CHỐT LẠI MỘT THÁNG TỪ FILE TẢI TAY mà giữ nguyên phần đơn của
+   FILE API SÀN đã gộp vào tháng đó. Dùng khi chị Quinh gửi lại file BÁO CÁO
+   DOANH THU Quản lý đơn hàng BE và chỉ cần cập nhật phần BE.
+
+   Vì sao phải có cờ này: bản chụp định kỳ chỉ đọc file BE nên luôn ghi
+   api_file/dup_list rỗng và không có dòng nguon 'api'. Chạy thẳng nó lên một
+   tháng ĐÃ CHỐT SỔ là xoá sạch phần đơn tự động của tháng đó — tháng 4 là 755
+   đơn, tháng 9 là 228 đơn / 312.298.565 đ. */
+const giuApi = process.env.GIU_API === '1';
+const apiCu = giuApi ? (BAN_CU?.detail || []).filter((r) => (r.nguon || 'dh') === 'api') : [];
+const apiDon = apiCu.reduce((s, r) => s + (r.so_don || 0), 0);
+const apiTt = apiCu.reduce((s, r) => s + (r.thanh_tien || 0), 0);
+if (giuApi) {
+  console.log(`   giữ phần API sàn của bản cũ: ${so(apiCu.length)} nhóm · ${so(apiDon)} đơn · ${so(apiTt)} đ`);
+  if (!BAN_CU) {
+    console.error('GIU_API=1 nhưng chưa có bản cũ để lấy phần API — dừng cho chắc.');
+    process.exit(1);
+  }
+}
+
+/* Chốt 4 — KHÔNG ĐƯỢC TEO. Một tháng đang chạy chỉ dày thêm, không mỏng đi.
+   Chốt này học từ vụ ví T9 ngày 03/10: file nguồn bị dựng lại, job chụp đúng
+   cái rỗng đó đè lên bản tốt, 21.703 dòng tụt còn 435 và chạy ba ngày không
+   ai biết. Cho tụt tối đa 2% để chừa chỗ cho đơn huỷ/sửa. Cố tình ghi đè bản
+   nhỏ hơn (vd chốt sổ lại từ file tải tay) thì đặt CHO_PHEP_TEO=1. */
 if (BAN_CU && !process.env.CHO_PHEP_TEO) {
   const cu = Number(BAN_CU.counts?.ok) || 0;
   const cuTt = (BAN_CU.detail || []).reduce((s, r) => s + (r.thanh_tien || 0), 0);
   if (cu > 0) {
-    const tiLe = ok / cu;
-    const tiLeTt = cuTt > 0 ? tt / cuTt : 1;
-    console.log(`   chốt không teo: bản cũ ${so(cu)} đơn / ${so(cuTt)} đ · bản mới ${so(ok)} đơn / ${so(tt)} đ`);
+    /* So TỔNG CẢ THÁNG với bản cũ. Với GIU_API=1 thì phần BE mới phải cộng
+       lại phần API giữ nguyên, không thì tháng nào cũng trông như bị teo
+       đúng bằng phần đơn tự động. */
+    const moiDon = ok + apiDon;
+    const moiTt = tt + apiTt;
+    const tiLe = moiDon / cu;
+    const tiLeTt = cuTt > 0 ? moiTt / cuTt : 1;
+    console.log(`   chốt không teo: bản cũ ${so(cu)} đơn / ${so(cuTt)} đ · bản mới ${so(moiDon)} đơn / ${so(moiTt)} đ`);
     if (tiLe < 0.98 || tiLeTt < 0.98) {
       console.error(
         `Bản mới TEO so với bản đang có (${(tiLe * 100).toFixed(1)}% số đơn · ${(tiLeTt * 100).toFixed(1)}% số tiền) — KHÔNG ghi, giữ nguyên bản cũ.`
@@ -153,16 +181,22 @@ if (BAN_CU && !process.env.CHO_PHEP_TEO) {
   }
 }
 
+
 /* Khuôn giống các file cpv-*.json đã chốt sổ để /api/cpv nối thẳng vào HIST.
-   api_file và dup_list để rỗng: ảnh chụp này chỉ có nguồn đơn hàng BE, phần
-   file API sàn do chốt sổ cuối tháng gộp vào. */
+   api_file và dup_list để rỗng khi chụp định kỳ: bản chụp chỉ có nguồn đơn
+   hàng BE, phần file API sàn do chốt sổ cuối tháng gộp vào (hoặc giữ lại
+   bằng GIU_API=1 ở trên). */
 /* Danh sách ĐƠN CHƯA BÓC ĐƯỢC GIÁ VỐN cho PKT10 — đơn Hoàn Tất có doanh thu
    mà Giá Vốn = 0, đúng định nghĩa cờ 'nc' trong app/api/cpv/route.js. Phải
    lưu ở đây vì PKT10 cần dữ liệu TỪNG ĐƠN, mà tháng đang chạy thì Google
    không cho Vercel đọc live. Nhẹ: cả tháng 9 chỉ 530 đơn. */
-const noCost = trongThang
-  .filter((r) => r.sc === 'ok' && r.thanh_tien > 0 && !r.gia_von)
-  .slice(0, 3000)
+const ncTatCa = trongThang.filter((r) => r.sc === 'ok' && r.thanh_tien > 0 && !r.gia_von);
+/* Trần 5.000 chứ không 3.000: tháng 6 có 3.390 đơn chưa bóc được giá vốn
+   (17,4% số đơn, treo 637.568.846 đ — 9,4% doanh thu tháng), tức trần 3.000
+   cắt mất 390 đơn mà danh sách không nói gì. Tổng THẬT ghi riêng ở
+   no_cost_tong nên dù có cắt thì KPI vẫn đúng. */
+const noCost = ncTatCa
+  .slice(0, 5000)
   .map((r) => ({
     order_id: r.id,
     san: r.san,
@@ -173,20 +207,40 @@ const noCost = trongThang
     doanh_thu_usd: r.doanh_thu_usd,
     thanh_tien: r.thanh_tien,
   }));
-console.log(`   đơn chưa có giá vốn: ${so(noCost.length)} đơn · GMV treo ${so(noCost.reduce((s, r) => s + r.thanh_tien, 0))} đ`);
+const ncGmv = ncTatCa.reduce((s, r) => s + r.thanh_tien, 0);
+console.log(
+  `   đơn chưa có giá vốn: ${so(ncTatCa.length)} đơn · GMV treo ${so(ncGmv)} đ` +
+    `${ncTatCa.length > noCost.length ? ` (danh sách lưu ${so(noCost.length)} đơn đầu)` : ''}`
+);
+
+/* Dòng BE mới + dòng API sàn giữ lại, xếp theo ngày như /api/cpv chờ đợi. */
+const detailRa = giuApi
+  ? detail
+      .concat(apiCu)
+      .sort((x, y) => (x.sortKey < y.sortKey ? -1 : x.sortKey > y.sortKey ? 1 : x.san.localeCompare(y.san)))
+  : detail;
 
 const ra = {
   thang: `${String(thang).padStart(2, '0')}/${nam}`,
-  nguon: 'Tab đơn hàng file CPV BE, chụp tự động bằng .github/workflows/chup-be.yml',
+  nguon: giuApi
+    ? 'Tab tháng của file BÁO CÁO DOANH THU Quản lý đơn hàng BE (tải tay), giữ phần API sàn của bản chốt trước'
+    : 'Tab đơn hàng file CPV BE, chụp tự động bằng .github/workflows/chup-be.yml',
   chup_luc: new Date().toISOString(),
-  counts: { ok, fail, huy },
-  detail,
+  counts: { ok: ok + apiDon, fail, huy },
+  detail: detailRa,
   no_cost_list: noCost,
-  api_file: [],
-  dup_list: [],
+  /* Tổng THẬT, không bị trần của no_cost_list cắt — KPI của PKT10 đọc cái này. */
+  no_cost_tong: { don: ncTatCa.length, gmv: ncGmv },
+  api_file: giuApi ? BAN_CU.api_file || [] : [],
+  dup_list: giuApi ? BAN_CU.dup_list || [] : [],
 };
 writeFileSync(duongRa, `${JSON.stringify(ra, null, 0)}\n`, 'utf8');
 
-const ngay = [...new Set(detail.map((r) => r.ngay))].sort();
-console.log(`   ghi ${duongRa}: ${so(ok)} đơn · ${so(detail.length)} nhóm · ${ngay[0]} → ${ngay[ngay.length - 1]}`);
-console.log(`   DT ${so(tt)} đ · GV ${so(gv)} đ · LN ${so(tt - gv)} đ (${tt > 0 ? ((gv / tt) * 100).toFixed(1) : 0}% giá vốn)`);
+const ngay = [...new Set(detailRa.map((r) => r.ngay))].sort();
+console.log(`   ghi ${duongRa}: ${so(ok + apiDon)} đơn · ${so(detailRa.length)} nhóm · ${ngay[0]} → ${ngay[ngay.length - 1]}`);
+console.log(`   BE: DT ${so(tt)} đ · GV ${so(gv)} đ · LN ${so(tt - gv)} đ (${tt > 0 ? ((gv / tt) * 100).toFixed(1) : 0}% giá vốn)`);
+if (giuApi) {
+  const tongTt = tt + apiTt;
+  const tongGv = detailRa.reduce((s, r) => s + (r.gia_von || 0), 0);
+  console.log(`   CẢ THÁNG (BE + API sàn): ${so(ok + apiDon)} đơn · DT ${so(tongTt)} đ · GV ${so(tongGv)} đ · LN ${so(tongTt - tongGv)} đ`);
+}

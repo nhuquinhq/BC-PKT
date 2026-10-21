@@ -481,9 +481,15 @@ export async function GET(request) {
         meta: { tong: raws.length, gioi_han: 60000 },
       });
     }
+    /* Trần 20.000 chứ không 3.000. Đo 21/10 khi chốt lại T4–T9 vào datalake:
+       riêng tháng 6 đã 3.390 đơn chưa bóc được giá vốn (17,4% số đơn, treo
+       637.568.846 đ), cộng cả T4–T10 là khoảng 6.100 — trần 3.000 cắt mất
+       hơn một nửa mà PKT10 dựng KPI từ chính danh sách này, tức số trên
+       trang sẽ nhỏ hơn thực tế và không có gì báo. Chỉ PKT10 phải tải danh
+       sách này (nhánh nocost), các trang khác không. */
     noCostList = kq.all
       .filter((r) => r.nc)
-      .slice(0, 3000)
+      .slice(0, 20000)
       .map((r) => ({
         order_id: r.id,
         san: r.san,
@@ -506,7 +512,7 @@ export async function GET(request) {
       noCostList = thuNc
         .concat(noCostList)
         .sort((x, y) => (x.sortKey < y.sortKey ? -1 : x.sortKey > y.sortKey ? 1 : 0))
-        .slice(0, 3000);
+        .slice(0, 20000);
     }
     goi = goiGon(kq);
   } else {
