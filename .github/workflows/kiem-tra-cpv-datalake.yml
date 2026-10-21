@@ -21,7 +21,7 @@ jobs:
         run: |
           for p in / /bao-cao/pkt8 /bao-cao/pkt10 /bao-cao/pkt15 /bao-cao/pkt6 /nguon-du-lieu; do
             printf '%-22s ' "$p"
-            curl -sS -o /dev/null -m 90 -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' "$GOC$p" || echo LOI
+            curl -sS -o /dev/null -m 90 -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' "$GOC$p" | tee -a /tmp/kq.log || echo LOI
           done
 
       - name: API cpv — 3 luot de xem bo nho dem
@@ -31,7 +31,7 @@ jobs:
             curl -sS -m 290 -o "/tmp/c$i.json" -w 'HTTP %{http_code} · %{time_total}s · %{size_download} byte\n' \
               "$GOC/api/cpv?hist=1" || true
           done
-          python3 -I - <<'PY'
+          python3 -I - <<'PY' 2>&1 | tee -a /tmp/kq.log
           import json
           d = json.load(open('/tmp/c1.json'))
           m = d.get('meta') or {}
@@ -62,7 +62,7 @@ jobs:
           curl -sS -m 290 -o /tmp/nc.json -w 'HTTP %{http_code} · %{time_total}s\n' "$GOC/api/cpv?hist=1&nocost=1" || true
           printf 'raw     '
           curl -sS -m 290 -o /tmp/rw.json -w 'HTTP %{http_code} · %{time_total}s\n' "$GOC/api/cpv?hist=1&raw=1" || true
-          python3 -I - <<'PY'
+          python3 -I - <<'PY' 2>&1 | tee -a /tmp/kq.log
           import json
           nc = json.load(open('/tmp/nc.json'))
           l = nc.get('no_cost_list') or []
@@ -83,7 +83,7 @@ jobs:
         run: |
           printf 'vi      '
           curl -sS -m 290 -o /tmp/v.json -w 'HTTP %{http_code} · %{time_total}s\n' "$GOC/api/vi?hist=1" || true
-          python3 -I - <<'PY'
+          python3 -I - <<'PY' 2>&1 | tee -a /tmp/kq.log
           import json
           d = json.load(open('/tmp/v.json'))
           m = d.get('meta') or {}
@@ -99,3 +99,18 @@ jobs:
               ty = (t[k][1] / t[k][0] * 100) if t[k][0] else 0
               print(f'    {k}  {n(t[k][0]):>16} d · GV {n(t[k][1]):>16} · {ty:.1f}%')
           PY
+
+      # Cac buoc nam giua job nen doc log phai keo nguoc rat nhieu dong. In lai
+      # o CUOI va vao trang tom tat cua job — da mat han chuc luot doc log de
+      # tim mot bang so.
+      - name: In lai ket qua
+        if: always()
+        run: |
+          echo '=== ket qua ==='
+          cat /tmp/kq.log 2>/dev/null || echo '(khong co)'
+          {
+            echo '## Kiểm tra CPV datalake'
+            echo '```'
+            cat /tmp/kq.log 2>/dev/null || echo '(khong co)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
