@@ -391,6 +391,14 @@ export async function GET(request) {
     `Số đơn: <b>${donNgay.toLocaleString('vi-VN')} đơn</b>`,
   ];
   if (tyGia > 0) lines.push(`💱 Tỷ giá quy đổi: <b>${Math.round(tyGia).toLocaleString('vi-VN')} đ/USDT</b>`);
+  /* GIỜ CHỤP SỐ — không phải trang trí. Bot bắn lúc 12h · 18h · 23h30 nên
+     "hôm nay" mới chạy được một phần, trong khi "cùng ngày tháng trước" và
+     "cùng kỳ" là những ngày ĐÃ XONG. Ngày 01/11 tin bắn lúc 13:16 ra ▼68,6%,
+     đọc như doanh thu sụp, mà phần lớn chỉ là nửa ngày so với cả ngày.
+     Đặt ngay dưới khối "Hôm nay" để người đọc thấy TRƯỚC các con số %.
+     Chỉ ghi khi đang báo đúng ngày hôm nay: gọi kèm ?date= để tra ngày cũ
+     thì câu này sai. */
+  if (ngay === now.ngay) lines.push(`⏳ <i>hôm nay mới tới ${now.gio}</i>`);
   if (coCungKy) {
     const usdCk = sum(cungKyNgay, 'doanh_thu_usd');
     const gmvCk = sum(cungKyNgay, 'thanh_tien');
