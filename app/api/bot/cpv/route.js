@@ -220,12 +220,17 @@ export async function GET(request) {
      Vì sao cần tháng trước: khối "so cùng kỳ" lấy số tháng trước từ datalake,
      mà tháng vừa qua thì CHƯA chốt sổ nên chưa có trong đó — phải đọc live
      thì mùng 1 tháng mới bot mới có cái để so. Chốt sổ xong thì bỏ khỏi mains. */
+  /* urlb — đường đọc DỰ PHÒNG của CÙNG tab đó. Trước đây chỗ này bỏ qua urlb
+     nên khai trong BOT_CPV_SHEET cũng vô ích; /api/cpv ghép urlb với url THEO
+     THỨ TỰ nên phải append cho MỌI file, kể cả khi rỗng, không thì lệch cặp. */
   qs.append('url', cfg.url);
   qs.append('gid', cfg.gid || '0');
+  qs.append('urlb', cfg.urlb || '');
   for (const m of cfg.mains || []) {
     if (!m?.url) continue;
     qs.append('url', m.url);
     qs.append('gid', m.gid || '0');
+    qs.append('urlb', m.urlb || '');
   }
   const apis = Array.isArray(cfg.api) ? cfg.api : cfg.api?.url ? [cfg.api] : [];
   for (const a of apis) {
