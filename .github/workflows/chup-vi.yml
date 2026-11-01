@@ -96,7 +96,13 @@ jobs:
             sleep 20
           done
           echo "keo_duoc=0" >> "$GITHUB_OUTPUT"
-          echo "Google khong xuat duoc file vi sau 24 luot."
+          # EXIT 1 chu khong de job xanh. Truoc day buoc nay chi echo roi
+          # thoat 0, nen job bao SUCCESS trong khi buoc ghi datalake bi
+          # skipped va khong co gi duoc cap nhat — dau xanh che mat viec
+          # du lieu dang dung yen. File vi T10 dung tu 07/10 ma job xanh
+          # suot, phat hien ra ngay 01/11 (3,5 tuan). Im lang te hon do.
+          echo "::error::Google khong xuat duoc file vi sau 24 luot — datalake KHONG duoc cap nhat."
+          exit 1
 
       - name: Boc va ghi datalake
         if: steps.keo.outputs.keo_duoc == '1'
