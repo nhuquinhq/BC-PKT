@@ -19,7 +19,9 @@ jobs:
           d = json.load(open('/tmp/pv.json'))
           if d.get('error'):
               print('LOI:', d['error']); raise SystemExit
-          bo = lambda s: re.sub(r'</?b>', '', s or '')
+          # Bo ca <b> va <i>: tin bot dung parse_mode HTML, truoc day chi bo <b>
+          # nen dong "⏳ <i>hom nay moi toi HH:MM</i>" in ra kem the, kho doc.
+          bo = lambda s: re.sub(r'</?[bi]>', '', s or '')
           print('======== TIN 1 ========')
           print(bo(d.get('message')))
           print()
