@@ -1,0 +1,78 @@
+# Xem CHU THO trong o Doanh thu cua file V3 T11.
+#
+# Ba dong lam GMV 02/11 phong len deu lech DUNG 1000 lan neu doc "14.412" la
+# muoi bon nghin thay vi 14,412 USD:
+#     14.412 -> 14.412 USD hay 14412 USD?
+#     12.300 -> 12,3   USD hay 12300 USD?
+#      1.396 ->  1,396 USD hay  1396 USD?
+# viNum trong lib/beParse.mjs coi 'd{1,3}.d{3}' la dau NGHIN (dung voi locale
+# VN), nen neu file nay xuat so voi dau THAP PHAN la dau cham thi ba dong do
+# bi nhan 1000 — va day la loi BO DOC, khong phai loi nguoi nhap.
+#
+# Dem luon ca cot: bao nhieu o dung dau phay, bao nhieu dung dau cham, bao
+# nhieu roi vao dang nhap nhang 'd{1,3}.d{3}'.
+name: Soi chu tho T11
+
+on:
+  workflow_dispatch: {}
+
+env:
+  PUB: "2PACX-1vQKVL2GuVWoliN6Az9xj4DNHsEV1o_nZNfBwOjHbNJsCWRhBKoiNrLEHngslyin06O3u_31ArJjyVsm"
+  GOC: "https://bc-pkt.vercel.app"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Keo luoi tho va dem khuon so
+        run: |
+          curl -sS -m 290 -G "$GOC/api/sheet" \
+            --data-urlencode "url=https://docs.google.com/spreadsheets/d/e/$PUB/pubhtml?gid=0&single=true" \
+            --data-urlencode 'gid=0' --data-urlencode 'raw=1' \
+            -o /tmp/g.json -w 'api/sheet HTTP %{http_code}\n' | tee -a /tmp/kq.log
+          python3 -I - <<'PY' | tee -a /tmp/kq.log
+          import json, re, collections, unicodedata
+          bd = lambda s: ''.join(c for c in unicodedata.normalize('NFD', str(s or ''))
+                                 if unicodedata.category(c) != 'Mn').replace('đ','d').lower().strip()
+          j = json.load(open('/tmp/g.json'))
+          g = j.get('grid') or []
+          hdr = next(i for i, r in enumerate(g[:40]) if any(bd(c) == 'order id' for c in r))
+          cols = [str(c).strip() for c in g[hdr]]
+          ix = lambda t: next((i for i, c in enumerate(cols) if bd(c) == t), None)
+          i_dt, i_tn, i_id, i_san = ix('doanh thu'), ix('dthu thuc nhan'), ix('order id'), ix('san')
+          i_ht = next((i for i, c in enumerate(cols) if 'hoan tat' in bd(c)), None)
+          i_st = ix('trang thai')
+
+          NHAP_NHANG = re.compile(r'^-?\d{1,3}(\.\d{3})+$')
+          dem = collections.Counter()
+          nn = []
+          CAN = {'OD000000167731428', 'K7378210'}
+          for r in g[hdr+1:]:
+              gg = lambda i: (str(r[i]) if (i is not None and i < len(r)) else '')
+              if bd(gg(i_st)) != 'hoan tat': continue
+              s = gg(i_dt).strip()
+              if not s: dem['rong'] += 1; continue
+              if ',' in s and '.' in s: dem['co ca , va .'] += 1
+              elif ',' in s: dem['chi co , (thap phan kieu VN)'] += 1
+              elif NHAP_NHANG.match(s): dem['NHAP NHANG d{1,3}.d{3}'] += 1
+              elif '.' in s: dem['co . kieu khac'] += 1
+              else: dem['so nguyen, khong dau'] += 1
+              if NHAP_NHANG.match(s) or gg(i_id).strip() in CAN or (s.count('.') == 1 and len(s.split('.')[-1]) == 3):
+                  nn.append((gg(i_ht)[:10], gg(i_san), gg(i_id)[:24], s, gg(i_tn).strip()))
+          print()
+          print('khuon so o cot "Doanh thu" (chi don Hoan Tat):')
+          for k, v in dem.most_common():
+              print(f'   {k:34} {v:>6}')
+          print()
+          print(f'{len(nn)} dong co khuon nhap nhang hoac nam trong danh sach can soi:')
+          print(f'   {"ngay":10} {"san":>5} {"order id":>24}  {"Doanh thu (chu tho)":>22} {"DThu thuc nhan":>18}')
+          for x in sorted(nn, reverse=True)[:20]:
+              print(f'   {x[0]:10} {x[1]:>5} {x[2]:>24}  {x[3]:>22} {x[4]:>18}')
+          PY
+
+      - name: In lai ket qua
+        if: always()
+        run: |
+          echo '=== ket qua ==='; cat /tmp/kq.log 2>/dev/null || echo '(khong co)'
+          { echo '## Soi chu tho T11'; echo '```'; cat /tmp/kq.log 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
