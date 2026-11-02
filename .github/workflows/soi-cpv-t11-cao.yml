@@ -1,0 +1,97 @@
+# Truy con so GMV (VND) 861,3 tr trong tin bot 12:02 ngay 02/11.
+#
+# Vi sao dang ngo: ca ngay 01/11 moi 80,4 tr (264 don), trung binh thang 10 la
+# ~268 tr/ngay (8.296.904.785 d / 31 ngay). 861 tr trong nua ngay la gap ~3 lan
+# trung binh thang truoc va gap ~10 lan ngay hom truoc.
+#
+# Nghi van chinh: file V3 KHONG co cot Thanh tien nen /api/cpv tu quy doi
+# USD -> VND bang bang ty gia tuan. Cot Gia von cua file nay da biet la LAN
+# DON VI (190 dong USD, 2 dong VND). Neu cot Doanh thu cung co dong ghi bang
+# VND thi mot dong 10.000 se thanh 255 tr sau khi nhan ty gia.
+name: Soi CPV T11 cao bat thuong
+
+on:
+  workflow_dispatch: {}
+
+env:
+  PUB: "2PACX-1vQKVL2GuVWoliN6Az9xj4DNHsEV1o_nZNfBwOjHbNJsCWRhBKoiNrLEHngslyin06O3u_31ArJjyVsm"
+  GOC: "https://bc-pkt.vercel.app"
+
+jobs:
+  soi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Tin bot hien tai (preview, khong gui)
+        run: |
+          curl -sS -m 290 -o /tmp/pv.json "$GOC/api/bot/cpv?preview=1" || true
+          python3 -I - <<'PY' | tee -a /tmp/kq.log
+          import json, re
+          d = json.load(open('/tmp/pv.json'))
+          bo = lambda s: re.sub(r'</?[bi]>', '', s or '')
+          print('======== TIN 1 ========'); print(bo(d.get('message')))
+          m = d.get('meta') or {}
+          if m: print('meta:', json.dumps(m, ensure_ascii=False)[:400])
+          PY
+
+      - name: Doc thang file nguon va truy dong bat thuong
+        run: |
+          curl -sS -m 290 -G "$GOC/api/sheet" \
+            --data-urlencode "url=https://docs.google.com/spreadsheets/d/e/$PUB/pubhtml?gid=0&single=true" \
+            --data-urlencode 'gid=0' --data-urlencode 'raw=1' \
+            -o /tmp/g.json -w 'api/sheet HTTP %{http_code} · %{time_total}s\n' | tee -a /tmp/kq.log
+          python3 -I - <<'PY' | tee -a /tmp/kq.log
+          import json, re, collections, unicodedata
+          bd = lambda s: ''.join(c for c in unicodedata.normalize('NFD', str(s or ''))
+                                 if unicodedata.category(c) != 'Mn').replace('đ','d').lower().strip()
+          def viNum(s):
+              s = str(s or '').strip().replace(' ', '')
+              if not s: return 0.0
+              if ',' in s: s = s.replace('.', '').replace(',', '.')
+              elif re.fullmatch(r'-?\d{1,3}(\.\d{3})+', s): s = s.replace('.', '')
+              try: return float(s)
+              except ValueError: return 0.0
+          n = lambda x: f'{x:,.0f}'.replace(',', '.')
+          j = json.load(open('/tmp/g.json'))
+          if j.get('error'):
+              print('LOI doc file:', j['error'][:150]); raise SystemExit(0)
+          g = j.get('grid') or []
+          hdr = next(i for i, r in enumerate(g[:40]) if any(bd(c) == 'order id' for c in r))
+          cols = [str(c).strip() for c in g[hdr]]
+          ix = lambda t: next((i for i, c in enumerate(cols) if bd(c) == t), None)
+          i_dt, i_tn = ix('doanh thu'), ix('dthu thuc nhan')
+          i_ht = next((i for i, c in enumerate(cols) if 'hoan tat' in bd(c)), None)
+          i_st, i_san, i_id = ix('trang thai'), ix('san'), ix('order id')
+          print(f'cot: Doanh thu[{i_dt}] · DThu thuc nhan[{i_tn}] · Ngay hoan tat[{i_ht}] · San[{i_san}]')
+          ngay = collections.defaultdict(lambda: [0, 0.0, 0.0])
+          lon = []
+          for r in g[hdr+1:]:
+              gg = lambda i: (r[i] if (i is not None and i < len(r)) else '')
+              if bd(gg(i_st)) != 'hoan tat': continue
+              m = re.search(r'(\d{4})-(\d{2})-(\d{2})', str(gg(i_ht)))
+              if not m: continue
+              k = f'{m.group(3)}/{m.group(2)}'
+              dt, tn = viNum(gg(i_dt)), viNum(gg(i_tn))
+              a = ngay[k]; a[0] += 1; a[1] += dt; a[2] += tn
+              if dt >= 500:
+                  lon.append((dt, tn, k, str(gg(i_san)), str(gg(i_id))[:22]))
+          print()
+          print('theo ngay (don Hoan Tat):')
+          for k in sorted(ngay, key=lambda x: (x[3:], x[:2])):
+              a = ngay[k]
+              print(f'   {k}  {n(a[0]):>6} don · Doanh thu ${n(a[1]):>12} · DThu thuc nhan ${n(a[2]):>12}')
+          tong_dt = sum(a[1] for a in ngay.values()); tong_tn = sum(a[2] for a in ngay.values())
+          print(f'   TONG  {n(sum(a[0] for a in ngay.values()))} don · ${n(tong_dt)} · thuc nhan ${n(tong_tn)}')
+          print(f'   quy doi thu x 25.566: {n(tong_tn * 25566)} d')
+          print()
+          print(f'{len(lon)} dong co Doanh thu >= 500 (don USD binh thuong chi vai chuc):')
+          for dt, tn, k, san, oid in sorted(lon, reverse=True)[:15]:
+              print(f'   {k} {san:>5} {oid:>24}  Doanh thu {n(dt):>12} · thuc nhan {n(tn):>12}'
+                    f'  -> x25.566 = {n(tn * 25566)} d')
+          PY
+
+      - name: In lai ket qua
+        if: always()
+        run: |
+          echo '=== ket qua ==='; cat /tmp/kq.log 2>/dev/null || echo '(khong co)'
+          { echo '## Soi CPV T11'; echo '```'; cat /tmp/kq.log 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
